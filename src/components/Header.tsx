@@ -1,11 +1,11 @@
 'use client'
 
-// ── Site navigation header ──
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useTheme } from './ThemeProvider'
+import { Sun, Moon, LogIn } from 'lucide-react'
 
-// Nav link definitions (Home, Lessons, Playground, Mentor)
 const links = [
   { href: '/', label: 'Home' },
   { href: '/lessons', label: 'Lessons' },
@@ -14,7 +14,8 @@ const links = [
 ]
 
 export default function Header() {
-  const pathname = usePathname() // Current route, used to highlight active link
+  const pathname = usePathname()
+  const { theme, toggle } = useTheme()
 
   return (
     <header className="pt-4 pb-2">
@@ -51,6 +52,24 @@ export default function Header() {
                 </Link>
               )
             })}
+
+            <div className="w-px h-6 bg-border mx-1" />
+
+            <button
+              onClick={toggle}
+              aria-label="Toggle dark mode"
+              className="p-2 rounded-xl text-text-muted hover:text-text hover:bg-cream-dark/50 transition-all"
+            >
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+
+            <Link
+              href="/login"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-accent hover:bg-cream-dark/50 border border-transparent hover:border-accent transition-all"
+            >
+              <LogIn size={14} />
+              Sign In
+            </Link>
           </nav>
         </div>
       </div>

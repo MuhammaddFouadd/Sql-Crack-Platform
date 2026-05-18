@@ -1,16 +1,28 @@
-const CACHE = 'sql-craker-v1'
+const CACHE = 'sql-craker-v2'
 
 const PRECACHE = [
   '/',
   '/lessons',
   '/playground',
   '/chat',
+  '/login',
+  '/signup',
   '/sql-wasm.wasm',
 ]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(PRECACHE))
+    caches.open(CACHE)
+      .then((cache) => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
+  )
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+    ).then(() => clients.claim())
   )
 })
 
@@ -37,6 +49,10 @@ async function cacheFirst(request) {
     }
     return response
   } catch {
+    if (request.mode === 'navigate') {
+      const fallback = await caches.match('/')
+      if (fallback) return fallback
+    }
     return new Response('Offline', { status: 408 })
   }
 }

@@ -107,12 +107,20 @@ export default function LessonsPage() {
                               {topic}
                             </span>
                           ))}
-                          {p && p.total > 0 && (
-                            <span className="text-[10px] text-text-muted ml-auto">
+                        </div>
+                        {p && p.total > 0 && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <div className="flex-1 h-1.5 rounded-full bg-cream-dark border border-border overflow-hidden max-w-[120px]">
+                              <div
+                                className="h-full bg-green rounded-full transition-all duration-500"
+                                style={{ width: `${(p.solved / p.total) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-text-muted tabular-nums">
                               {p.solved}/{p.total}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                       <span className="text-text-muted group-hover:text-text transition-colors text-lg mt-1">→</span>
                     </div>

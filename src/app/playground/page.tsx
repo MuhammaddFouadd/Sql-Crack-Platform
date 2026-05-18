@@ -2,8 +2,8 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import Editor from '@monaco-editor/react'
 import initSqlJs, { Database } from 'sql.js'
+import SqlEditor from '@/components/SqlEditor'
 import SchemaPanel from '@/components/playground/SchemaPanel'
 import ExampleQueries from '@/components/playground/ExampleQueries'
 import QueryHistory, { addToHistory } from '@/components/playground/QueryHistory'
@@ -299,25 +299,13 @@ export default function PlaygroundPage() {
           </div>
         </div>
 
-        {/* Monaco SQL editor */}
+        {/* SQL editor with Monaco + textarea fallback for offline */}
         <div className="h-1/2 border-b-2 border-border min-h-[120px]">
-          <Editor
-            height="100%"
-            defaultLanguage="sql"
-            theme="light"
+          <SqlEditor
             value={query}
-            onChange={(val) => setQuery(val || '')}
-            options={{
-              minimap: { enabled: false },
-              fontSize: 13,
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              padding: { top: 12 },
-              tabSize: 2,
-              wordWrap: 'on',
-              bracketPairColorization: { enabled: true },
-            }}
+            onChange={setQuery}
+            onRun={() => runQuery()}
+            placeholder="Write your SQL here..."
           />
         </div>
 
