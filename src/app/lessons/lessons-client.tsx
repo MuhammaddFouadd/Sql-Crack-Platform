@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
@@ -14,19 +14,18 @@ const difficultyConfig = {
 }
 
 export default function LessonsClient() {
-  const [refresh, setRefresh] = useState(0)
+  const [progressMap, setProgressMap] = useState<Record<string, { solved: number; total: number; completed: boolean }>>({})
 
-  useEffect(() => {
-    const onFocus = () => setRefresh((v) => v + 1)
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [])
-
-  const progressMap = useMemo(() => {
+  const refresh = useCallback(() => {
     const counts: Record<string, number> = {}
     for (const l of lessons) counts[l.id] = l.practiceQuestions.length
-    return getAllProgress(lessons.map((l) => l.id), counts)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setProgressMap(getAllProgress(lessons.map((l) => l.id), counts))
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [refresh])
 
   const groups = {
