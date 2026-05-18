@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
@@ -8,6 +8,8 @@ import CodeBlock from '@/components/ui/CodeBlock'
 import { getLessonViz, renderLessonViz, getLessonInternalEngine } from '@/components/viz/LessonViz'
 import SqlRunner from '@/components/SqlRunner'
 import PracticeAnswer from '@/components/lessons/PracticeAnswer'
+import { getLessonProgress } from '@/lib/progress'
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const difficultyConfig: Record<string, { label: string; classes: string }> = {
   beginner: { label: 'Beginner', classes: 'bg-green-light text-green border-green/30' },
@@ -18,6 +20,21 @@ const difficultyConfig: Record<string, { label: string; classes: string }> = {
 export default function LessonPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const lesson = lessons.find((l) => l.id === slug)
+  const [progressSolved, setProgressSolved] = useState(0)
+  const [progressTotal, setProgressTotal] = useState(0)
+
+  const allIds = lessons.map((l) => l.id)
+  const idx = allIds.indexOf(slug)
+  const prev = idx > 0 ? lessons[idx - 1] : null
+  const next = idx < lessons.length - 1 ? lessons[idx + 1] : null
+
+  useEffect(() => {
+    if (lesson) {
+      const p = getLessonProgress(lesson.id, lesson.practiceQuestions.length)
+      setProgressSolved(p.solved)
+      setProgressTotal(p.total)
+    }
+  }, [lesson])
 
   if (!lesson) {
     return (
@@ -28,13 +45,15 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
     )
   }
 
+  const allDone = progressSolved >= progressTotal && progressTotal > 0
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 animate-fade-in">
       <Link href="/lessons" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text transition-colors mb-6">
         ← Back to lessons
       </Link>
 
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-3">
         <span className="text-3xl">{lesson.icon}</span>
         <div>
           <h1 className="text-3xl font-bold text-text">{lesson.title}</h1>
@@ -49,6 +68,29 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+          <span className="font-medium text-text">{progressSolved}</span>
+          <span>/</span>
+          <span>{progressTotal}</span>
+          <span>questions solved</span>
+        </div>
+        {progressTotal > 0 && (
+          <div className="flex-1 max-w-[160px] h-2 rounded-full bg-cream-dark border border-border overflow-hidden">
+            <div
+              className="h-full bg-green rounded-full transition-all duration-500"
+              style={{ width: `${(progressSolved / progressTotal) * 100}%` }}
+            />
+          </div>
+        )}
+        {allDone && (
+          <span className="flex items-center gap-1 text-xs text-green font-semibold">
+            <Check size={13} />
+            Complete
+          </span>
+        )}
       </div>
 
       <div className="space-y-8">
@@ -132,7 +174,7 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
           <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Practice Questions</h2>
           <div className="space-y-3">
             {lesson.practiceQuestions.map((q, i) => (
-              <PracticeAnswer key={i} question={q.question} hint={q.hint} solution={q.solution} index={i} />
+              <PracticeAnswer key={i} lessonId={lesson.id} question={q.question} hint={q.hint} solution={q.solution} index={i} />
             ))}
           </div>
 
@@ -151,6 +193,33 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
             <SqlRunner defaultQuery={`-- Try your solution for the questions above\nSELECT * FROM employees LIMIT 5;`} />
           </div>
         </div>
+      </div>
+
+      <div className="mt-12 flex items-center justify-between border-t-2 border-border pt-6">
+        {prev ? (
+          <Link
+            href={`/lessons/${prev.id}`}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all group"
+          >
+            <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+            <div className="text-left">
+              <div className="text-[10px] text-text-muted uppercase tracking-wider">Previous</div>
+              <div className="text-sm font-semibold text-text">{prev.icon} {prev.title}</div>
+            </div>
+          </Link>
+        ) : <div />}
+        {next ? (
+          <Link
+            href={`/lessons/${next.id}`}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all group text-right"
+          >
+            <div>
+              <div className="text-[10px] text-text-muted uppercase tracking-wider">Next</div>
+              <div className="text-sm font-semibold text-text">{next.icon} {next.title}</div>
+            </div>
+            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        ) : <div />}
       </div>
     </div>
   )
