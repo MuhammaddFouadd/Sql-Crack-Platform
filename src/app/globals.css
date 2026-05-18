@@ -40,6 +40,10 @@
   --font-size-5xl: 3.25rem;
 }
 
+html {
+  zoom: 1.15;
+}
+
 body {
   background: var(--color-cream);
   color: var(--color-text);
