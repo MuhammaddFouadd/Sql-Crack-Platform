@@ -1,10 +1,13 @@
+/** LocalStorage-based progress tracking for lessons. */
 const STORAGE_KEY = 'sql-progress'
 
+/** Tracks which questions a user has solved in a lesson. */
 export interface LessonProgress {
   solved: number[]
   completed: boolean
 }
 
+/** Load all saved progress from localStorage. */
 export function loadProgress(): Record<string, LessonProgress> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -14,6 +17,7 @@ export function loadProgress(): Record<string, LessonProgress> {
   }
 }
 
+/** Mark a question as solved for a given lesson. */
 export function saveSolved(lessonId: string, questionIndex: number): void {
   const progress = loadProgress()
   const entry = progress[lessonId] ?? { solved: [], completed: false }
@@ -24,11 +28,13 @@ export function saveSolved(lessonId: string, questionIndex: number): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)) } catch {}
 }
 
+/** Check whether a specific question has been solved. */
 export function isSolved(lessonId: string, questionIndex: number): boolean {
   const progress = loadProgress()
   return progress[lessonId]?.solved.includes(questionIndex) ?? false
 }
 
+/** Get solved/total counts for a single lesson. */
 export function getLessonProgress(lessonId: string, totalQuestions: number): { solved: number; total: number; completed: boolean } {
   const progress = loadProgress()
   const entry = progress[lessonId]
@@ -40,6 +46,7 @@ export function getLessonProgress(lessonId: string, totalQuestions: number): { s
   }
 }
 
+/** Get solved/total counts for multiple lessons at once. */
 export function getAllProgress(lessonIds: string[], questionCounts: Record<string, number>): Record<string, { solved: number; total: number; completed: boolean }> {
   const progress = loadProgress()
   const result: Record<string, { solved: number; total: number; completed: boolean }> = {}
