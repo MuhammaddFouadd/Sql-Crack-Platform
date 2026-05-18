@@ -1,25 +1,19 @@
+// Home page — hero, feature cards, topic grid, and how-it-works steps
 import Link from 'next/link'
 
+// Feature section cards linking to main areas of the platform
 const sections = [
   {
     title: 'SQL Lessons',
-    description: 'From SELECT to Window Functions — a structured path from beginner to advanced.',
+    description: '14 structured lessons from SELECT to Window Functions — a complete learning path.',
     href: '/lessons',
     icon: '📚',
     color: 'border-blue bg-blue-light',
     count: '14 topics'
   },
   {
-    title: 'PostgreSQL',
-    description: 'PostgreSQL-specific features: EXPLAIN, indexes, performance, and MySQL differences.',
-    href: '/postgres',
-    icon: '🐘',
-    color: 'border-blue bg-blue-light',
-    count: '1 guide'
-  },
-  {
     title: 'SQL Playground',
-    description: 'Write and execute SQL queries in your browser with Monaco Editor.',
+    description: 'Browser-based SQL engine. Write queries, explore schemas, export results. Multiple schemas available.',
     href: '/playground',
     icon: '▶',
     color: 'border-green bg-green-light',
@@ -27,34 +21,96 @@ const sections = [
   },
   {
     title: 'AI Mentor',
-    description: 'Get graduated hints and solutions for LeetCode and HackerRank SQL problems. Speaks English and Arabic.',
+    description: 'Your personal SQL tutor. Get hints, solutions, and guidance in English or Arabic.',
     href: '/chat',
     icon: '🤖',
     color: 'border-purple bg-purple-light',
     count: 'bilingual'
+  },
+  {
+    title: 'Practice Questions',
+    description: 'LeetCode-style answer checker. Write SQL, execute it, compare results side-by-side.',
+    href: '/lessons',
+    icon: '✅',
+    color: 'border-yellow bg-yellow-light',
+    count: '56 exercises'
+  },
+  {
+    title: 'PostgreSQL Guide',
+    description: 'EXPLAIN plans, indexes, performance tuning, and MySQL vs PostgreSQL comparisons.',
+    href: '/postgres',
+    icon: '🐘',
+    color: 'border-blue bg-blue-light',
+    count: '1 guide'
+  },
+  {
+    title: 'Progress Tracking',
+    description: 'Your solved questions persist locally. Track your journey across all lessons.',
+    href: '/lessons',
+    icon: '📊',
+    color: 'border-rose bg-rose-light',
+    count: 'saved locally'
   }
 ]
 
+// Lesson topics grid — all 16 SQL modules offered
+const topics = [
+  ['SELECT & filtering', '🔍'],
+  ['WHERE conditions', '🔎'],
+  ['ORDER BY sorting', '📊'],
+  ['GROUP BY & aggregation', '📦'],
+  ['HAVING group filters', '🔬'],
+  ['JOINs (all types)', '🔗'],
+  ['Subqueries & EXISTS', '🪆'],
+  ['CASE WHEN logic', '🔄'],
+  ['CTEs & WITH clause', '📋'],
+  ['Window Functions', '📈'],
+  ['RANK / DENSE_RANK', '🏆'],
+  ['String Functions', '🔤'],
+  ['Pattern Matching', '🎯'],
+  ['Set Operations', '🧩'],
+  ['PostgreSQL features', '🐘'],
+  ['Interview prep', '💼'],
+]
+
+// Home page component — hero, features, topics, how-it-works
 export default function Home() {
   return (
-    <div className="max-w-6xl mx-auto px-6 py-16">
-      <div className="text-center mb-16 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-6 py-12">
+      {/* Hero */}
+      <div className="text-center mb-20 animate-fade-in">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow-light border-2 border-yellow text-text text-sm font-medium mb-6">
-          ⚡ Master SQL. Ace the Interview.
+          ⚡ Crack SQL. Ace the Interview.
         </div>
         <h1 className="text-5xl md:text-6xl font-bold text-text leading-tight mb-4">
-          Learn SQL the<br />
-          <span className="text-accent">modern way</span>
+          Master SQL from<br />
+          <span className="text-accent">zero to hero</span>
         </h1>
-        <p className="text-lg text-text-secondary max-w-xl mx-auto leading-relaxed">
-          Interactive lessons, a live SQL playground, and an AI mentor for interview prep.
+        <p className="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed mb-8">
+          Interactive lessons with a built-in SQL engine, LeetCode-style practice, 
+          and an AI mentor that speaks English <em>and</em> Arabic.
         </p>
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/lessons"
+            className="px-6 py-3 rounded-xl bg-accent text-white font-semibold text-sm border-2 border-accent hover:opacity-90 transition-opacity"
+          >
+            Start Learning
+          </Link>
+          <Link
+            href="/playground"
+            className="px-6 py-3 rounded-xl bg-card text-text font-semibold text-sm border-2 border-border hover:border-accent hover:text-accent transition-all"
+          >
+            Try Playground
+          </Link>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-16">
+      {/* Features Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
         {sections.map((section, i) => (
           <Link
-            key={section.href}
+            key={section.href + section.title}
             href={section.href}
             className="group bg-card border-2 border-border rounded-2xl p-6 card-hover"
             style={{ animationDelay: `${i * 100}ms` }}
@@ -75,30 +131,46 @@ export default function Home() {
         ))}
       </div>
 
-      <div className="bg-card border-2 border-border rounded-3xl p-8 md:p-10 animate-slide-up">
-        <h2 className="text-2xl font-bold text-text mb-4">
+      {/* What you'll learn */}
+      <div className="bg-card border-2 border-border rounded-3xl p-8 md:p-10 animate-slide-up mb-20">
+        <h2 className="text-2xl font-bold text-text mb-2">
           What you&apos;ll learn
         </h2>
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            ['SELECT queries', '🔍'],
-            ['WHERE & filtering', '🔎'],
-            ['GROUP BY & aggregation', '📦'],
-            ['JOINs (all types)', '🔗'],
-            ['Subqueries & CTEs', '🪆'],
-            ['Window functions', '📈'],
-            ['RANK / DENSE_RANK', '🏆'],
-            ['String Functions', '🔤'],
-            ['Pattern Matching & Regex', '🎯'],
-            ['Set Operations', '🧩'],
-            ['PostgreSQL features', '🐘'],
-            ['Interview prep', '💼'],
-          ].map(([topic, icon]) => (
+        <p className="text-sm text-text-secondary mb-6">
+          14 comprehensive lessons covering the full SQL spectrum — from simple SELECT queries to advanced window functions and PostgreSQL internals.
+        </p>
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+          {topics.map(([topic, icon]) => (
             <div key={topic as string} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-cream-dark border border-border">
               <span className="text-lg">{icon as string}</span>
               <span className="text-sm font-medium text-text">{topic as string}</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div className="grid md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-card border-2 border-border rounded-2xl p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-blue-light border-2 border-blue flex items-center justify-center mx-auto mb-4">
+            <span className="text-lg font-bold text-blue">1</span>
+          </div>
+          <h3 className="font-bold text-text mb-2">Learn</h3>
+          <p className="text-sm text-text-secondary">Study each SQL concept with clear explanations, syntax references, and real examples.</p>
+        </div>
+        <div className="bg-card border-2 border-border rounded-2xl p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-green-light border-2 border-green flex items-center justify-center mx-auto mb-4">
+            <span className="text-lg font-bold text-green">2</span>
+          </div>
+          <h3 className="font-bold text-text mb-2">Practice</h3>
+          <p className="text-sm text-text-secondary">Write SQL queries and get instant feedback. Our LeetCode-style checker validates your solution.</p>
+        </div>
+        <div className="bg-card border-2 border-border rounded-2xl p-6 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-purple-light border-2 border-purple flex items-center justify-center mx-auto mb-4">
+            <span className="text-lg font-bold text-purple">3</span>
+          </div>
+          <h3 className="font-bold text-text mb-2">Master</h3>
+          <p className="text-sm text-text-secondary">Track your progress, revisit tough problems, and use the AI mentor to deepen your understanding.</p>
         </div>
       </div>
     </div>
