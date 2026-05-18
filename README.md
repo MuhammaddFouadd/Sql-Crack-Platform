@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SQL Helper
+
+A beautiful, modern SQL learning platform. Master SQL from beginner to advanced, learn PostgreSQL, and practice with an AI mentor trained on LeetCode and HackerRank problems.
+
+## Features
+
+- **SQL Lessons** — Structured path from SELECT to Window Functions, with examples and exercises.
+- **PostgreSQL** — EXPLAIN, indexes, performance, and MySQL vs PostgreSQL differences.
+- **SQL Playground** — Write and execute SQL queries in your browser with Monaco Editor (powered by sql.js).
+- **AI Mentor** — A bilingual (English/Arabic) AI tutor trained on LeetCode SQL 50 and HackerRank SQL problems. Ask for hints, solutions, or topic revisions.
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org/) — React framework
+- [TypeScript](https://www.typescriptlang.org/) — Type safety
+- [Tailwind CSS](https://tailwindcss.com/) — Styling
+- [Monaco Editor](https://microsoft.github.io/monaco-editor/) — SQL playground
+- [sql.js](https://sql.js.org/) — In-browser SQL execution
+- [Gemini API](https://ai.google.dev/gemini-api) — AI mentor
+- [shadcn/ui](https://ui.shadcn.com/) — UI primitives
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── app/
+│   ├── chat/          # AI mentor
+│   ├── lessons/       # SQL lessons
+│   ├── postgres/      # PostgreSQL section
+│   ├── playground/    # SQL playground
+│   └── page.tsx       # Landing page
+├── components/
+│   ├── chat/          # Chat UI components
+│   ├── ui/            # Shared UI primitives
+│   └── viz/           # Data visualization
+└── lib/
+    └── data/          # Problem database for the AI mentor
+```
 
-## Learn More
+## Design
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Light mode, rounded cards, soft shadows, warm cream backgrounds, and large typography — inspired by modern startup aesthetics (Linear, Supabase, Raycast).
