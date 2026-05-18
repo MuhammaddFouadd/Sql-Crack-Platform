@@ -95,6 +95,29 @@ LIMIT 10;`
         hint: 'Use arithmetic in the SELECT clause with an alias.',
         solution: `SELECT name, price * 1.1 AS price_with_tax
 FROM products;`
+      },
+      {
+        question: 'Challenge: From the employees table, write a query that returns the top 3 most common email domains and their count, sorted by count descending. Use SUBSTRING, INSTR, and GROUP BY.',
+        hint: 'Use SUBSTRING(email, POSITION(\'@\' IN email) + 1) to extract the domain, then GROUP BY and COUNT with ORDER BY and LIMIT.',
+        solution: `SELECT SUBSTRING(email, POSITION('@' IN email) + 1) AS domain,
+  COUNT(*) AS count
+FROM employees
+GROUP BY domain
+ORDER BY count DESC
+LIMIT 3;`
+      },
+      {
+        question: 'Challenge: Write a single query using the built-in data in the playground that shows each department name alongside its employee count, total salary budget, and average salary — but only for departments whose total salary exceeds $150,000. Name the columns clearly.',
+        hint: 'JOIN employees to departments, use GROUP BY with COUNT, SUM, and AVG. Filter with HAVING SUM(e.salary) > 150000. Use ROUND on the average.',
+        solution: `SELECT d.name AS department,
+  COUNT(*) AS employee_count,
+  ROUND(SUM(e.salary), 2) AS total_salary,
+  ROUND(AVG(e.salary), 2) AS avg_salary
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+GROUP BY d.name
+HAVING SUM(e.salary) > 150000
+ORDER BY total_salary DESC;`
       }
     ]
   },
@@ -185,6 +208,24 @@ WHERE price BETWEEN 10 AND 50
 FROM customers
 WHERE email LIKE '%@company.com'
   AND phone IS NOT NULL;`
+      },
+      {
+        question: 'Challenge: From the products table, find all products where the name contains at least two spaces (i.e., has three or more words) AND the price is either under $20 or over $500. Order by price descending.',
+        hint: 'Use LIKE with two wildcards to match two spaces. Combine with OR for the price condition. Parentheses matter for mixing AND with OR.',
+        solution: `SELECT name, price, category
+FROM products
+WHERE name LIKE '% % %'
+  AND (price < 20 OR price > 500)
+ORDER BY price DESC;`
+      },
+      {
+        question: 'Challenge: Write a query that finds all employees whose name starts with a vowel (A, E, I, O, U) and whose salary is between $60,000 and $90,000. Use the employees table in the playground.',
+        hint: 'Check multiple LIKE patterns OR\'d together for each starting vowel: name LIKE \'A%\' OR name LIKE \'E%\' etc. Combine with salary BETWEEN.',
+        solution: `SELECT name, salary, department_id
+FROM employees
+WHERE (name LIKE 'A%' OR name LIKE 'E%' OR name LIKE 'I%' OR name LIKE 'O%' OR name LIKE 'U%')
+  AND salary BETWEEN 60000 AND 90000
+ORDER BY salary DESC;`
       }
     ]
   },
@@ -270,6 +311,30 @@ LIMIT 5;`
         solution: `SELECT name, department, hire_date
 FROM employees
 ORDER BY department ASC, hire_date DESC;`
+      },
+      {
+        question: 'Challenge: From the products table, write a query that shows the category, the most expensive product name in that category, and its price. Sort by category alphabetically. (Hint: you need a subquery or a window function.)',
+        hint: 'Use a CTE with ROW_NUMBER() PARTITION BY category ORDER BY price DESC, then filter rank = 1.',
+        solution: `WITH ranked AS (
+  SELECT category, name, price,
+    ROW_NUMBER() OVER (PARTITION BY category ORDER BY price DESC) AS rn
+  FROM products
+)
+SELECT category, name AS most_expensive_product, price
+FROM ranked
+WHERE rn = 1
+ORDER BY category;`
+      },
+      {
+        question: 'Challenge: Write a query that lists employees ordered by hire_date within each department (newest first), but with a twist — all Engineering employees should appear first, then the rest. Within Engineering, order by hire_date DESC. Outside Engineering, order by hire_date ASC.',
+        hint: 'Use ORDER BY with a CASE expression: CASE WHEN department_id = 1 THEN 0 ELSE 1 END, then DESC or ASC for hire_date.',
+        solution: `SELECT e.name, d.name AS department, e.hire_date
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+ORDER BY
+  CASE WHEN d.name = 'Engineering' THEN 0 ELSE 1 END,
+  CASE WHEN d.name = 'Engineering' THEN e.hire_date END DESC,
+  CASE WHEN d.name != 'Engineering' THEN e.hire_date END ASC;`
       }
     ]
   },
@@ -365,6 +430,30 @@ FROM employees
 WHERE status = 'active'
 GROUP BY department
 ORDER BY avg_salary DESC;`
+      },
+      {
+        question: 'Challenge: Write a query that shows for each department: the department name, total number of employees, and the salary range (max - min). Only include departments where the salary range is greater than $30,000. Sort by salary range descending.',
+        hint: 'JOIN employees to departments, GROUP BY department, use COUNT, MAX, MIN in SELECT. Filter with HAVING MAX(salary) - MIN(salary) > 30000.',
+        solution: `SELECT d.name AS department,
+  COUNT(*) AS total_employees,
+  MAX(e.salary) - MIN(e.salary) AS salary_range
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+GROUP BY d.name
+HAVING MAX(e.salary) - MIN(e.salary) > 30000
+ORDER BY salary_range DESC;`
+      },
+      {
+        question: 'Challenge: From the orders and products tables, find the customer who spent the most money total (price * quantity per order). Show their name, total spent, and number of orders placed.',
+        hint: 'JOIN orders to products, calculate SUM(price * quantity) as total_spent. Use GROUP BY customer_name with SUM and COUNT. ORDER BY total_spent DESC LIMIT 1.',
+        solution: `SELECT o.customer_name,
+  ROUND(SUM(p.price * o.quantity), 2) AS total_spent,
+  COUNT(*) AS order_count
+FROM orders o
+JOIN products p ON o.product_id = p.id
+GROUP BY o.customer_name
+ORDER BY total_spent DESC
+LIMIT 1;`
       }
     ]
   },
@@ -465,6 +554,43 @@ FROM products
 GROUP BY category
 HAVING SUM(price * stock_quantity) > 10000
 ORDER BY total_stock_value DESC;`
+      },
+      {
+        question: 'Challenge: Find departments where the average salary is more than double the average salary of another department. Show both department names and their average salaries.',
+        hint: 'This requires a self-join of two aggregate subqueries: first compute avg_salary per department, then CROSS JOIN to compare each pair. Filter where one is more than double the other.',
+        solution: `WITH dept_avg AS (
+  SELECT d.name, AVG(e.salary) AS avg_sal
+  FROM employees e
+  JOIN departments d ON e.department_id = d.id
+  GROUP BY d.name
+)
+SELECT a.name AS dept_a,
+  ROUND(a.avg_sal, 2) AS avg_salary_a,
+  b.name AS dept_b,
+  ROUND(b.avg_sal, 2) AS avg_salary_b
+FROM dept_avg a
+CROSS JOIN dept_avg b
+WHERE a.avg_sal > b.avg_sal * 2
+ORDER BY a.avg_sal DESC;`
+      },
+      {
+        question: 'Challenge: Write a query that returns the percentage contribution of each product category to total stock value (price × stock). Show category, total_value, and percentage rounded to 2 decimal places.',
+        hint: 'First compute total_value per category with GROUP BY and SUM. Then compute the grand total in a subquery or CROSS JOIN. The percentage is category_total / grand_total * 100.',
+        solution: `WITH category_totals AS (
+  SELECT category,
+    ROUND(SUM(price * stock), 2) AS total_value
+  FROM products
+  GROUP BY category
+),
+grand_total AS (
+  SELECT SUM(total_value) AS all_total
+  FROM category_totals
+)
+SELECT ct.category, ct.total_value,
+  ROUND(ct.total_value * 100.0 / gt.all_total, 2) AS percentage
+FROM category_totals ct
+CROSS JOIN grand_total gt
+ORDER BY percentage DESC;`
       }
     ]
   },
@@ -569,6 +695,32 @@ ORDER BY last_order_date DESC NULLS LAST;`
 FROM employees e
 JOIN employees m ON e.manager_id = m.id
 WHERE e.salary > m.salary;`
+      },
+      {
+        question: 'Challenge: Find products that have been ordered by EVERY customer who has placed an order. In other words, find products that appear in at least one order from each customer. (This is a relational division problem.)',
+        hint: 'First find the total distinct customer count. Then GROUP BY product_id and count distinct customers who ordered it. Use HAVING to keep only products where that count equals the total customer count.',
+        solution: `WITH total_customers AS (
+  SELECT COUNT(DISTINCT customer_name) AS cnt FROM orders
+)
+SELECT p.name, p.category
+FROM products p
+JOIN orders o ON p.id = o.product_id
+GROUP BY p.id, p.name, p.category
+HAVING COUNT(DISTINCT o.customer_name) = (SELECT cnt FROM total_customers);`
+      },
+      {
+        question: 'Challenge: Write a query that finds employees whose salary is above the average salary of employees hired in the same year as them. Show name, salary, hire_year, and their year-group average.',
+        hint: 'Use a correlated subquery: SELECT AVG(salary) FROM employees WHERE strftime(\'%Y\', hire_date) = strftime(\'%Y\', outer.hire_date). In the outer query, compare salary to this subquery result.',
+        solution: `SELECT e1.name, e1.salary,
+  strftime('%Y', e1.hire_date) AS hire_year,
+  ROUND((SELECT AVG(e2.salary) FROM employees e2
+   WHERE strftime('%Y', e2.hire_date) = strftime('%Y', e1.hire_date)), 2) AS year_avg
+FROM employees e1
+WHERE e1.salary > (
+  SELECT AVG(e2.salary) FROM employees e2
+  WHERE strftime('%Y', e2.hire_date) = strftime('%Y', e1.hire_date)
+)
+ORDER BY hire_year, e1.salary DESC;`
       }
     ]
   },
@@ -696,6 +848,28 @@ WHERE NOT EXISTS (
   SELECT 1 FROM employees e
   WHERE e.department_id = d.id
 );`
+      },
+      {
+        question: 'Challenge: From the products table, find the category that has the largest gap between its most expensive and least expensive product. Show the category, min price, max price, and the gap. Do not use a subquery.',
+        hint: 'Use GROUP BY category with MIN(price), MAX(price), and compute MAX(price) - MIN(price) directly. Use ORDER BY with LIMIT 1.',
+        solution: `SELECT category,
+  MIN(price) AS cheapest,
+  MAX(price) AS most_expensive,
+  MAX(price) - MIN(price) AS price_gap
+FROM products
+GROUP BY category
+ORDER BY price_gap DESC
+LIMIT 1;`
+      },
+      {
+        question: 'Challenge: Write a query to find the employee who earns the closest to the company average salary (absolute difference). Show their name, salary, the average, and the difference.',
+        hint: 'Compute ABS(salary - (SELECT AVG(salary) FROM employees)) in SELECT. Use ORDER BY that expression. LIMIT 1. Use a CTE or duplicate the subquery.',
+        solution: `SELECT name, salary,
+  ROUND((SELECT AVG(salary) FROM employees), 2) AS company_avg,
+  ROUND(ABS(salary - (SELECT AVG(salary) FROM employees)), 2) AS diff_from_avg
+FROM employees
+ORDER BY ABS(salary - (SELECT AVG(salary) FROM employees))
+LIMIT 1;`
       }
     ]
   },
@@ -822,6 +996,43 @@ ORDER BY order_count DESC;`
     ELSE salary * 0.05
   END AS bonus
 FROM employees;`
+      },
+      {
+        question: 'Challenge: Write a query that categorizes each employee into a performance band based on their salary relative to their department average: "Above Avg" (salary > dept avg), "At Avg" (salary = dept avg), or "Below Avg" (salary < dept avg). Show name, department, salary, dept_avg, and band. Use a window function inside a CTE.',
+        hint: 'First compute AVG(salary) OVER (PARTITION BY department_id) in a CTE. Then SELECT from the CTE with a CASE expression to determine the band.',
+        solution: `WITH dept_data AS (
+  SELECT e.name, e.salary, d.name AS department,
+    AVG(e.salary) OVER (PARTITION BY e.department_id) AS dept_avg
+  FROM employees e
+  JOIN departments d ON e.department_id = d.id
+)
+SELECT name, department, salary,
+  ROUND(dept_avg, 2) AS dept_avg_salary,
+  CASE
+    WHEN salary > dept_avg THEN 'Above Avg'
+    WHEN salary = dept_avg THEN 'At Avg'
+    ELSE 'Below Avg'
+  END AS band
+FROM dept_data
+ORDER BY department, salary DESC;`
+      },
+      {
+        question: 'Challenge: The products table has categories with varying numbers of products. Write a query that flags products as "Underpriced" if their price is less than 50% of the average price in their category, "Overpriced" if more than 150%, and "Standard" otherwise.',
+        hint: 'Use AVG(price) OVER (PARTITION BY category) in a CTE. Then CASE WHEN price < 0.5 * cat_avg THEN ... WHEN price > 1.5 * cat_avg THEN ...',
+        solution: `WITH category_pricing AS (
+  SELECT name, category, price,
+    AVG(price) OVER (PARTITION BY category) AS cat_avg
+  FROM products
+)
+SELECT name, category, price,
+  ROUND(cat_avg, 2) AS category_avg,
+  CASE
+    WHEN price < 0.5 * cat_avg THEN 'Underpriced'
+    WHEN price > 1.5 * cat_avg THEN 'Overpriced'
+    ELSE 'Standard'
+  END AS price_band
+FROM category_pricing
+ORDER BY category, price DESC;`
       }
     ]
   },
@@ -951,6 +1162,42 @@ ORDER BY category, rank;`
 )
 SELECT dt FROM dates
 ORDER BY dt;`
+      },
+      {
+        question: 'Challenge: Using a recursive CTE, generate a hierarchy of products based on their category. Since products don\'t have a parent-child relationship in our schema, instead generate a numbers table from 1 to 20 using a recursive CTE, and then JOIN it with products to show product name, its price, and the number. Only show rows where the product ID matches the number. Explain why some numbers have no products.',
+        hint: 'Start with SELECT 1 AS n as the anchor. UNION ALL SELECT n + 1 FROM numbers WHERE n < 20 for the recursion. Then LEFT JOIN products ON n = products.id.',
+        solution: `WITH RECURSIVE numbers AS (
+  SELECT 1 AS n
+  UNION ALL
+  SELECT n + 1 FROM numbers WHERE n < 20
+)
+SELECT n AS number,
+  p.name AS product_name,
+  p.price
+FROM numbers n
+LEFT JOIN products p ON n = p.id
+ORDER BY n;`
+      },
+      {
+        question: 'Challenge: Write a query using multiple CTEs that finds the top-spending customer in each product category. For each category, show the category, customer name, and total they spent. Use CTEs to compute customer spend per category, then rank them.',
+        hint: 'First CTE: JOIN orders to products and compute SUM(price * quantity) per (customer, category). Second CTE: Use ROW_NUMBER() PARTITION BY category. Final SELECT: Filter rank = 1.',
+        solution: `WITH customer_category AS (
+  SELECT o.customer_name, p.category,
+    SUM(p.price * o.quantity) AS total_spent
+  FROM orders o
+  JOIN products p ON o.product_id = p.id
+  GROUP BY o.customer_name, p.category
+),
+ranked AS (
+  SELECT *, ROW_NUMBER() OVER (
+    PARTITION BY category ORDER BY total_spent DESC
+  ) AS rn
+  FROM customer_category
+)
+SELECT category, customer_name, ROUND(total_spent, 2) AS total_spent
+FROM ranked
+WHERE rn = 1
+ORDER BY category;`
       }
     ]
   },
@@ -1084,6 +1331,40 @@ ORDER BY year, month;`
   ) AS gap
 FROM employees
 ORDER BY department, salary DESC;`
+      },
+      {
+        question: 'Challenge: Write a query that shows for each month in 2024 (from the orders table), the total quantity ordered, and a 3-month rolling average of quantity ordered. Use a window function with a frame clause.',
+        hint: 'First aggregate orders by month to get monthly_quantity. Then use AVG(monthly_quantity) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW).',
+        solution: `WITH monthly AS (
+  SELECT strftime('%m', order_date) AS month,
+    SUM(quantity) AS total_qty
+  FROM orders
+  WHERE order_date >= '2024-01-01'
+  GROUP BY month
+)
+SELECT month, total_qty,
+  ROUND(AVG(total_qty) OVER (
+    ORDER BY month
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+  ), 1) AS rolling_3mo_avg
+FROM monthly
+ORDER BY month;`
+      },
+      {
+        question: 'Challenge: For each employee, calculate their salary percentile within their department using NTILE(100). Show name, department, salary, and percentile. Then flag employees in the top 25% of their department.',
+        hint: 'Use NTILE(100) OVER (PARTITION BY department_id ORDER BY salary DESC). Use CASE to flag percentile <= 25.',
+        solution: `SELECT e.name, d.name AS department, e.salary,
+  NTILE(100) OVER (
+    PARTITION BY e.department_id
+    ORDER BY e.salary DESC
+  ) AS percentile,
+  CASE WHEN NTILE(100) OVER (
+    PARTITION BY e.department_id
+    ORDER BY e.salary DESC
+  ) <= 25 THEN 'Top 25%' ELSE '-' END AS badge
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+ORDER BY department, percentile;`
       }
     ]
   },
@@ -1218,6 +1499,37 @@ ORDER BY category, rank;`
   ) <= 3 THEN 'Top 3' ELSE '-' END AS badge
 FROM employees
 ORDER BY department, dept_rank;`
+      },
+      {
+        question: 'Challenge: Write a query that assigns a "tier" to each employee within their department based on salary. Use these rules: Top 1 employee by salary = "Platinum", Next 2 = "Gold", Rest = "Standard". Use ROW_NUMBER, not NTILE.',
+        hint: 'Use ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY salary DESC). Then CASE WHEN rn = 1 THEN \'Platinum\' WHEN rn <= 3 THEN \'Gold\' ELSE \'Standard\' END.',
+        solution: `WITH ranked AS (
+  SELECT e.name, d.name AS department, e.salary,
+    ROW_NUMBER() OVER (
+      PARTITION BY e.department_id
+      ORDER BY e.salary DESC
+    ) AS rn
+  FROM employees e
+  JOIN departments d ON e.department_id = d.id
+)
+SELECT name, department, salary,
+  CASE
+    WHEN rn = 1 THEN 'Platinum'
+    WHEN rn <= 3 THEN 'Gold'
+    ELSE 'Standard'
+  END AS tier
+FROM ranked
+ORDER BY department, rn;`
+      },
+      {
+        question: 'Challenge: Using RANK and DENSE_RANK together, write a query that shows employee names, their salary, and three different ranking columns to illustrate the difference between the functions on the same salary data. Use the full company (no department partition).',
+        hint: 'Use RANK(), DENSE_RANK(), and ROW_NUMBER() all with OVER (ORDER BY salary DESC). This will show how tied salaries are handled differently.',
+        solution: `SELECT name, salary,
+  RANK() OVER (ORDER BY salary DESC) AS rank,
+  DENSE_RANK() OVER (ORDER BY salary DESC) AS dense_rank,
+  ROW_NUMBER() OVER (ORDER BY salary DESC) AS row_num
+FROM employees
+ORDER BY salary DESC;`
       }
     ]
   },
@@ -1332,6 +1644,27 @@ FROM employees;`
 FROM products
 WHERE name != TRIM(name)
    OR name LIKE '%_%';`
+      },
+      {
+        question: 'Challenge: Write a query that extracts the first name and last initial from each employee name, and formats it as "First L." where L is the last initial capitalized. Then sort by the last initial descending.',
+        hint: 'Use SUBSTRING with POSITION to split at the space. Concatenate with ||. For the last initial: SUBSTRING(name FROM POSITION(\' \' IN name) + 1 FOR 1). Convert to uppercase with UPPER().',
+        solution: `SELECT name,
+  SUBSTRING(name FROM 1 FOR POSITION(' ' IN name) - 1)
+    || ' '
+    || UPPER(SUBSTRING(name FROM POSITION(' ' IN name) + 1 FOR 1))
+    || '.' AS short_name
+FROM employees
+ORDER BY SUBSTRING(name FROM POSITION(' ' IN name) + 1 FOR 1) DESC;`
+      },
+      {
+        question: 'Challenge: From the products table, create a "product_code" column by taking the first 3 letters of the category (uppercased), the first 2 letters of the product name (uppercased), and the ID zero-padded to 3 digits. Example: "ELELP001" for a Laptop Pro in Electronics with ID 1.',
+        hint: 'Use UPPER(SUBSTRING(category FROM 1 FOR 3)) concatenated with UPPER(SUBSTRING(name FROM 1 FOR 2)) and LPAD(CAST(id AS TEXT), 3, \'0\').',
+        solution: `SELECT name, category, id,
+  UPPER(SUBSTRING(category FROM 1 FOR 3))
+    || UPPER(SUBSTRING(name FROM 1 FOR 2))
+    || LPAD(CAST(id AS TEXT), 3, '0') AS product_code
+FROM products
+ORDER BY id;`
       }
     ]
   },
@@ -1551,6 +1884,30 @@ WHERE id IN (
   EXCEPT
   SELECT product_id FROM order_items
 );`
+      },
+      {
+        question: 'Challenge: Write a query using set operations to find all possible pairs of (employee, department) where the employee is NOT in that department. In other words, find the Cartesian product of all employees and departments, then subtract the actual assignments. Show employee name and department name.',
+        hint: 'CROSS JOIN employees and departments to get all combinations. Then use EXCEPT to remove the actual assignments. Or: SELECT FROM employees CROSS JOIN departments EXCEPT SELECT e.name, d.name FROM employees e JOIN departments d ON e.department_id = d.id.',
+        solution: `SELECT e.name AS employee_name, d.name AS department_name
+FROM employees e
+CROSS JOIN departments d
+EXCEPT
+SELECT e.name, d.name
+FROM employees e
+JOIN departments d ON e.department_id = d.id
+ORDER BY department_name, employee_name;`
+      },
+      {
+        question: 'Challenge: Using UNION and string functions, write a query that produces a single-column report showing all table names, column names, and their types from the playground database schema. Format each row as "TABLE: <name>" for tables and "  COLUMN: <name> (<type>)" for columns. Order by table name then column position.',
+        hint: 'Use two SELECT queries UNION ALL: one querying sqlite_master for tables, another querying PRAGMA table_info for each table\'s columns. But since PRAGMA cannot be directly UNION\'d, instead query sqlite_master and use a second SELECT from a derived table of column metadata.',
+        solution: `SELECT 'TABLE: ' || name AS info
+FROM sqlite_master
+WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+UNION ALL
+SELECT '  COLUMN: ' || c.name || ' (' || c.type || ')'
+FROM sqlite_master m, pragma_table_info(m.name) c
+WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%'
+ORDER BY info;`
       }
     ]
   }
