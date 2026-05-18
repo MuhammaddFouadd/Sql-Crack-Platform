@@ -8,18 +8,25 @@ import { getAllProgress } from '@/lib/progress'
 import { Check } from 'lucide-react'
 
 const difficultyConfig = {
-  beginner: { label: 'Beginner', classes: 'bg-green-light text-green border-green/30' },
-  intermediate: { label: 'Intermediate', classes: 'bg-yellow-light text-yellow border-yellow/30' },
-  advanced: { label: 'Advanced', classes: 'bg-rose-light text-rose border-rose/30' },
+  beginner: { label: 'Beginner', classes: 'bg-green-light text-green border-green/30', dot: 'bg-green', labelColor: 'text-green', barColor: 'bg-green' },
+  intermediate: { label: 'Intermediate', classes: 'bg-yellow-light text-yellow border-yellow/30', dot: 'bg-yellow', labelColor: 'text-yellow', barColor: 'bg-yellow' },
+  advanced: { label: 'Advanced', classes: 'bg-rose-light text-rose border-rose/30', dot: 'bg-rose', labelColor: 'text-rose', barColor: 'bg-rose' },
 }
 
 export default function LessonsPage() {
   const [progressMap, setProgressMap] = useState<Record<string, { solved: number; total: number; completed: boolean }>>({})
 
-  useEffect(() => {
+  const refresh = () => {
     const counts: Record<string, number> = {}
     for (const l of lessons) counts[l.id] = l.practiceQuestions.length
     setProgressMap(getAllProgress(lessons.map((l) => l.id), counts))
+  }
+
+  useEffect(() => { refresh() }, [])
+
+  useEffect(() => {
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [])
 
   const groups = {
@@ -33,7 +40,7 @@ export default function LessonsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
-      <div className="mb-10 animate-fade-in">
+      <div className="mb-12 animate-fade-in">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-4xl font-bold text-text">SQL Lessons</h1>
           {totalQuestions > 0 && (
@@ -61,21 +68,22 @@ export default function LessonsPage() {
       {(['beginner', 'intermediate', 'advanced'] as const).map((level) => {
         const items = groups[level]
         if (items.length === 0) return null
-        const config = difficultyConfig[level]
+        const cfg = difficultyConfig[level]
         const levelDone = items.every((l) => progressMap[l.id]?.completed)
         return (
-          <div key={level} className="mb-10">
-            <div className="flex items-center gap-3 mb-4">
-              <span className={cn('text-xs font-semibold px-3 py-1 rounded-full border', config.classes)}>
-                {config.label}
+          <div key={level} className="mb-12 last:mb-0">
+            <div className="flex items-center gap-3 mb-5">
+              <div className={cn('w-3 h-3 rounded-full', cfg.dot)} />
+              <span className={cn('text-xs font-bold tracking-wider uppercase', cfg.labelColor)}>
+                {cfg.label}
               </span>
+              <div className="h-px flex-1 bg-border" />
               {levelDone && (
-                <span className="flex items-center gap-1 text-xs text-green font-medium">
+                <span className="flex items-center gap-1 text-[11px] text-green font-medium">
                   <Check size={12} />
                   Complete
                 </span>
               )}
-              <div className="h-px flex-1 bg-border" />
             </div>
             <div className="grid gap-3">
               {items.map((lesson) => {
@@ -85,44 +93,37 @@ export default function LessonsPage() {
                   <Link
                     key={lesson.id}
                     href={`/lessons/${lesson.id}`}
-                    className="group bg-card border-2 border-border rounded-2xl p-5 card-hover"
+                    className="group bg-card border-2 border-border rounded-2xl p-5 card-hover flex items-center gap-5"
                   >
-                    <div className="flex items-start gap-4">
-                      <span className="text-2xl mt-0.5">{lesson.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-lg font-bold text-text group-hover:text-accent transition-colors">
-                            {lesson.title}
-                          </h3>
-                          {done && (
-                            <span className="flex items-center gap-0.5 text-xs text-green font-medium">
-                              <Check size={12} />
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-text-secondary">{lesson.description}</p>
-                        <div className="flex flex-wrap items-center gap-2 mt-3">
-                          {lesson.topics.map((topic) => (
-                            <span key={topic} className="text-xs text-text-muted px-2 py-0.5 rounded-md bg-cream-dark border border-border">
-                              {topic}
-                            </span>
-                          ))}
-                        </div>
-                        {p && p.total > 0 && (
-                          <div className="flex items-center gap-2 mt-3">
-                            <div className="flex-1 h-1.5 rounded-full bg-cream-dark border border-border overflow-hidden max-w-[120px]">
-                              <div
-                                className="h-full bg-green rounded-full transition-all duration-500"
-                                style={{ width: `${(p.solved / p.total) * 100}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] text-text-muted tabular-nums">
-                              {p.solved}/{p.total}
-                            </span>
+                    <div
+                      className={cn(
+                        'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 text-base font-bold transition-colors',
+                        done
+                          ? 'bg-green-light border-green/30 text-green'
+                          : 'bg-cream-dark border-border text-text-muted group-hover:border-accent/30 group-hover:text-text'
+                      )}
+                    >
+                      {done ? <Check size={16} /> : lesson.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-text group-hover:text-accent transition-colors">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-sm text-text-secondary mt-0.5">{lesson.description}</p>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0">
+                      {p && p.total > 0 && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 rounded-full bg-cream-dark border border-border overflow-hidden">
+                            <div
+                              className={cn('h-full rounded-full transition-all duration-500', cfg.barColor)}
+                              style={{ width: `${(p.solved / p.total) * 100}%` }}
+                            />
                           </div>
-                        )}
-                      </div>
-                      <span className="text-text-muted group-hover:text-text transition-colors text-lg mt-1">→</span>
+                          <span className="text-[11px] text-text-muted tabular-nums">{p.solved}/{p.total}</span>
+                        </div>
+                      )}
+                      <span className="text-text-muted group-hover:text-text transition-colors text-lg">→</span>
                     </div>
                   </Link>
                 )

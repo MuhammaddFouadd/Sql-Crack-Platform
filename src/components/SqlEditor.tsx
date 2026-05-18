@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import { useTheme } from './ThemeProvider'
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
 
@@ -13,11 +14,50 @@ interface SqlEditorProps {
   minHeight?: string
 }
 
+function defineMonokaiTheme(monaco: any) {
+  monaco.editor.defineTheme('monokai-pro', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: 'fc618d', fontStyle: 'bold' },
+      { token: 'string.sql', foreground: 'fce566' },
+      { token: 'number', foreground: 'fd9353' },
+      { token: 'comment', foreground: '69676c', fontStyle: 'italic' },
+      { token: 'type', foreground: '7bd88f' },
+      { token: 'function', foreground: '5ad4e6' },
+      { token: 'identifier', foreground: 'f7f1ff' },
+      { token: 'delimiter', foreground: 'f7f1ff' },
+      { token: 'variable', foreground: 'f7f1ff' },
+      { token: 'operator', foreground: 'f7f1ff' },
+    ],
+    colors: {
+      'editor.background': '#222222',
+      'editor.foreground': '#f7f1ff',
+      'editor.lineHighlightBackground': '#2a2a2a',
+      'editor.selectionBackground': '#525053',
+      'editor.inactiveSelectionBackground': '#3a3a3a',
+      'editorCursor.foreground': '#f7f1ff',
+      'editorLineNumber.foreground': '#525053',
+      'editorLineNumber.activeForeground': '#8b888f',
+      'editorGutter.background': '#222222',
+      'editorWidget.background': '#191919',
+      'editorWidget.border': '#525053',
+      'input.background': '#363537',
+      'input.border': '#525053',
+      'input.foreground': '#f7f1ff',
+      'focusBorder': '#525053',
+      'list.activeSelectionBackground': '#363537',
+      'list.hoverBackground': '#2a2a2a',
+    },
+  })
+}
+
 export default function SqlEditor({ value, onChange, onRun, placeholder, minHeight }: SqlEditorProps) {
   const [monacoReady, setMonacoReady] = useState(true)
   const [offline, setOffline] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const checkDone = useRef(false)
+  const { theme } = useTheme()
 
   useEffect(() => {
     if (checkDone.current) return
@@ -69,7 +109,8 @@ export default function SqlEditor({ value, onChange, onRun, placeholder, minHeig
       <MonacoEditor
         height="100%"
         defaultLanguage="sql"
-        theme="light"
+        theme={theme === 'dark' ? 'monokai-pro' : 'light'}
+        beforeMount={defineMonokaiTheme}
         value={value}
         onChange={(val) => onChange(val || '')}
         options={{

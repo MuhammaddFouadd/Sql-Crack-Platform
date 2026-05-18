@@ -4,7 +4,6 @@ const STORAGE_KEY = 'sql-progress'
 /** Tracks which questions a user has solved in a lesson. */
 export interface LessonProgress {
   solved: number[]
-  completed: boolean
 }
 
 /** Load all saved progress from localStorage. */
@@ -20,7 +19,7 @@ export function loadProgress(): Record<string, LessonProgress> {
 /** Mark a question as solved for a given lesson. */
 export function saveSolved(lessonId: string, questionIndex: number): void {
   const progress = loadProgress()
-  const entry = progress[lessonId] ?? { solved: [], completed: false }
+  const entry = progress[lessonId] ?? { solved: [] }
   if (!entry.solved.includes(questionIndex)) {
     entry.solved = [...entry.solved, questionIndex].sort()
   }

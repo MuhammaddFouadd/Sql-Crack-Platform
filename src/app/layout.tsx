@@ -13,12 +13,17 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 export const metadata: Metadata = {
   title: 'Sql Craker — Master SQL. Crack the Interview.',
   description:
-    'Interactive SQL learning platform. Master SQL from beginner to advanced with lessons, playground, and an AI mentor.',
+    'Interactive SQL learning platform. Master SQL from beginner to advanced with lessons, playground, and practice exercises.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()`
+        }} />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <ThemeProvider>
           <AuthProvider>

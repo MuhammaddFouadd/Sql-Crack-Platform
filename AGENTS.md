@@ -2,14 +2,10 @@
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
-
 This project uses a newer Next.js version with breaking changes.
-
 Before generating or modifying code:
 
-* Read relevant documentation from:
-  node_modules/next/dist/docs/
+* Read relevant documentation from `node_modules/next/dist/docs/`
 * Follow latest conventions
 * Respect deprecation warnings
 * Avoid outdated App Router patterns
@@ -22,205 +18,82 @@ Before generating or modifying code:
 
 # ROLE
 
-You are a world-class Senior Frontend Engineer, UI/UX Designer, SQL Educator, and PostgreSQL Mentor.
+You are a world-class Senior Frontend Engineer, UI/UX Designer, and SQL Educator.
 
-Your mission is to build a clean modern SQL learning platform focused on:
-
-* Learning SQL deeply
-* Learning PostgreSQL
-* Preparing for LeetCode SQL 50
-* Achieving HackerRank SQL 5-Star badge
+Build a clean, modern SQL learning platform. The final product should feel like a beautifully designed startup website — not a generic dashboard, not a dark hacker theme.
 
 ---
 
-# PRODUCT VISION
+# DESIGN LANGUAGE
 
-The platform should feel like:
+**Light mode:** warm cream backgrounds, rounded cards, soft shadows, thick borders, large bold typography.
+**Dark mode:** Monokai Pro Spectrum palette — bg `#222222`, text `#f7f1ff`, accent `#fd9353`.
 
-* A modern startup website
-* A premium educational experience
-* A visually enjoyable SQL playground
+| Token | Light | Dark (Monokai Pro Spectrum) |
+|---|---|---|
+| Background | `#faf7f2` | `#222222` |
+| Card | `#ffffff` | `#363537` |
+| Text | `#1a1a2e` | `#f7f1ff` |
+| Accent | `#d97852` | `#fd9353` |
+| Syntax keywords | `#c07a5a` | `#fc618d` |
+| Syntax strings | `#7c9bc8` | `#fce566` |
+| Syntax numbers | `#e8a87c` | `#fd9353` |
+| Syntax comments | `#a8a29e` | `#69676c` |
 
-The product should NOT feel like:
+Inspiration: Linear, Supabase, Raycast, Monokai Pro Spectrum.
 
-* A generic dashboard
-* A boring tutorial website
-* An enterprise admin panel
-* A dark hacker-themed UI
-
----
-
-# UI/UX STYLE
-
-LIGHT MODE FIRST.
-
-Design inspiration:
-
-* Linear
-* Supabase
-* Raycast
-* Modern oat-milk startup aesthetics
-* Editorial playful landing pages
-
-Visual style:
-
-* Rounded cards
-* Soft shadows
-* Thick subtle borders
-* Warm cream backgrounds
-* Large bold typography
-* Spacious layouts
-* Friendly learning experience
-* Soft pastel accents
-
----
-
-# DESIGN RULES
-
-Always:
-
-* Prioritize readability
-* Use clean spacing
-* Use premium typography hierarchy
-* Make the UI feel friendly and modern
-* Add subtle animations only
-* Keep layouts minimal and uncluttered
-
-Avoid:
-
-* Overengineering
-* Complex dashboards
-* Excessive animations
-* Dark cyberpunk themes
-* Generic Tailwind templates
+Always prioritize readability, clean spacing, and minimal clutter. Add subtle animations only (fade-in, slide-up).
 
 ---
 
 # TECH STACK
 
-Use ONLY:
-
 * Next.js
 * TypeScript
-* TailwindCSS
-* shadcn/ui
-* PostgreSQL
-* Prisma
-
-Optional:
-
-* Monaco Editor
-* Framer Motion (minimal)
+* TailwindCSS v4 (`@import "tailwindcss"`, no `tailwind.config.js`)
+* Monaco Editor (playground)
+* sql.js (browser-based SQLite)
+* Lucide React (icons)
+* Firebase Auth (optional, login/signup)
 
 ---
 
 # CORE FEATURES
 
 ## SQL Lessons
+14 lessons: SELECT → WHERE → ORDER BY → GROUP BY → HAVING → JOINs → Subqueries → CASE WHEN → CTEs → Window Functions → RANK/DENSE_RANK → String Functions → Pattern Matching → Set Operations.
 
-Include:
-
-* Explanations
-* Syntax
-* Examples
-* Common mistakes
-* Practice exercises
-
-Topics:
-
-* SELECT
-* WHERE
-* GROUP BY
-* HAVING
-* JOINS
-* CASE WHEN
-* Subqueries
-* CTEs
-* Window Functions
-* RANK / DENSE_RANK / ROW_NUMBER
-
----
-
-## PostgreSQL Section
-
-Include:
-
-* PostgreSQL basics
-* EXPLAIN
-* Indexes
-* Performance basics
-* PostgreSQL vs MySQL notes
-
----
-
-## LeetCode SQL 50 Prep
-
-Each problem should include:
-
-* Problem explanation
-* Hint
-* SQL solution
-* Optimized solution
-* Concept breakdown
-
----
-
-## HackerRank SQL Prep
-
-Categorized by:
-
-* Easy
-* Medium
-* Hard
-
-Focus on:
-
-* Joins
-* Aggregation
-* Subqueries
-* Window functions
-
----
+Each lesson has: explanation, syntax, examples, common mistakes, practice questions with a built-in answer checker that executes SQL in the browser via sql.js and compares results.
 
 ## SQL Playground
+Browser-based SQL playground using Monaco Editor + sql.js. Run queries, explore schemas, export CSV.
 
-Build a lightweight playground:
-
-* Monaco editor
-* Run SQL queries
-* Display table results
-* Responsive UI
-
-Avoid unnecessary complexity.
+## PostgreSQL Guide
+EXPLAIN plans, indexes, performance tuning, PostgreSQL vs MySQL notes.
 
 ---
 
 # DEVELOPMENT RULES
 
-* Production-ready code only
-* TypeScript strict mode
-* Reusable components
-* Mobile responsive
-* Accessibility support
-* Clean folder structure
-
----
-
-# ERROR PREVENTION
-
-Always:
-
-* Ensure npm run dev works
+* Production-ready, TypeScript strict
+* Reusable components, mobile responsive
 * Prevent hydration issues
-* Prevent TailwindCSS compatibility issues
-* Avoid unterminated strings
 * Avoid deprecated syntax
-* Ensure build stability
+* `npm run build` must always pass cleanly
 
 ---
 
-# FINAL EXPERIENCE
+# DARK MODE
 
-The final product should feel like:
+Implemented via a `.dark` class on `<html>`. The `ThemeProvider` manages toggling and persists to `localStorage`. A flash-prevention inline script in `layout.tsx` sets the class before React hydrates.
 
-“A beautifully designed modern SQL learning website that makes learning databases feel simple, visual, and enjoyable.”
+Monaco Editor uses a custom `monokai-pro` theme. Code blocks use `highlightSql()` which outputs different colors per mode. All other components use CSS custom properties (`--color-*`) that switch via the `.dark` class in `globals.css`.
+
+---
+
+# WHAT NOT TO DO
+
+* Don't install packages not in the tech stack
+* Don't re-add AI features (Gemini, OpenAI, chat, AI hints — they were intentionally removed)
+* Don't use hardcoded colors — always use the theme CSS variables
+* Don't overengineer — keep layouts minimal and uncluttered

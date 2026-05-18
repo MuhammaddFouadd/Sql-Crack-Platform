@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { formatSQL } from '@/lib/sql-format'
 import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
 import { saveSolved, isSolved } from '@/lib/progress'
-import { Check, X, Wand2, Eye, EyeOff, HelpCircle, Database, Sparkles } from 'lucide-react'
+import { Check, X, Wand2, Eye, EyeOff, HelpCircle, Database } from 'lucide-react'
 
 const SCHEMA_INFO: { table: string; columns: string[] }[] = [
   { table: 'customers', columns: ['id', 'name', 'email', 'phone', 'city', 'signup_date'] },
@@ -70,8 +70,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
   const [showSchema, setShowSchema] = useState(false)
-  const [aiHint, setAiHint] = useState<string | null>(null)
-  const [aiHintLoading, setAiHintLoading] = useState(false)
 
   useEffect(() => {
     if (isSolved(lessonId, index)) setStatus('correct')
@@ -83,7 +81,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
     setUserResult(null)
     setExpectedResult(null)
     setErrorMsg(null)
-    setAiHint(null)
   }
 
   const handleFormat = () => {
@@ -114,7 +111,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
     setUserResult(null)
     setExpectedResult(null)
     setErrorMsg(null)
-    setAiHint(null)
 
     try {
       const SQL = await getSqlJs()
@@ -156,28 +152,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
       setErrorMsg('Failed to check answer: ' + (err as Error).message)
       setStatus('error')
     }
-  }
-
-  const getAiHint = async () => {
-    if (!userSql.trim() || !solution) return
-    setAiHintLoading(true)
-    setAiHint(null)
-    try {
-      const res = await fetch('/api/hint', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userSql: userSql.trim(),
-          expectedSql: solution,
-          problemStatement: question,
-        }),
-      })
-      const data = await res.json()
-      setAiHint(data.hint || data.error || 'AI hint unavailable.')
-    } catch {
-      setAiHint('AI hint unavailable. Check your connection.')
-    }
-    setAiHintLoading(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -334,32 +308,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
               </div>
             </div>
 
-            {!aiHint && !aiHintLoading && (
-              <button
-                onClick={getAiHint}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-purple bg-purple-light border-2 border-purple/30 hover:bg-purple/10 transition-all"
-              >
-                <Sparkles size={13} />
-                Get AI Hint
-              </button>
-            )}
-
-            {aiHintLoading && (
-              <div className="flex items-center gap-2 text-sm text-text-muted">
-                <Sparkles size={14} className="animate-pulse text-purple" />
-                Analyzing your query...
-              </div>
-            )}
-
-            {aiHint && (
-              <div className="bg-purple-light border-2 border-purple/20 rounded-xl p-4 text-sm text-text-secondary">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Sparkles size={13} className="text-purple" />
-                  <span className="text-xs font-semibold text-purple">AI Hint</span>
-                </div>
-                {aiHint}
-              </div>
-            )}
           </div>
         )}
 

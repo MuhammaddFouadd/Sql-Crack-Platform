@@ -20,14 +20,6 @@ const sections = [
     count: 'interactive'
   },
   {
-    title: 'AI Mentor',
-    description: 'Your personal SQL tutor. Get hints, solutions, and guidance in English or Arabic.',
-    href: '/chat',
-    icon: '🤖',
-    color: 'border-purple bg-purple-light',
-    count: 'bilingual'
-  },
-  {
     title: 'Practice Questions',
     description: 'LeetCode-style answer checker. Write SQL, execute it, compare results side-by-side.',
     href: '/lessons',
@@ -87,8 +79,7 @@ export default function Home() {
           <span className="text-accent">zero to hero</span>
         </h1>
         <p className="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed mb-8">
-          Interactive lessons with a built-in SQL engine, LeetCode-style practice, 
-          and an AI mentor that speaks English <em>and</em> Arabic.
+          Interactive lessons with a built-in SQL engine and LeetCode-style practice.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link
@@ -170,7 +161,7 @@ export default function Home() {
             <span className="text-lg font-bold text-purple">3</span>
           </div>
           <h3 className="font-bold text-text mb-2">Master</h3>
-          <p className="text-sm text-text-secondary">Track your progress, revisit tough problems, and use the AI mentor to deepen your understanding.</p>
+          <p className="text-sm text-text-secondary">Track your progress and revisit tough problems to solidify your understanding.</p>
         </div>
       </div>
     </div>

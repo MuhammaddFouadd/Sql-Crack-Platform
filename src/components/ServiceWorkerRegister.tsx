@@ -1,13 +1,26 @@
 'use client'
 
-// ── Registers the service worker for offline/PWA support ──
 import { useEffect } from 'react'
 
 export default function ServiceWorkerRegister() {
-  // Register sw.js on mount if the browser supports service workers
   useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+    if (isDev) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) =>
+          Promise.all(regs.map((r) => r.unregister()))
+        )
+      }
+      return
+    }
+
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+      })
     }
   }, [])
 

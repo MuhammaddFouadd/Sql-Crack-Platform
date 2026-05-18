@@ -43,41 +43,41 @@
 }
 
 .dark {
-  --color-cream: #1a1a2e;
-  --color-cream-dark: #16162a;
-  --color-cream-darker: #121226;
-  --color-card: #222240;
-  --color-surface-hover: #2a2a4a;
-  --color-border: #3a3a5a;
-  --color-border-dark: #4a4a6a;
-  --color-text: #e8e8f0;
-  --color-text-secondary: #a8a8c0;
-  --color-text-muted: #7878a0;
-  --color-accent: #e8957a;
-  --color-accent-light: #2a2030;
-  --color-accent-hover: #d97a5e;
-  --color-yellow: #d4b84a;
-  --color-yellow-light: #2a2820;
-  --color-yellow-dark: #c4a83a;
-  --color-blue: #6aadd8;
-  --color-blue-light: #1a2830;
-  --color-green: #6abe7b;
-  --color-green-light: #1a2820;
-  --color-rose: #d47a9a;
-  --color-rose-light: #2a1820;
-  --color-purple: #ab8ed8;
-  --color-purple-light: #221830;
-  --color-ring: rgba(232, 149, 122, 0.4);
-  --color-shadow: rgba(0, 0, 0, 0.2);
-  --color-shadow-md: rgba(0, 0, 0, 0.3);
+  --color-cream: #222222;
+  --color-cream-dark: #191919;
+  --color-cream-darker: #131313;
+  --color-card: #363537;
+  --color-surface-hover: #3e3d42;
+  --color-border: #525053;
+  --color-border-dark: #69676c;
+  --color-text: #f7f1ff;
+  --color-text-secondary: #bab6c0;
+  --color-text-muted: #8b888f;
+  --color-accent: #fd9353;
+  --color-accent-light: #2e2820;
+  --color-accent-hover: #fc8137;
+  --color-yellow: #fce566;
+  --color-yellow-light: #2e2c20;
+  --color-yellow-dark: #e8d050;
+  --color-blue: #5ad4e6;
+  --color-blue-light: #202e30;
+  --color-green: #7bd88f;
+  --color-green-light: #202e24;
+  --color-rose: #fc618d;
+  --color-rose-light: #2e2028;
+  --color-purple: #948ae3;
+  --color-purple-light: #242030;
+  --color-ring: rgba(253, 147, 83, 0.4);
+  --color-shadow: rgba(0, 0, 0, 0.35);
+  --color-shadow-md: rgba(0, 0, 0, 0.5);
 }
 
 html {
-  zoom: 1.15;
+  font-size: 17px;
 }
 
-.playground-page, .chat-page {
-  zoom: 1;
+@media (max-width: 640px) {
+  html { font-size: 15px; }
 }
 
 body {
@@ -124,7 +124,7 @@ pre {
 }
 
 .dark pre {
-  background: #1a1a30 !important;
+  background: #2a2a2a !important;
   border-color: var(--color-border) !important;
 }
 

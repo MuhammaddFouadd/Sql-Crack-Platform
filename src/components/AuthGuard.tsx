@@ -5,13 +5,16 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { Loader2 } from 'lucide-react'
 
+const PUBLIC_PATHS = ['/login', '/signup']
+
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return
+    if (!user && !PUBLIC_PATHS.includes(pathname)) {
       router.push(`/login?redirect=${encodeURIComponent(pathname)}`)
     }
   }, [user, loading, router, pathname])
@@ -24,7 +27,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!user) {
+  if (!user && !PUBLIC_PATHS.includes(pathname)) {
     return null
   }
 
