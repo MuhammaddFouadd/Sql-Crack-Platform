@@ -1,3 +1,4 @@
+// Playground page — browser-based SQL engine with Monaco editor, schema browser, and result table
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -13,75 +14,11 @@ import {
   Clipboard,
   Table as TableIcon,
   Wand2,
+  Database as DatabaseIcon,
+  ChevronDown,
 } from 'lucide-react'
 import { formatSQL } from '@/lib/sql-format'
-
-const SCHEMA_SQL = `
-CREATE TABLE departments (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  budget REAL
-);
-
-INSERT INTO departments VALUES (1, 'Engineering', 500000);
-INSERT INTO departments VALUES (2, 'Sales', 300000);
-INSERT INTO departments VALUES (3, 'Marketing', 200000);
-INSERT INTO departments VALUES (4, 'HR', 150000);
-
-CREATE TABLE employees (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  salary REAL,
-  department_id INTEGER REFERENCES departments(id),
-  hire_date TEXT
-);
-
-INSERT INTO employees VALUES (1, 'Alice Johnson', 'alice@company.com', 95000, 1, '2022-03-15');
-INSERT INTO employees VALUES (2, 'Bob Smith', 'bob@company.com', 82000, 1, '2023-01-10');
-INSERT INTO employees VALUES (3, 'Carol Williams', 'carol@company.com', 75000, 2, '2022-06-20');
-INSERT INTO employees VALUES (4, 'Dave Brown', 'dave@company.com', 68000, 2, '2024-02-01');
-INSERT INTO employees VALUES (5, 'Eve Davis', 'eve@company.com', 90000, 1, '2021-11-01');
-INSERT INTO employees VALUES (6, 'Frank Miller', 'frank@company.com', 55000, 3, '2023-09-15');
-INSERT INTO employees VALUES (7, 'Grace Wilson', 'grace@company.com', 62000, 3, '2024-01-20');
-INSERT INTO employees VALUES (8, 'Henry Taylor', 'henry@company.com', 48000, 4, '2023-04-10');
-INSERT INTO employees VALUES (9, 'Ivy Anderson', 'ivy@company.com', 72000, 4, '2022-08-05');
-INSERT INTO employees VALUES (10, 'Jack Thomas', 'jack@company.com', 88000, 1, '2023-06-12');
-
-CREATE TABLE products (
-  id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  category TEXT,
-  price REAL,
-  stock INTEGER
-);
-
-INSERT INTO products VALUES (1, 'Laptop Pro', 'Electronics', 1299.99, 50);
-INSERT INTO products VALUES (2, 'Wireless Mouse', 'Electronics', 29.99, 200);
-INSERT INTO products VALUES (3, 'Desk Chair', 'Furniture', 349.99, 30);
-INSERT INTO products VALUES (4, 'Notebook Set', 'Stationery', 12.99, 500);
-INSERT INTO products VALUES (5, 'Monitor 27"', 'Electronics', 449.99, 75);
-INSERT INTO products VALUES (6, 'Standing Desk', 'Furniture', 899.99, 15);
-INSERT INTO products VALUES (7, 'USB-C Hub', 'Electronics', 49.99, 150);
-INSERT INTO products VALUES (8, 'Coffee Mug', 'Kitchen', 14.99, 300);
-
-CREATE TABLE orders (
-  id INTEGER PRIMARY KEY,
-  customer_name TEXT,
-  product_id INTEGER REFERENCES products(id),
-  quantity INTEGER,
-  order_date TEXT
-);
-
-INSERT INTO orders VALUES (1, 'Alice', 1, 1, '2024-01-15');
-INSERT INTO orders VALUES (2, 'Bob', 2, 3, '2024-01-16');
-INSERT INTO orders VALUES (3, 'Alice', 3, 1, '2024-02-01');
-INSERT INTO orders VALUES (4, 'Charlie', 4, 10, '2024-02-10');
-INSERT INTO orders VALUES (5, 'Bob', 5, 2, '2024-02-15');
-INSERT INTO orders VALUES (6, 'Alice', 2, 1, '2024-03-01');
-INSERT INTO orders VALUES (7, 'Diana', 6, 1, '2024-03-05');
-INSERT INTO orders VALUES (8, 'Charlie', 7, 5, '2024-03-10');
-`
+import { SCHEMAS, type PlaygroundSchema } from '@/lib/playground-schemas'
 
 interface Result {
   columns: string[]
@@ -91,6 +28,7 @@ interface Result {
 type SortDir = 'asc' | 'desc' | null
 
 export default function PlaygroundPage() {
+  // State — database, query input, results, error, loading, sorting, schema
   const [db, setDb] = useState<Database | null>(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Result | null>(null)
@@ -100,26 +38,62 @@ export default function PlaygroundPage() {
   const [sortCol, setSortCol] = useState<number | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
   const [copied, setCopied] = useState(false)
+  const [schemaId, setSchemaId] = useState<string>(SCHEMAS[0].id)
+  const [schemaOpen, setSchemaOpen] = useState(false)
+  // Refs — results scroll, DB instance, schema init guard
   const resultsRef = useRef<HTMLDivElement>(null)
+  const dbRef = useRef<Database | null>(null)
+  const schemaLoadedRef = useRef(false)
 
-  useEffect(() => {
-    async function init() {
-      try {
-        const SQL = await initSqlJs({
-          locateFile: () => '/sql-wasm.wasm',
-        })
-        const database = new SQL.Database()
-        database.run(SCHEMA_SQL)
-        setDb(database)
-        setLoading(false)
-      } catch (err) {
-        setError('Failed to init SQL engine: ' + (err as Error).message)
-        setLoading(false)
+  // Initialize in-memory SQLite database with schema DDL
+  const initDatabase = useCallback(async (schema: PlaygroundSchema) => {
+    setLoading(true)
+    setResults(null)
+    setError(null)
+    setQueryTime(null)
+    try {
+      if (dbRef.current) {
+        dbRef.current.close()
+        dbRef.current = null
       }
+      const SQL = await initSqlJs({
+        locateFile: () => '/sql-wasm.wasm',
+      })
+      const database = new SQL.Database()
+      database.run(schema.sql)
+      dbRef.current = database
+      setDb(database)
+      setLoading(false)
+    } catch (err) {
+      setError('Failed to init SQL engine: ' + (err as Error).message)
+      setLoading(false)
     }
-    init()
   }, [])
 
+  // Init SQLite WASM engine on first mount
+  useEffect(() => {
+    if (!schemaLoadedRef.current) {
+      schemaLoadedRef.current = true
+      initDatabase(SCHEMAS[0])
+    }
+  }, [initDatabase])
+
+  // Switch schema — reload DB with new schema DDL
+  const switchSchema = useCallback((id: string) => {
+    const schema = SCHEMAS.find((s) => s.id === id)
+    if (!schema) return
+    setSchemaId(id)
+    setSchemaOpen(false)
+    setQuery('')
+    setResults(null)
+    setError(null)
+    setSortCol(null)
+    setSortDir(null)
+    schemaLoadedRef.current = false
+    initDatabase(schema)
+  }, [initDatabase])
+
+  // Execute SQL — split by semicolons, return last result set
   const runQuery = useCallback((q?: string) => {
     const sql = (q ?? query).trim()
     if (!sql || !db) return
@@ -155,34 +129,40 @@ export default function PlaygroundPage() {
     }
   }, [db, query])
 
+  // Reset DB — drop all known tables and re-run schema DDL
   const resetDb = useCallback(() => {
     if (!db) return
+    const schema = SCHEMAS.find((s) => s.id === schemaId)
+    if (!schema) return
     try {
-      db.run('DROP TABLE IF EXISTS orders')
-      db.run('DROP TABLE IF EXISTS products')
-      db.run('DROP TABLE IF EXISTS employees')
-      db.run('DROP TABLE IF EXISTS departments')
-      db.run(SCHEMA_SQL)
+      const tables = ['orders', 'products', 'employees', 'departments', 'order_items', 'customers', 'loans', 'books', 'members', 'authors']
+      for (const t of tables) {
+        try { db.run(`DROP TABLE IF EXISTS ${t}`) } catch {}
+      }
+      db.run(schema.sql)
       setResults(null)
       setError(null)
       setQueryTime(null)
     } catch (err) {
       setError('Failed to reset: ' + (err as Error).message)
     }
-  }, [db])
+  }, [db, schemaId])
 
+  // Select example query — populate editor
   const selectExample = (q: string) => {
     setQuery(q)
     setResults(null)
     setError(null)
   }
 
+  // Preview table — run SELECT * FROM table LIMIT 20
   const previewTable = (tableName: string) => {
     const q = `SELECT * FROM ${tableName} LIMIT 20;`
     setQuery(q)
     runQuery(q)
   }
 
+  // Cmd/Ctrl+Enter to run query
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
@@ -190,6 +170,7 @@ export default function PlaygroundPage() {
     }
   }
 
+  // Sort result rows by column index and direction
   const sortedValues = useCallback(() => {
     if (!results || sortCol === null || sortDir === null) return results?.values ?? []
     const sorted = [...results.values]
@@ -206,6 +187,7 @@ export default function PlaygroundPage() {
     return sorted
   }, [results, sortCol, sortDir])
 
+  // Toggle sort — asc → desc → none
   const toggleSort = (colIdx: number) => {
     if (sortCol === colIdx) {
       if (sortDir === 'asc') setSortDir('desc')
@@ -216,6 +198,7 @@ export default function PlaygroundPage() {
     }
   }
 
+  // Copy results as CSV to clipboard
   const copyAsCsv = async () => {
     if (!results) return
     const header = results.columns.join(',')
@@ -226,12 +209,15 @@ export default function PlaygroundPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const currentSchema = SCHEMAS.find((s) => s.id === schemaId) || SCHEMAS[0]
+
   return (
     <div
-      className="h-[calc(100vh-4rem)] flex animate-fade-in"
+      className="h-[calc(100vh-5.5rem)] flex animate-fade-in"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
+      {/* Toolbar — schema selector, action buttons, run query */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center justify-between px-5 py-2.5 bg-card border-b-2 border-border">
           <div className="flex items-center gap-2">
@@ -239,13 +225,47 @@ export default function PlaygroundPage() {
               <span className="text-base">▶</span>
               <h2 className="font-bold text-text text-sm">SQL Playground</h2>
             </div>
+
+            {/* Schema selector */}
+            <div className="relative">
+              <button
+                onClick={() => setSchemaOpen(!schemaOpen)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent rounded-xl transition-all"
+              >
+                <DatabaseIcon size={12} />
+                {currentSchema.name}
+                <ChevronDown size={11} />
+              </button>
+              {schemaOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setSchemaOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 z-20 w-44 bg-card border-2 border-border rounded-2xl shadow-lg overflow-hidden">
+                    {SCHEMAS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => switchSchema(s.id)}
+                        className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors ${
+                          s.id === schemaId
+                            ? 'bg-cream-dark text-text'
+                            : 'text-text-muted hover:text-text hover:bg-cream-dark/50'
+                        }`}
+                      >
+                        {s.name}
+                        <span className="block text-[10px] text-text-muted font-normal mt-0.5">{s.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <span className="text-[10px] text-text-muted bg-cream-dark border border-border px-2 py-0.5 rounded-full hidden sm:inline">
               {loading ? 'Loading...' : 'Ready'}
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <ExampleQueries onSelect={selectExample} />
+            <ExampleQueries onSelect={selectExample} schemaId={schemaId} />
             <QueryHistory onSelect={selectExample} />
 
             <button
@@ -279,6 +299,7 @@ export default function PlaygroundPage() {
           </div>
         </div>
 
+        {/* Monaco SQL editor */}
         <div className="h-1/2 border-b-2 border-border min-h-[120px]">
           <Editor
             height="100%"
@@ -300,6 +321,7 @@ export default function PlaygroundPage() {
           />
         </div>
 
+        {/* Results panel — loading, empty state, error, or data table */}
         <div ref={resultsRef} className="flex-1 overflow-auto bg-card">
           {loading && (
             <div className="flex items-center justify-center h-full text-text-muted text-sm">
@@ -420,6 +442,7 @@ export default function PlaygroundPage() {
         </div>
       </div>
 
+      {/* Schema sidebar — browse tables, preview data */}
       <SchemaPanel db={db} onPreview={previewTable} />
     </div>
   )
