@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+// ── Sidebar panel showing database schema tables and columns ──
+import { useState, useEffect } from 'react'
 import { Database } from 'sql.js'
 import { ChevronDown, ChevronRight, Table as TableIcon, Eye } from 'lucide-react'
 
@@ -23,6 +24,7 @@ interface SchemaPanelProps {
   onPreview: (tableName: string) => void
 }
 
+// Queries sqlite_master + PRAGMA table_info to build a table list with columns and row counts
 function loadSchema(db: Database): TableInfo[] {
   const tableNames: string[] = []
   const stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
@@ -59,17 +61,18 @@ function loadSchema(db: Database): TableInfo[] {
 }
 
 export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
-  const [tables, setTables] = useState<TableInfo[]>([])
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [collapsed, setCollapsed] = useState(false)
-  const loaded = useRef(false)
+  const [tables, setTables] = useState<TableInfo[]>([]) // Parsed tables from the database
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()) // Track which tables are expanded
+  const [collapsed, setCollapsed] = useState(false) // Whether the sidebar is hidden
 
+  // Reload schema whenever the db instance changes
   useEffect(() => {
-    if (!db || loaded.current) return
-    loaded.current = true
+    if (!db) return
     setTables(loadSchema(db))
+    setExpanded(new Set())
   }, [db])
 
+  // Toggle a table's expanded/collapsed state
   const toggleTable = (name: string) => {
     setExpanded((prev) => {
       const next = new Set(prev)
