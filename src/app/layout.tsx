@@ -6,14 +6,33 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import ThemeProvider from '@/components/ThemeProvider'
 import ScrollToTop from '@/components/ScrollToTop'
 import AuthProvider from '@/context/AuthContext'
+import { validateEnv } from '@/lib/env'
+
+validateEnv()
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://sqlcraker.com'),
   title: 'Sql Craker — Master SQL. Crack the Interview.',
   description:
     'Interactive SQL learning platform. Master SQL from beginner to advanced with lessons, playground, and practice exercises.',
+  openGraph: {
+    title: 'Sql Craker — Master SQL. Crack the Interview.',
+    description:
+      'Interactive SQL learning platform. Master SQL from beginner to advanced with lessons, playground, and practice exercises.',
+    url: 'https://sqlcraker.com',
+    siteName: 'Sql Craker',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Sql Craker — Master SQL. Crack the Interview.',
+    description:
+      'Interactive SQL learning platform. Master SQL from beginner to advanced with lessons, playground, and practice exercises.',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

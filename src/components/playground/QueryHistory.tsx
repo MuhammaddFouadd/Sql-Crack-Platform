@@ -1,7 +1,7 @@
 'use client'
 
 // ── Dropdown showing recent SQL queries saved to localStorage ──
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Clock, ChevronDown, Trash2 } from 'lucide-react'
 
 const HISTORY_KEY = 'sql-playground-history'
@@ -24,15 +24,14 @@ export function addToHistory(query: string) {
 
 export default function QueryHistory({ onSelect }: QueryHistoryProps) {
   const [open, setOpen] = useState(false) // Dropdown visibility
-  const [queries, setQueries] = useState<string[]>([]) // Loaded history entries
-
-  // Load saved queries from localStorage on mount
-  useEffect(() => {
+  const [queries, setQueries] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(HISTORY_KEY)
-      if (saved) setQueries(JSON.parse(saved))
-    } catch {}
-  }, [])
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
 
   // Clear all history from localStorage and state
   const clearHistory = () => {
@@ -45,6 +44,7 @@ export default function QueryHistory({ onSelect }: QueryHistoryProps) {
       <button
         onClick={() => setOpen(!open)}
         disabled={queries.length === 0}
+        aria-label="Open query history"
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Clock size={13} />
@@ -60,6 +60,7 @@ export default function QueryHistory({ onSelect }: QueryHistoryProps) {
               <span className="text-xs font-bold text-text">Recent Queries</span>
               <button
                 onClick={clearHistory}
+                aria-label="Clear query history"
                 className="flex items-center gap-1 text-[10px] text-text-muted hover:text-rose transition-colors"
               >
                 <Trash2 size={11} />
@@ -74,6 +75,7 @@ export default function QueryHistory({ onSelect }: QueryHistoryProps) {
                     onSelect(q)
                     setOpen(false)
                   }}
+                  aria-label={`Load query: ${q.substring(0, 60)}`}
                   className="w-full text-left px-3 py-2 rounded-xl text-xs font-mono text-text hover:bg-cream-dark transition-colors border border-transparent hover:border-border"
                 >
                   <span className="block truncate">{q}</span>

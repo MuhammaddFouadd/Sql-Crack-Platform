@@ -34,7 +34,7 @@ export default function InternalEngine({ title, query, steps, className }: Inter
 
   useEffect(() => {
     if (!playing) return
-    if (activeStep >= steps.length - 1) { setPlaying(false); return }
+    if (activeStep >= steps.length - 1) { setPlaying(false); return } // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setTimeout(next, 2200)
     return () => clearTimeout(timer)
   }, [playing, activeStep, next, steps.length])

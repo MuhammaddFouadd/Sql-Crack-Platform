@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import TableViz from './TableViz'
 
 interface IndexEngineProps {
   className?: string

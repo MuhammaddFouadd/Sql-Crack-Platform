@@ -71,7 +71,7 @@ export default function ExecutionPipeline({ title, sql, stages, className }: Exe
 
   useEffect(() => {
     if (!playing) return
-    if (activeIdx >= stages.length - 1) { setPlaying(false); return }
+    if (activeIdx >= stages.length - 1) { setPlaying(false); return } // eslint-disable-line react-hooks/set-state-in-effect
     const timer = setTimeout(next, 1800)
     return () => clearTimeout(timer)
   }, [playing, activeIdx, next, stages.length])

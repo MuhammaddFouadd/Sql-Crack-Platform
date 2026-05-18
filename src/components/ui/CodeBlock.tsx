@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useTheme } from '../ThemeProvider'
 
@@ -40,11 +40,8 @@ function highlightSql(sql: string, dark: boolean): string {
 export default function CodeBlock({ code, title, className }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
   const { theme } = useTheme()
-  const [mounted, setMounted] = useState(false)
 
-  useEffect(() => { setMounted(true) }, [])
-
-  const dark = mounted && theme === 'dark'
+  const dark = theme === 'dark'
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code)
@@ -60,6 +57,7 @@ export default function CodeBlock({ code, title, className }: CodeBlockProps) {
         </span>
         <button
           onClick={handleCopy}
+          aria-label={copied ? 'Copied' : 'Copy code'}
           className="text-xs text-text-muted hover:text-text transition-colors px-2 py-0.5 rounded-lg hover:bg-border/50"
         >
           {copied ? 'Copied!' : 'Copy'}

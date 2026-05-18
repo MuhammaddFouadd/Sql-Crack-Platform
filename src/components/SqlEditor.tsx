@@ -6,6 +6,17 @@ import { useTheme } from './ThemeProvider'
 
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
 
+interface MonacoApi {
+  editor: {
+    defineTheme: (name: string, theme: {
+      base: string;
+      inherit: boolean;
+      rules: Array<{ token: string; foreground?: string; fontStyle?: string }>;
+      colors: Record<string, string>;
+    }) => void;
+  };
+}
+
 interface SqlEditorProps {
   value: string
   onChange: (value: string) => void
@@ -14,7 +25,7 @@ interface SqlEditorProps {
   minHeight?: string
 }
 
-function defineMonokaiTheme(monaco: any) {
+function defineMonokaiTheme(monaco: MonacoApi) {
   monaco.editor.defineTheme('monokai-pro', {
     base: 'vs-dark',
     inherit: true,

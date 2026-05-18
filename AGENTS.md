@@ -1,99 +1,102 @@
-# MAIN AGENT
+# Sql Craker — Agent Guide
+
+## Quick Reference
+
+```bash
+npm run dev        # Start dev server
+npm run build      # Production build (must pass cleanly)
+npm run lint       # ESLint (no errors allowed)
+npm run start      # Serve production build
+```
+
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js (App Router, Turbopack) |
+| Language | TypeScript (strict) |
+| Styling | TailwindCSS v4 (`@import "tailwindcss"`, no config file) |
+| SQL Engine | sql.js (browser-based SQLite via WASM) |
+| Editor | Monaco Editor (playground) |
+| Icons | Lucide React |
+| Auth | Firebase Auth (optional — runtime-gated) |
+
+## Next.js Rules
 
 <!-- BEGIN:nextjs-agent-rules -->
-
 This project uses a newer Next.js version with breaking changes.
 Before generating or modifying code:
 
 * Read relevant documentation from `node_modules/next/dist/docs/`
-* Follow latest conventions
-* Respect deprecation warnings
+* Follow latest conventions, respect deprecation warnings
 * Avoid outdated App Router patterns
 * Avoid deprecated Tailwind/PostCSS integrations
 * Ensure compatibility with latest Turbopack behavior
 
+**Pages that export `metadata` must NOT have `'use client'`.** If client hooks are needed, split into a server page exporting metadata + a client component.
 <!-- END:nextjs-agent-rules -->
 
----
+## Design System
 
-# ROLE
+**Light:** warm cream `#faf7f2`, white cards, rounded cards, thick borders, bold typography.
+**Dark:** Monokai Pro Spectrum (`#222222` bg, `#f7f1ff` text, `#fd9353` accent).
 
-You are a world-class Senior Frontend Engineer, UI/UX Designer, and SQL Educator.
+All colors use CSS custom properties (`--color-*`) — never hardcode hex values.
 
-Build a clean, modern SQL learning platform. The final product should feel like a beautifully designed startup website — not a generic dashboard, not a dark hacker theme.
+Key tokens:
 
----
-
-# DESIGN LANGUAGE
-
-**Light mode:** warm cream backgrounds, rounded cards, soft shadows, thick borders, large bold typography.
-**Dark mode:** Monokai Pro Spectrum palette — bg `#222222`, text `#f7f1ff`, accent `#fd9353`.
-
-| Token | Light | Dark (Monokai Pro Spectrum) |
+| Token | Light | Dark |
 |---|---|---|
-| Background | `#faf7f2` | `#222222` |
-| Card | `#ffffff` | `#363537` |
-| Text | `#1a1a2e` | `#f7f1ff` |
-| Accent | `#d97852` | `#fd9353` |
+| `--color-bg` | `#faf7f2` | `#222222` |
+| `--color-card` | `#ffffff` | `#363537` |
+| `--color-text` | `#1a1a2e` | `#f7f1ff` |
+| `--color-accent` | `#d97852` | `#fd9353` |
 | Syntax keywords | `#c07a5a` | `#fc618d` |
 | Syntax strings | `#7c9bc8` | `#fce566` |
-| Syntax numbers | `#e8a87c` | `#fd9353` |
-| Syntax comments | `#a8a29e` | `#69676c` |
 
-Inspiration: Linear, Supabase, Raycast, Monokai Pro Spectrum.
+Dark mode via `.dark` class on `<html>`. Inline script in `layout.tsx` prevents flash. `ThemeProvider` persists to localStorage.
 
-Always prioritize readability, clean spacing, and minimal clutter. Add subtle animations only (fade-in, slide-up).
+## Architecture Patterns
 
----
+### Server / Client Split
 
-# TECH STACK
+Pages needing both `metadata` and client hooks must use this pattern:
+```
+src/app/lessons/
+  page.tsx          ← Server: exports metadata, renders <LessonsClient />
+  lessons-client.tsx ← 'use client': all hooks, state, event handlers
+```
 
-* Next.js
-* TypeScript
-* TailwindCSS v4 (`@import "tailwindcss"`, no `tailwind.config.js`)
-* Monaco Editor (playground)
-* sql.js (browser-based SQLite)
-* Lucide React (icons)
-* Firebase Auth (optional, login/signup)
+### Error Boundaries
 
----
+- `src/app/error.tsx` — catches page errors, surfaces `error.digest`
+- `src/app/global-error.tsx` — catches root layout errors
+- `src/app/not-found.tsx` — 404 page
 
-# CORE FEATURES
+### Accessibility
 
-## SQL Lessons
-14 lessons: SELECT → WHERE → ORDER BY → GROUP BY → HAVING → JOINs → Subqueries → CASE WHEN → CTEs → Window Functions → RANK/DENSE_RANK → String Functions → Pattern Matching → Set Operations.
+All interactive elements without visible text need `aria-label`. Key components with coverage:
+– Playground toolbar (schema, format, reset, run, CSV export)
+– SchemaPanel (toggle table, preview, collapse buttons)
+– ExampleQueries / QueryHistory (dropdown triggers, category tabs, items)
+– CodeBlock copy button
 
-Each lesson has: explanation, syntax, examples, common mistakes, practice questions with a built-in answer checker that executes SQL in the browser via sql.js and compares results.
+### Env Validation
 
-## SQL Playground
-Browser-based SQL playground using Monaco Editor + sql.js. Run queries, explore schemas, export CSV.
+`src/lib/env.ts` runs at build time in the root layout. Missing `NEXT_PUBLIC_FIREBASE_*` vars produce a warning (not a build failure). Auth consumers gracefully degrade when Firebase is not configured.
 
-## PostgreSQL Guide
-EXPLAIN plans, indexes, performance tuning, PostgreSQL vs MySQL notes.
+## Development Rules
 
----
+- TypeScript strict, production-ready code
+- Prevent hydration issues (use `suppressHydrationWarning`, inline scripts for theme)
+- Mobile responsive, reusable components
+- `npm run build` and `npm run lint` must pass cleanly before any commit
+- Minimal animations only (fade-in, slide-up)
 
-# DEVELOPMENT RULES
+## What NOT to Do
 
-* Production-ready, TypeScript strict
-* Reusable components, mobile responsive
-* Prevent hydration issues
-* Avoid deprecated syntax
-* `npm run build` must always pass cleanly
-
----
-
-# DARK MODE
-
-Implemented via a `.dark` class on `<html>`. The `ThemeProvider` manages toggling and persists to `localStorage`. A flash-prevention inline script in `layout.tsx` sets the class before React hydrates.
-
-Monaco Editor uses a custom `monokai-pro` theme. Code blocks use `highlightSql()` which outputs different colors per mode. All other components use CSS custom properties (`--color-*`) that switch via the `.dark` class in `globals.css`.
-
----
-
-# WHAT NOT TO DO
-
-* Don't install packages not in the tech stack
-* Don't re-add AI features (Gemini, OpenAI, chat, AI hints — they were intentionally removed)
-* Don't use hardcoded colors — always use the theme CSS variables
-* Don't overengineer — keep layouts minimal and uncluttered
+- Don't install packages outside the tech stack
+- Don't re-add AI features (Gemini, OpenAI, chat, AI hints — intentionally removed)
+- Don't hardcode colors — always use CSS custom properties
+- Don't overengineer — keep layouts minimal and uncluttered
+- Don't add `'use client'` to pages that export `metadata`

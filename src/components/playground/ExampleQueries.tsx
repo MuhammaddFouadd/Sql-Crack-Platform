@@ -150,6 +150,7 @@ export default function ExampleQueries({ onSelect, schemaId }: ExampleQueriesPro
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
+        aria-label="Open examples"
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all"
       >
         <ChevronDown size={14} />
@@ -166,6 +167,7 @@ export default function ExampleQueries({ onSelect, schemaId }: ExampleQueriesPro
                   <button
                     key={cat.name}
                     onClick={() => setActiveCategory(cat.name)}
+                    aria-label={`${cat.name} category`}
                     className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                       activeCategory === cat.name
                         ? 'bg-card text-text shadow-sm border border-border'
@@ -186,6 +188,7 @@ export default function ExampleQueries({ onSelect, schemaId }: ExampleQueriesPro
                         onSelect(ex.query)
                         setOpen(false)
                       }}
+                      aria-label={`Load ${ex.label} query`}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-text hover:bg-cream-dark transition-colors border border-transparent hover:border-border"
                     >
                       {ex.label}

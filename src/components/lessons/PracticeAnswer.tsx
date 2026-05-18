@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import type { Database as SqlJsDatabase, SqlJsStatic } from 'sql.js'
 import { formatSQL } from '@/lib/sql-format'
 import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
 import { saveSolved, isSolved } from '@/lib/progress'
@@ -25,7 +26,7 @@ interface PracticeAnswerProps {
 
 type CheckStatus = 'idle' | 'correct' | 'wrong' | 'error'
 
-let sqlInitPromise: Promise<any> | null = null
+let sqlInitPromise: Promise<SqlJsStatic> | null = null
 
 async function getSqlJs() {
   if (!sqlInitPromise) {
@@ -45,7 +46,7 @@ function sortRows(rows: string[][]): string[][] {
   })
 }
 
-function resultsEqual(user: { columns: string[]; values: any[][] }, solution: { columns: string[]; values: any[][] }): boolean {
+function resultsEqual(user: { columns: string[]; values: string[][] }, solution: { columns: string[]; values: string[][] }): boolean {
   if (user.columns.length !== solution.columns.length) return false
   for (let i = 0; i < user.columns.length; i++) {
     if (user.columns[i] !== solution.columns[i]) return false
@@ -63,17 +64,15 @@ function resultsEqual(user: { columns: string[]; values: any[][] }, solution: { 
 
 export default function PracticeAnswer({ lessonId, question, hint, solution, index }: PracticeAnswerProps) {
   const [userSql, setUserSql] = useState('')
-  const [status, setStatus] = useState<CheckStatus>('idle')
+  const [status, setStatus] = useState<CheckStatus>(() =>
+    isSolved(lessonId, index) ? 'correct' : 'idle'
+  )
   const [userResult, setUserResult] = useState<{ columns: string[]; values: string[][] } | null>(null)
   const [expectedResult, setExpectedResult] = useState<{ columns: string[]; values: string[][] } | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
   const [showSchema, setShowSchema] = useState(false)
-
-  useEffect(() => {
-    if (isSolved(lessonId, index)) setStatus('correct')
-  }, [lessonId, index])
 
   const handleChange = (value: string) => {
     setUserSql(value)
@@ -89,13 +88,13 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
     }
   }
 
-  function execQuery(db: any, sql: string): { columns: string[]; values: any[][] } | null {
+  function execQuery(db: SqlJsDatabase, sql: string): { columns: string[]; values: string[][] } | null {
     try {
       const stmt = db.prepare(sql)
       const columns: string[] = stmt.getColumnNames()
-      const values: any[][] = []
+      const values: string[][] = []
       while (stmt.step()) {
-        values.push(stmt.get())
+        values.push(stmt.get().map((v: unknown) => (v === null || v === undefined ? '' : String(v))))
       }
       stmt.free()
       return { columns, values }
@@ -179,6 +178,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
 
         <button
           onClick={() => setShowSchema(!showSchema)}
+          aria-label={showSchema ? 'Hide tables' : 'Show tables'}
           className="flex items-center gap-1.5 text-xs text-accent font-medium hover:opacity-80 transition-opacity"
         >
           <Database size={13} />
@@ -220,6 +220,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
             <button
               onClick={handleFormat}
               disabled={!userSql.trim()}
+              aria-label="Format SQL"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Wand2 size={13} />
@@ -229,6 +230,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
             <button
               onClick={checkAnswer}
               disabled={!userSql.trim()}
+              aria-label="Check answer"
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white bg-accent border-2 border-accent hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Check size={13} />
@@ -321,6 +323,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowHint(!showHint)}
+            aria-label={showHint ? 'Hide hint' : 'Show hint'}
             className="flex items-center gap-1.5 text-xs text-blue font-medium hover:text-blue/80 transition-colors"
           >
             <HelpCircle size={13} />
@@ -329,6 +332,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
 
           <button
             onClick={() => setShowSolution(!showSolution)}
+            aria-label={showSolution ? 'Hide solution' : 'Show solution'}
             className="flex items-center gap-1.5 text-xs text-green font-medium hover:text-green/80 transition-colors"
           >
             {showSolution ? <EyeOff size={13} /> : <Eye size={13} />}

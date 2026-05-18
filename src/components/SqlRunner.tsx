@@ -164,6 +164,7 @@ export default function SqlRunner({ defaultQuery = '' }: SqlRunnerProps) {
             <button
               onClick={runQuery}
               disabled={loading || !db}
+              aria-label="Run query"
               className="flex items-center gap-1.5 px-4 py-1.5 bg-accent text-white text-sm font-semibold rounded-xl border-2 border-accent hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Play size={14} />

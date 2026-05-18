@@ -7,16 +7,7 @@ interface CreateIndexEngineProps {
   className?: string
 }
 
-const employeeRows = [
-  ['101', 'Alice', '60000'],
-  ['102', 'Bob', '45000'],
-  ['103', 'Carol', '72000'],
-  ['104', 'Dave', '55000'],
-  ['105', 'Eve', '82000'],
-  ['106', 'Frank', '39000'],
-  ['107', 'Grace', '95000'],
-  ['108', 'Henry', '51000'],
-]
+
 
 const sortedRows = [
   ['106', 'Frank', '39000'],
@@ -41,8 +32,6 @@ const internalNodeDefs = [
   { label: 'Internal 2', separator: '82000', leaves: [2, 3] },
 ]
 
-const rootDef = { label: 'Root', separators: ['51000', '82000'] }
-
 interface StepDef {
   id: string; icon: string; title: string; desc: string
 }
@@ -66,7 +55,7 @@ const steps: StepDef[] = [
   },
 ]
 
-const StepDot = ({ idx, active, completed }: { idx: number; active: boolean; completed: boolean }) => (
+const StepDot = ({ active, completed }: { active: boolean; completed: boolean }) => (
   <button
     className={cn(
       'w-2.5 h-2.5 rounded-full transition-all duration-300',
@@ -136,7 +125,7 @@ export default function CreateIndexEngine({ className }: CreateIndexEngineProps)
         </button>
         <div className="flex items-center gap-1.5 ml-auto">
           {steps.map((_, i) => (
-            <StepDot key={i} idx={i} active={step === i} completed={step > i} />
+            <StepDot key={i} active={step === i} completed={step > i} />
           ))}
         </div>
       </div>

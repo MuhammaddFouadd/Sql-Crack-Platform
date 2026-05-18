@@ -40,6 +40,7 @@ export default function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-200',
                     isActive

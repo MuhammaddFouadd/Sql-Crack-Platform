@@ -122,6 +122,42 @@ export default function Home() {
         ))}
       </div>
 
+      {/* PostgreSQL Callout */}
+      <div className="bg-gradient-to-br from-blue-light/50 to-card border-2 border-blue/30 rounded-3xl p-8 md:p-10 mb-20 relative overflow-hidden">
+        <div className="absolute top-0 right-0 text-[120px] leading-none opacity-10 select-none pointer-events-none">🐘</div>
+        <div className="flex items-start gap-4 mb-5">
+          <span className="text-4xl">🐘</span>
+          <div>
+            <h2 className="text-2xl font-bold text-text mb-1">PostgreSQL Deep Dive</h2>
+            <p className="text-sm text-text-secondary">
+              EXPLAIN plans, B-tree construction visualization, indexing strategies, and PostgreSQL vs MySQL comparisons.
+            </p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3 mb-6">
+          {[
+            ['EXPLAIN ANALYZE', 'Read query plans and spot performance bottlenecks'],
+            ['Index visualization', 'Watch a B-tree being built step by step'],
+            ['Postgres vs MySQL', 'Feature comparison across 7 dimensions'],
+          ].map(([title, desc]) => (
+            <div key={title as string} className="flex items-start gap-3 p-3 rounded-xl bg-card border border-blue/20">
+              <span className="text-blue text-lg leading-none mt-0.5">▶</span>
+              <div>
+                <div className="text-sm font-semibold text-text">{title as string}</div>
+                <div className="text-xs text-text-secondary mt-0.5">{desc as string}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <Link
+          href="/postgres"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue text-white font-semibold text-sm border-2 border-blue hover:opacity-90 transition-opacity"
+        >
+          Open PostgreSQL Guide
+          <span className="text-sm">→</span>
+        </Link>
+      </div>
+
       {/* What you'll learn */}
       <div className="bg-card border-2 border-border rounded-3xl p-8 md:p-10 animate-slide-up mb-20">
         <h2 className="text-2xl font-bold text-text mb-2">

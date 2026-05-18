@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState, useEffect } from 'react'
+import { use } from 'react'
 import Link from 'next/link'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
@@ -20,21 +20,14 @@ const difficultyConfig: Record<string, { label: string; classes: string }> = {
 export default function LessonPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const lesson = lessons.find((l) => l.id === slug)
-  const [progressSolved, setProgressSolved] = useState(0)
-  const [progressTotal, setProgressTotal] = useState(0)
-
   const allIds = lessons.map((l) => l.id)
   const idx = allIds.indexOf(slug)
   const prev = idx > 0 ? lessons[idx - 1] : null
   const next = idx < lessons.length - 1 ? lessons[idx + 1] : null
 
-  useEffect(() => {
-    if (lesson) {
-      const p = getLessonProgress(lesson.id, lesson.practiceQuestions.length)
-      setProgressSolved(p.solved)
-      setProgressTotal(p.total)
-    }
-  }, [lesson])
+  const progress = lesson ? getLessonProgress(lesson.id, lesson.practiceQuestions.length) : null
+  const progressSolved = progress?.solved ?? 0
+  const progressTotal = progress?.total ?? 0
 
   if (!lesson) {
     return (

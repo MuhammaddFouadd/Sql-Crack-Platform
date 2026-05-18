@@ -6,8 +6,6 @@ import WindowViz from './WindowViz'
 import ExecutionPipeline, { createWherePipeline, createJoinPipeline } from './ExecutionPipeline'
 import InternalEngine, { createSelectInternal, createGroupByInternal, createWindowInternal, createSubqueryInternal } from './InternalEngine'
 import JoinEngine from './JoinEngine'
-import IndexEngine from './IndexEngine'
-import ExplainPlan from './ExplainPlan'
 
 const selectViz = {
   steps: [
@@ -330,9 +328,27 @@ const cteViz = {
   ],
 }
 
+interface VizStepTable {
+  title: string;
+  columns: string[];
+  data: string[][];
+  highlightRows?: number[];
+  fadeRows?: number[];
+  highlightCols?: number[];
+  fadeCols?: number[];
+  colorMap?: Record<number, { bg: string; label: string; color: string }>;
+}
+
+interface VizStep {
+  title: string;
+  description: string;
+  detail?: string;
+  tables: VizStepTable[];
+}
+
 const lessonsVizMap: Record<string, {
   label: string; type: 'stepflow' | 'join' | 'window';
-  steps?: any
+  steps?: VizStep[]
 }> = {
   select: { label: 'How SELECT works', type: 'stepflow', steps: selectViz.steps },
   where: { label: 'How WHERE filters rows', type: 'stepflow', steps: whereViz.steps },
@@ -420,7 +436,7 @@ export function renderLessonViz(lessonId: string) {
   const viz = getLessonViz(lessonId)
   if (!viz) return null
   switch (viz.type) {
-    case 'stepflow': return <StepFlow steps={viz.steps} />
+    case 'stepflow': return viz.steps ? <StepFlow steps={viz.steps} /> : null
     case 'join': return <JoinViz />
     case 'window': return <WindowViz />
     default: return null

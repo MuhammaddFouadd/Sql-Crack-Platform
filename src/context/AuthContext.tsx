@@ -33,7 +33,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     const init = async () => {
       try {
-        const { auth, googleProvider } = await import('@/lib/firebase')
+        const { auth } = await import('@/lib/firebase')
         const { onAuthStateChanged } = await import('firebase/auth')
         if (auth) {
           unsub = onAuthStateChanged(auth, (u) => {

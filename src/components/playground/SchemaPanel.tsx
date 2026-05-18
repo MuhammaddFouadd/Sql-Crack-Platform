@@ -1,7 +1,7 @@
 'use client'
 
 // ── Sidebar panel showing database schema tables and columns ──
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Database } from 'sql.js'
 import { ChevronDown, ChevronRight, Table as TableIcon, Eye } from 'lucide-react'
 
@@ -61,16 +61,11 @@ function loadSchema(db: Database): TableInfo[] {
 }
 
 export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
-  const [tables, setTables] = useState<TableInfo[]>([]) // Parsed tables from the database
   const [expanded, setExpanded] = useState<Set<string>>(new Set()) // Track which tables are expanded
   const [collapsed, setCollapsed] = useState(false) // Whether the sidebar is hidden
 
-  // Reload schema whenever the db instance changes
-  useEffect(() => {
-    if (!db) return
-    setTables(loadSchema(db))
-    setExpanded(new Set())
-  }, [db])
+  // Parse tables from the database whenever the db instance changes
+  const tables = useMemo(() => db ? loadSchema(db) : [], [db])
 
   // Toggle a table's expanded/collapsed state
   const toggleTable = (name: string) => {
@@ -86,6 +81,7 @@ export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
     return (
       <button
         onClick={() => setCollapsed(false)}
+        aria-label="Open schema panel"
         className="flex items-center gap-2 px-3 py-2 text-xs text-text-muted hover:text-text border-b-2 border-border w-full"
       >
         <TableIcon size={14} />
@@ -103,6 +99,7 @@ export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
         </div>
         <button
           onClick={() => setCollapsed(true)}
+          aria-label="Hide schema panel"
           className="text-xs text-text-muted hover:text-text transition-colors"
         >
           Hide
@@ -114,6 +111,7 @@ export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
           <div key={table.name}>
             <button
               onClick={() => toggleTable(table.name)}
+              aria-label={`Toggle ${table.name} table`}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-card transition-colors text-left group"
             >
               {expanded.has(table.name) ? <ChevronDown size={14} className="text-text-muted flex-shrink-0" /> : <ChevronRight size={14} className="text-text-muted flex-shrink-0" />}
@@ -133,6 +131,7 @@ export default function SchemaPanel({ db, onPreview }: SchemaPanelProps) {
                 ))}
                 <button
                   onClick={() => onPreview(table.name)}
+                  aria-label={`Preview ${table.name} data`}
                   className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] text-text-muted hover:text-text transition-colors"
                 >
                   <Eye size={12} />

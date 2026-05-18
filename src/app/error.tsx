@@ -19,9 +19,15 @@ export default function Error({
         <span className="text-2xl">!</span>
       </div>
       <h1 className="text-2xl font-bold text-text mb-2">Something went wrong</h1>
-      <p className="text-sm text-text-secondary mb-8">
+      <p className="text-sm text-text-secondary mb-2">
         An unexpected error occurred. Please try again.
       </p>
+      {error.digest && (
+        <p className="text-xs text-text-muted font-mono mb-8">
+          Error ID: {error.digest}
+        </p>
+      )}
+      {!error.digest && <div className="mb-8" />}
       <button
         onClick={reset}
         className="px-5 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm border-2 border-accent hover:opacity-90 transition-opacity"

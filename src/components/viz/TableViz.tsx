@@ -135,9 +135,9 @@ export default function TableViz({
           </tbody>
         </table>
       </div>
-      {hasMore && (
+      {hasMore && maxRows && (
         <div className="px-5 py-3 text-xs text-text-muted bg-cream-dark border-t-2 border-border text-center font-mono">
-          ... and {data.length - maxRows!} more rows
+          ... and {data.length - maxRows} more rows
         </div>
       )}
     </div>

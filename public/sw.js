@@ -1,10 +1,9 @@
-const CACHE = 'sql-craker-v2'
+const CACHE = 'sql-craker-v3'
 
 const PRECACHE = [
   '/',
   '/lessons',
   '/playground',
-  '/chat',
   '/login',
   '/signup',
   '/sql-wasm.wasm',
@@ -38,7 +37,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(cacheFirst(request))
 })
 
-async function cacheFirst(request) {
+async function cacheFirst(request: Request): Promise<Response> {
   const cached = await caches.match(request)
   if (cached) return cached
   try {
@@ -57,7 +56,7 @@ async function cacheFirst(request) {
   }
 }
 
-async function networkFirst(request) {
+async function networkFirst(request: Request): Promise<Response> {
   try {
     const response = await fetch(request)
     if (response.ok) {
@@ -67,7 +66,7 @@ async function networkFirst(request) {
     return response
   } catch {
     const cached = await caches.match(request)
-    return cached || new Response(JSON.stringify({ error: 'You are offline. AI mentor requires internet.' }), {
+    return cached || new Response(JSON.stringify({ error: 'You are offline.' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' },
     })

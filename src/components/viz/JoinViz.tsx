@@ -47,7 +47,6 @@ export default function JoinViz({ className }: JoinVizProps) {
 
     for (let i = 0; i < tableA.data.length; i++) {
       const aRow = tableA.data[i]
-      const aId = aRow[0]
       const deptId = aRow[2]
       const matchedDepts = matches[Number(deptId)] || []
 
