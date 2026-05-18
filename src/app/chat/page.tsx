@@ -35,37 +35,37 @@ function stripImages(m: Message): StoredMessage {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (!saved) return []
-      const parsed: StoredMessage[] = JSON.parse(saved)
-      return parsed.map((m) => ({ role: m.role, text: m.text }))
-    } catch {
-      return []
-    }
-  })
-  const [language, setLanguage] = useState<'en' | 'ar'>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(LANGUAGE_KEY)
-      if (saved === 'en' || saved === 'ar') return saved
-    }
-    return 'en'
-  })
+  const [messages, setMessages] = useState<Message[]>([])
+  const [language, setLanguage] = useState<'en' | 'ar'>('en')
+  const [hydrated, setHydrated] = useState(false)
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const trimmed = messages.map(stripImages)
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
-    } catch {
-    }
-  }, [messages])
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const parsed: StoredMessage[] = JSON.parse(saved)
+        setMessages(parsed.map((m) => ({ role: m.role, text: m.text })))
+      }
+    } catch {}
+    try {
+      const lang = localStorage.getItem(LANGUAGE_KEY)
+      if (lang === 'en' || lang === 'ar') setLanguage(lang)
+    } catch {}
+    setHydrated(true)
+  }, [])
 
   useEffect(() => {
-    localStorage.setItem(LANGUAGE_KEY, language)
-  }, [language])
+    if (!hydrated) return
+    const trimmed = messages.map(stripImages)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed)) } catch {}
+  }, [messages, hydrated])
+
+  useEffect(() => {
+    if (!hydrated) return
+    try { localStorage.setItem(LANGUAGE_KEY, language) } catch {}
+  }, [language, hydrated])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
