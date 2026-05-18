@@ -4,31 +4,25 @@
 
 Interactive SQL learning platform with a built-in browser SQL engine, LeetCode-style practice, and interactive lessons.
 
----
-
-> **📸 Screenshots:** Add screenshots to `docs/screenshots/` and reference them below once deployed.
-
 ## Features
 
-### 📚 Interactive Lessons
+### Interactive Lessons
 14 structured lessons from `SELECT` to Window Functions. Each lesson includes explanations, syntax references, examples, common mistakes, and practice questions with a built-in answer checker.
 
-### 🎮 SQL Playground
-Browser-based SQL playground powered by `sql.js` (SQLite via WebAssembly):
+### SQL Playground
+Browser-based playground powered by `sql.js` (SQLite via WebAssembly):
 - Monaco Editor with SQL syntax highlighting
-- Schema browser sidebar with PK/NN badges and row counts
+- Schema browser with PK/NN badges and row counts
 - Multiple pre-defined schemas (E-Commerce, Library)
 - SQL formatter
 - Sortable result tables with CSV export
 - Keyboard shortcut: `⌘⏎` to run
 
-### ✅ Practice Answer Checker
-Write SQL, execute it against an in-memory SQLite database, and compare your results side-by-side with the expected output.
+### Practice Answer Checker
+Write SQL, execute it against an in-memory SQLite database, and compare your results side-by-side with expected output.
 
-### 📊 Progress Tracking
-Your solved questions persist in `localStorage`. Track your journey across all lessons with progress bars and completion badges.
-
----
+### Progress Tracking
+Solved questions persist in `localStorage`. Track your journey across all lessons with progress bars and completion badges.
 
 ## Quick Start
 
@@ -37,11 +31,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-Everything works **offline** — lessons, playground, progress tracking. No backend required.
-
----
+Open [http://localhost:3000](http://localhost:3000). No backend required — everything works offline.
 
 ## Commands
 
@@ -51,8 +41,6 @@ Everything works **offline** — lessons, playground, progress tracking. No back
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | Lint all files |
-
----
 
 ## Tech Stack
 
@@ -66,15 +54,13 @@ Everything works **offline** — lessons, playground, progress tracking. No back
 | Icons | Lucide |
 | Auth | localStorage token auth |
 
----
-
 ## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── lessons/          # SQL lesson pages + practice questions
-│   │   └── [slug]/       # Individual lesson detail pages
+│   ├── lessons/          # SQL lesson pages + practice
+│   │   └── [slug]/       # Lesson detail pages
 │   ├── playground/       # SQL playground with Monaco Editor
 │   ├── login/            # Sign-in page
 │   ├── signup/           # Sign-up page
@@ -82,25 +68,22 @@ src/
 │   ├── page.tsx          # Landing page
 │   ├── error.tsx         # Error boundary
 │   ├── not-found.tsx     # 404 page
-│   ├── robots.ts         # SEO robots
-│   └── sitemap.ts        # SEO sitemap
+│   ├── robots.ts         # SEO
+│   └── sitemap.ts        # SEO
 ├── components/
 │   ├── lessons/          # PracticeAnswer, JoinViz, etc.
 │   ├── playground/       # SchemaPanel, ExampleQueries, QueryHistory
 │   ├── ui/               # CodeBlock, SqlRunner, SqlEditor
-│   └── viz/              # Interactive visualizations (B-tree, window funcs)
+│   └── viz/              # Interactive visualizations
 ├── lib/
 │   ├── data/             # Lesson content
-│   ├── progress.ts       # localStorage progress tracker
-│   ├── db-schema.ts      # Practice database schema DDL
-│   ├── playground-schemas.ts
-│   ├── sql-format.ts     # SQL formatter
 │   ├── auth.ts           # localStorage token auth
-│   └── env.ts            # Build-time env validation
-└── globals.css           # Design palette (light + dark)
+│   ├── progress.ts       # Progress tracker
+│   ├── db-schema.ts      # Practice schema DDL
+│   ├── playground-schemas.ts
+│   └── sql-format.ts     # SQL formatter
+└── globals.css           # Design tokens (light + dark)
 ```
-
----
 
 ## Design
 
@@ -108,8 +91,6 @@ src/
 **Dark mode:** Monokai Pro Spectrum palette (`#222222` bg, `#f7f1ff` text, `#fd9353` accent).
 
 Dark mode persists to `localStorage` and respects `prefers-color-scheme`. Flash prevention via inline script in the root layout.
-
----
 
 ## Authentication
 

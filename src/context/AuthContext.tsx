@@ -1,6 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
+import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '@/lib/auth'
 
 interface AuthUser {
   email: string
@@ -18,7 +19,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: true,
+  loading: false,
   signIn: async () => null,
   signUp: async () => null,
   logout: async () => {},
@@ -28,17 +29,9 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext)
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const { getCurrentUser } = require('@/lib/auth')
-    setUser(getCurrentUser())
-    setLoading(false)
-  }, [])
+  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser())
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
-    const { signIn: authSignIn, getCurrentUser } = await import('@/lib/auth')
     const result = authSignIn(email, password)
     if (result.success) {
       setUser(getCurrentUser())
@@ -48,7 +41,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }
 
   const signUp = async (email: string, password: string): Promise<string | null> => {
-    const { signUp: authSignUp, getCurrentUser } = await import('@/lib/auth')
     const result = authSignUp(email, password)
     if (result.success) {
       setUser(getCurrentUser())
@@ -60,13 +52,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signInWithGoogle = async () => {}
 
   const logout = async () => {
-    const { signOut } = await import('@/lib/auth')
-    signOut()
+    authSignOut()
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, signInWithGoogle }}>
+    <AuthContext.Provider value={{ user, loading: false, signIn, signUp, logout, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   )
