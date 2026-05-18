@@ -16,17 +16,52 @@ interface ChatInputProps {
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const MAX_DIM = 1200
 
-function readFileAsBase64(file: File): Promise<Attachment> {
+function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      reject(new Error(`Unsupported file type: ${file.type}`))
-      return
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      if (width <= MAX_DIM && height <= MAX_DIM && file.size <= MAX_FILE_SIZE) {
+        resolve(file)
+        return
+      }
+      if (width > height) {
+        height = Math.round(height * (MAX_DIM / width))
+        width = MAX_DIM
+      } else {
+        width = Math.round(width * (MAX_DIM / height))
+        height = MAX_DIM
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob)
+          else reject(new Error('Canvas toBlob failed'))
+        },
+        file.type,
+        0.85,
+      )
     }
-    if (file.size > MAX_FILE_SIZE) {
-      reject(new Error(`File too large (max 4MB)`))
-      return
-    }
+    img.onerror = reject
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+async function readFileAsBase64(file: File): Promise<Attachment> {
+  if (!ACCEPTED_TYPES.includes(file.type)) {
+    throw new Error(`Unsupported file type: ${file.type}`)
+  }
+  const blob = await resizeImage(file)
+  if (blob.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large (max 4MB)`)
+  }
+  return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => {
       const result = reader.result as string
@@ -34,7 +69,7 @@ function readFileAsBase64(file: File): Promise<Attachment> {
       resolve({ mimeType: file.type, data: base64 })
     }
     reader.onerror = reject
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(blob)
   })
 }
 
