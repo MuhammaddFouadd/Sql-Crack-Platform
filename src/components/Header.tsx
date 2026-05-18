@@ -4,7 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useTheme } from './ThemeProvider'
-import { Sun, Moon, LogIn } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { Sun, Moon, LogIn, LogOut } from 'lucide-react'
+import { useState } from 'react'
 
 const links = [
   { href: '/', label: 'Home' },
@@ -15,6 +17,8 @@ const links = [
 export default function Header() {
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
+  const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <header className="pt-4 pb-2">
@@ -63,13 +67,41 @@ export default function Header() {
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
 
-            <Link
-              href="/login"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-accent hover:bg-cream-dark/50 border border-transparent hover:border-accent transition-all"
-            >
-              <LogIn size={14} />
-              Sign In
-            </Link>
+            {user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  className="w-8 h-8 rounded-full bg-accent text-white text-sm font-bold flex items-center justify-center hover:opacity-80 transition-opacity"
+                  title={user.email}
+                >
+                  {user.email[0].toUpperCase()}
+                </button>
+                {menuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                    <div className="absolute right-0 top-10 z-20 bg-card border-2 border-border rounded-xl p-2 min-w-[160px] shadow-lg">
+                      <p className="px-3 py-1.5 text-xs text-text-muted truncate">{user.email}</p>
+                      <div className="h-px bg-border my-1" />
+                      <button
+                        onClick={() => { logout(); setMenuOpen(false) }}
+                        className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:text-rose hover:bg-rose-light/50 transition-colors"
+                      >
+                        <LogOut size={13} />
+                        Sign Out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-accent hover:bg-cream-dark/50 border border-transparent hover:border-accent transition-all"
+              >
+                <LogIn size={14} />
+                Sign In
+              </Link>
+            )}
           </nav>
         </div>
       </div>

@@ -47,7 +47,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signUp = async (email: string, password: string): Promise<string | null> => {
     const result = authSignUp(email, password)
     if (result.success) {
-      setUser(getCurrentUser())
       return null
     }
     return result.error || 'Failed to create account.'

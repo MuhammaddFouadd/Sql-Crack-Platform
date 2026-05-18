@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import HomeAuthBanner from '@/components/HomeAuthBanner'
 
 const sections = [
   {
@@ -107,6 +108,8 @@ export default function Home() {
           </Link>
         ))}
       </div>
+
+      <HomeAuthBanner />
 
       <div className="bg-card border-2 border-border rounded-3xl p-8 md:p-10 animate-slide-up mb-24">
         <h2 className="text-2xl font-bold text-text mb-2">

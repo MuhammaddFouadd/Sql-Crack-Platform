@@ -34,7 +34,7 @@ export default function SignupClient() {
     if (err) {
       setError(err)
     } else {
-      router.push('/lessons')
+      router.push('/login')
     }
     setLoading(false)
   }

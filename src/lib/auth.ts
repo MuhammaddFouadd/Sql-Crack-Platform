@@ -75,13 +75,6 @@ export function signUp(email: string, password: string): { success: boolean; err
   users.push(user)
   saveUsers(users)
 
-  const session: Session = {
-    token: generateToken(),
-    email,
-    userId: user.id,
-  }
-  saveSession(session)
-
   return { success: true }
 }
 
