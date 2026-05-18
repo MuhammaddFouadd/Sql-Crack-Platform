@@ -7,9 +7,6 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import ThemeProvider from '@/components/ThemeProvider'
 import ScrollToTop from '@/components/ScrollToTop'
 import AuthProvider from '@/context/AuthContext'
-import { validateEnv } from '@/lib/env'
-
-validateEnv()
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })

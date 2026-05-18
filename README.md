@@ -64,7 +64,7 @@ Everything works **offline** — lessons, playground, progress tracking. No back
 | Editor | Monaco Editor |
 | SQL Engine | sql.js (SQLite via WebAssembly) |
 | Icons | Lucide |
-| Auth | Firebase Auth _(optional, runtime-gated)_ |
+| Auth | localStorage token auth |
 
 ---
 
@@ -76,8 +76,8 @@ src/
 │   ├── lessons/          # SQL lesson pages + practice questions
 │   │   └── [slug]/       # Individual lesson detail pages
 │   ├── playground/       # SQL playground with Monaco Editor
-│   ├── login/            # Sign-in page (Firebase)
-│   ├── signup/           # Sign-up page (Firebase)
+│   ├── login/            # Sign-in page
+│   ├── signup/           # Sign-up page
 │   ├── layout.tsx        # Root layout (theme, auth, header)
 │   ├── page.tsx          # Landing page
 │   ├── error.tsx         # Error boundary
@@ -95,7 +95,7 @@ src/
 │   ├── db-schema.ts      # Practice database schema DDL
 │   ├── playground-schemas.ts
 │   ├── sql-format.ts     # SQL formatter
-│   ├── firebase.ts       # Firebase config (optional)
+│   ├── auth.ts           # localStorage token auth
 │   └── env.ts            # Build-time env validation
 └── globals.css           # Design palette (light + dark)
 ```
@@ -111,17 +111,6 @@ Dark mode persists to `localStorage` and respects `prefers-color-scheme`. Flash 
 
 ---
 
-## Environment (Optional)
+## Authentication
 
-Firebase authentication is optional. To enable sign-in/sign-up:
-
-```env
-NEXT_PUBLIC_FIREBASE_API_KEY=...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
-NEXT_PUBLIC_FIREBASE_APP_ID=...
-```
-
-Copy `.env.example` to `.env.local` and fill in your Firebase project credentials.
+Simple localStorage-based token auth. Sign up with email/password — credentials are stored in your browser. No backend or third-party services required.
