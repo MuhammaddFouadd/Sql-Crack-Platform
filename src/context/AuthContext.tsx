@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '@/lib/auth'
 
 interface AuthUser {
@@ -29,7 +29,11 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext)
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser())
+  const [user, setUser] = useState<AuthUser | null>(null)
+
+  useEffect(() => {
+    setUser(getCurrentUser())
+  }, [])
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
     const result = authSignIn(email, password)
