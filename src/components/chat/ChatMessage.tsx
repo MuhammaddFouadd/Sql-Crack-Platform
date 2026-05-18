@@ -28,7 +28,7 @@ export default function ChatMessage({ role, text, language, images }: ChatMessag
             : 'bg-card border-2 border-border text-text'
         }`}
       >
-        {images && images.length > 0 && (
+        {images && images.length > 0 && images[0].data && (
           <div className={`flex gap-2 flex-wrap ${text ? 'mb-3' : ''}`}>
             {images.map((img, i) => (
               <img
@@ -38,6 +38,18 @@ export default function ChatMessage({ role, text, language, images }: ChatMessag
                 className="max-w-full rounded-xl border border-border object-contain"
                 style={{ maxHeight: '12rem' }}
               />
+            ))}
+          </div>
+        )}
+        {images && images.length > 0 && !images[0].data && (
+          <div className={`flex gap-2 flex-wrap ${text ? 'mb-3' : ''}`}>
+            {images.map((_, i) => (
+              <div
+                key={i}
+                className="h-16 w-16 rounded-xl bg-cream-dark border-2 border-border flex items-center justify-center text-xs text-text-muted"
+              >
+                📷
+              </div>
             ))}
           </div>
         )}
