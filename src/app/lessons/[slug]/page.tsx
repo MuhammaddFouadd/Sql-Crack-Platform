@@ -7,38 +7,12 @@ import { cn } from '@/lib/utils'
 import CodeBlock from '@/components/ui/CodeBlock'
 import { getLessonViz, renderLessonViz, getLessonInternalEngine } from '@/components/viz/LessonViz'
 import SqlRunner from '@/components/SqlRunner'
+import PracticeAnswer from '@/components/lessons/PracticeAnswer'
 
 const difficultyConfig: Record<string, { label: string; classes: string }> = {
   beginner: { label: 'Beginner', classes: 'bg-green-light text-green border-green/30' },
   intermediate: { label: 'Intermediate', classes: 'bg-yellow-light text-yellow border-yellow/30' },
   advanced: { label: 'Advanced', classes: 'bg-rose-light text-rose border-rose/30' },
-}
-
-function PracticeQuestion({ q, index }: { q: { question: string; hint: string; solution: string }; index: number }) {
-  return (
-    <details className="bg-cream-dark border-2 border-border rounded-2xl overflow-hidden group">
-      <summary className="px-6 py-4 text-sm font-semibold text-text cursor-pointer hover:bg-border/20 transition-colors">
-        Question {index + 1}
-      </summary>
-      <div className="px-6 pb-6 space-y-4">
-        <p className="text-text-secondary leading-relaxed">{q.question}</p>
-        <details>
-          <summary className="text-sm text-blue font-medium cursor-pointer hover:text-blue/80 transition-colors">
-            💡 Show hint
-          </summary>
-          <p className="mt-2 text-sm text-text-secondary bg-blue-light border-2 border-blue/20 rounded-xl p-4">{q.hint}</p>
-        </details>
-        <details>
-          <summary className="text-sm text-green font-medium cursor-pointer hover:text-green/80 transition-colors">
-            ✅ Show solution
-          </summary>
-          <div className="mt-2">
-            <CodeBlock code={q.solution} title="sql" />
-          </div>
-        </details>
-      </div>
-    </details>
-  )
 }
 
 export default function LessonPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -158,7 +132,7 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
           <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Practice Questions</h2>
           <div className="space-y-3">
             {lesson.practiceQuestions.map((q, i) => (
-              <PracticeQuestion key={i} q={q} index={i} />
+              <PracticeAnswer key={i} question={q.question} hint={q.hint} solution={q.solution} index={i} />
             ))}
           </div>
 
