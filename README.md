@@ -1,145 +1,112 @@
-# SQL Helper
+# Sql Craker
 
-A modern SQL learning platform with interactive lessons, an AI mentor, and a browser-based SQL playground.
+Master SQL. Crack the Interview.
 
-Master SQL from `SELECT` to window functions, learn PostgreSQL internals, and practice with an AI tutor trained on LeetCode SQL 50 and HackerRank SQL problems.
+An interactive SQL learning platform with lessons, a browser-based SQL playground, and an AI mentor.
+
+## Quick Start
+
+```bash
+npm install
+# Set up .env.local (see below) then:
+npm run offline
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+Everything works **offline** — lessons, playground, progress tracking. Only the AI mentor needs internet.
 
 ## Features
 
 ### 📚 Interactive Lessons
-14 structured lessons covering the full SQL spectrum:
-`SELECT` → `WHERE` → `ORDER BY` → `GROUP BY` → `HAVING` → `JOINs` → `Subqueries` → `CASE WHEN` → `CTEs` → `Window Functions` → `RANK / DENSE_RANK / ROW_NUMBER`
-
-Each lesson includes explanations, syntax references, examples, common mistakes, and practice questions with an interactive answer checker that auto-formats SQL and validates correctness.
+14 structured lessons from `SELECT` to Window Functions. Each lesson has explanations, syntax references, examples, common mistakes, and practice questions with a LeetCode-style answer checker that executes your SQL and compares results.
 
 ### 🤖 AI Mentor
 A bilingual (English / Arabic) SQL tutor that:
-- Identifies problems from screenshots or descriptions (trained on LeetCode SQL 50 + HackerRank problems)
+- Identifies problems from screenshots or descriptions
 - Provides graduated hints (indirect → direct → full solution)
-- Suggests topics to revise
+- Streams responses token-by-token with SQL syntax highlighting
 - Supports image attachments via file picker or paste
-- Streams responses token-by-token
-- Renders SQL code blocks with syntax highlighting
 - Falls back to OpenAI GPT-4o-mini when Gemini quota is exhausted
 
 ### 🎮 SQL Playground
-A full-featured browser-based SQL playground powered by `sql.js`:
-- Schema browser sidebar with table/column details, PK/NN badges, and row counts
+Browser-based SQL playground powered by `sql.js` (SQLite via WebAssembly):
 - Monaco Editor with SQL syntax highlighting
-- Example queries dropdown (Basic / Aggregation / Joins / Window Functions / Set Operations)
-- Query history (last 20, persisted to localStorage)
-- SQL formatter (keyword capitalisation + indentation)
-- Sortable result tables with click-to-sort headers
-- CSV export (copy to clipboard)
+- Schema browser sidebar with PK/NN badges and row counts
+- Multiple pre-defined schemas (E-Commerce, Library)
+- SQL formatter via `sql-formatter`
+- Sortable result tables with CSV export
 - Keyboard shortcut: `⌘⏎` to run
 
-### 🐘 PostgreSQL Section
-PostgreSQL-specific content: `EXPLAIN` / `ANALYZE`, indexes, performance basics, and PostgreSQL vs MySQL notes.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | [Next.js](https://nextjs.org/) 16 (App Router + Turbopack) |
-| Language | [TypeScript](https://www.typescriptlang.org/) strict mode |
-| Styling | [Tailwind CSS](https://tailwindcss.com/) v4 |
-| Editor | [Monaco Editor](https://microsoft.github.io/monaco-editor/) |
-| SQL Engine | [sql.js](https://sql.js.org/) (SQLite via WebAssembly) |
-| AI Provider | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api) + OpenAI [GPT-4o-mini](https://openai.com/) fallback |
-| Markdown | [react-markdown](https://github.com/remarkjs/react-markdown) + [remark-gfm](https://github.com/remarkjs/remark-gfm) |
-| Icons | [Lucide](https://lucide.dev/) |
-| Diagrams | [Mermaid](https://mermaid.js.org/) |
-
-## Getting Started
+## Setup
 
 ### Prerequisites
 - Node.js 20+
-- A Google Gemini API key (free: https://aistudio.google.com/apikey)
-- (Optional) An OpenAI API key for fallback when Gemini quota is exhausted
 
-### Setup
-
-```bash
-npm install
-```
-
-Create `.env.local` in the project root:
+### Environment Variables
+Create `.env.local`:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here    # optional fallback
 ```
 
-Start the development server:
+### Commands
 
-```bash
-npm run dev
-```
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server with hot reload |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run offline` | Build + start (ready for offline use) |
+| `npm run lint` | Lint all files |
 
-Open [http://localhost:3000](http://localhost:3000).
+## Offline Usage
 
-### Build
+1. First visit: run `npm run offline`, visit the site once (all pages are cached by the service worker)
+2. Subsequent visits: the site works fully offline — just keep the server running
+3. No internet needed for lessons, playground, progress tracking
+4. AI mentor requires internet (connects to Gemini/OpenAI APIs)
 
-```bash
-npm run build    # production build
-npm run lint     # lint all files
-```
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router + Turbopack) |
+| Language | TypeScript strict mode |
+| Styling | Tailwind CSS v4 |
+| Editor | Monaco Editor |
+| SQL Engine | sql.js (SQLite via WebAssembly) |
+| SQL Formatter | sql-formatter |
+| AI Provider | Gemini 2.0 Flash + OpenAI GPT-4o-mini fallback |
+| Markdown | react-markdown + remark-gfm |
+| Icons | Lucide |
 
 ## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── api/chat/route.ts    # AI mentor API (Gemini + OpenAI fallback, SSE streaming)
-│   ├── chat/                # AI mentor chat page
-│   ├── lessons/[slug]/      # SQL lesson pages
-│   ├── playground/          # SQL playground with Monaco Editor
-│   ├── postgres/            # PostgreSQL section
-│   └── page.tsx             # Landing page
+│   ├── api/chat/route.ts     # AI mentor API (SSE streaming)
+│   ├── chat/                  # AI mentor chat page
+│   ├── lessons/[slug]/        # SQL lesson pages
+│   ├── playground/            # SQL playground
+│   ├── postgres/              # PostgreSQL section
+│   └── page.tsx               # Landing page
 ├── components/
-│   ├── chat/                # ChatInput, ChatMessage, LanguageToggle, MarkdownMessage
-│   ├── lessons/             # PracticeAnswer (interactive SQL answer checker)
-│   ├── playground/          # SchemaPanel, ExampleQueries, QueryHistory
-│   ├── ui/                  # CodeBlock (SQL syntax highlighting + copy button)
-│   └── viz/                 # SQL visualisation components (joins, indexes, etc.)
+│   ├── chat/                  # Chat components
+│   ├── lessons/               # PracticeAnswer
+│   ├── playground/            # SchemaPanel, ExampleQueries, QueryHistory
+│   └── ui/                    # CodeBlock
 ├── lib/
-│   ├── data/                # Problem database (LeetCode + HackerRank), lesson content
-│   ├── sql-format.ts        # SQL formatter + normalizer shared utility
-│   └── utils.ts             # General utilities
-└── app/globals.css          # Design palette (warm cream, terracotta accent, etc.)
+│   ├── data/                  # Lessons, LeetCode, HackerRank problems
+│   ├── sql-format.ts          # SQL formatter
+│   ├── progress.ts            # localStorage progress tracker
+│   ├── db-schema.ts           # Practice database schema
+│   └── playground-schemas.ts  # Playground schemas
+└── globals.css                # Design palette
 ```
 
 ## Design
 
-Light mode only. Warm cream backgrounds (`#faf7f2`), terracotta accent (`#d97852`), rounded cards with thick subtle borders, large bold typography, and soft shadows.
-
-Inspired by Linear, Supabase, and Raycast — modern startup aesthetics with an editorial, playful feel.
-
-## API
-
-### `POST /api/chat`
-
-Sends a message to the AI mentor. Returns an SSE stream of text chunks.
-
-**Request body:**
-```json
-{
-  "message": "string",
-  "history": [{ "role": "user|assistant", "text": "string" }],
-  "language": "en|ar",
-  "images": [{ "mimeType": "image/png", "data": "base64..." }]
-}
-```
-
-**Response:** SSE stream (`text/event-stream`)
-```
-data: {"text":"partial response chunk"}
-data: {"text":"next chunk"}
-data: [DONE]
-```
-
-Error format:
-```
-data: {"error":"error message"}
-data: [DONE]
-```
+Light mode only. Warm cream backgrounds, terracotta accent, rounded cards with thick subtle borders. Inspired by Linear, Supabase, and Raycast.
