@@ -2,6 +2,10 @@
 
 **Master SQL. Crack the Interview.**
 
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000?logo=vercel)](https://sql-master-five.vercel.app)
+
+👉 **Try it live:** [https://sql-master-five.vercel.app](https://sql-master-five.vercel.app)
+
 Interactive SQL learning platform with a built-in browser SQL engine, LeetCode-style practice, and interactive lessons.
 
 ## Features
