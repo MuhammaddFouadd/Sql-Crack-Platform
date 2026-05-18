@@ -18,28 +18,20 @@ const sections = [
     count: '1 guide'
   },
   {
-    title: 'LeetCode SQL 50',
-    description: 'Solve real LeetCode SQL problems with hints, solutions, and detailed explanations.',
-    href: '/leetcode',
-    icon: '⚡',
-    color: 'border-yellow bg-yellow-light',
-    count: '10 problems'
-  },
-  {
-    title: 'HackerRank Prep',
-    description: 'Categorized SQL exercises from easy to hard for HackerRank 5-star preparation.',
-    href: '/hackerrank',
-    icon: '⭐',
-    color: 'border-rose bg-rose-light',
-    count: '16 exercises'
-  },
-  {
     title: 'SQL Playground',
     description: 'Write and execute SQL queries in your browser with Monaco Editor.',
     href: '/playground',
     icon: '▶',
     color: 'border-green bg-green-light',
     count: 'interactive'
+  },
+  {
+    title: 'AI Mentor',
+    description: 'Get graduated hints and solutions for LeetCode and HackerRank SQL problems. Speaks English and Arabic.',
+    href: '/chat',
+    icon: '🤖',
+    color: 'border-purple bg-purple-light',
+    count: 'bilingual'
   }
 ]
 
@@ -55,7 +47,7 @@ export default function Home() {
           <span className="text-accent">modern way</span>
         </h1>
         <p className="text-lg text-text-secondary max-w-xl mx-auto leading-relaxed">
-          Interactive lessons, real LeetCode problems, HackerRank prep, and a live SQL playground.
+          Interactive lessons, a live SQL playground, and an AI mentor for interview prep.
         </p>
       </div>
 
