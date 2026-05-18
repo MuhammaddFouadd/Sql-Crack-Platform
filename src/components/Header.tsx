@@ -8,9 +8,8 @@ const links = [
   { href: '/', label: 'Home' },
   { href: '/lessons', label: 'Lessons' },
   { href: '/postgres', label: 'PostgreSQL' },
-  { href: '/leetcode', label: 'LeetCode 50' },
-  { href: '/hackerrank', label: 'HackerRank' },
   { href: '/playground', label: 'Playground' },
+  { href: '/chat', label: 'Mentor' },
 ]
 
 export default function Header() {
