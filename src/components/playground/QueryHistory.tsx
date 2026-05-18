@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+// ── Dropdown showing recent SQL queries saved to localStorage ──
+import { useState, useEffect } from 'react'
 import { Clock, ChevronDown, Trash2 } from 'lucide-react'
 
 const HISTORY_KEY = 'sql-playground-history'
@@ -10,6 +11,7 @@ interface QueryHistoryProps {
   onSelect: (query: string) => void
 }
 
+// Save a query to localStorage history (deduped, most recent first)
 export function addToHistory(query: string) {
   try {
     const saved = localStorage.getItem(HISTORY_KEY)
@@ -21,16 +23,18 @@ export function addToHistory(query: string) {
 }
 
 export default function QueryHistory({ onSelect }: QueryHistoryProps) {
-  const [open, setOpen] = useState(false)
-  const [queries, setQueries] = useState<string[]>(() => {
+  const [open, setOpen] = useState(false) // Dropdown visibility
+  const [queries, setQueries] = useState<string[]>([]) // Loaded history entries
+
+  // Load saved queries from localStorage on mount
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(HISTORY_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+      if (saved) setQueries(JSON.parse(saved))
+    } catch {}
+  }, [])
 
+  // Clear all history from localStorage and state
   const clearHistory = () => {
     localStorage.removeItem(HISTORY_KEY)
     setQueries([])
