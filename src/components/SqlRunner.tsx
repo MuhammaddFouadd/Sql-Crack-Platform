@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import initSqlJs, { Database } from 'sql.js'
 import TableViz from '@/components/viz/TableViz'
+import { Play, Download, Clipboard } from 'lucide-react'
 
 const SCHEMA_SQL = `
 CREATE TABLE departments (
@@ -73,15 +74,15 @@ INSERT INTO orders VALUES (8, 'Charlie', 7, 5, '2024-03-10');
 
 interface SqlRunnerProps {
   defaultQuery?: string
-  height?: string
 }
 
-export default function SqlRunner({ defaultQuery = '', height = '160px' }: SqlRunnerProps) {
+export default function SqlRunner({ defaultQuery = '' }: SqlRunnerProps) {
   const [db, setDb] = useState<Database | null>(null)
   const [query, setQuery] = useState(defaultQuery)
-  const [results, setResults] = useState<{ columns: string[]; values: any[][] } | null>(null)
+  const [results, setResults] = useState<{ columns: string[]; values: string[][] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let database: Database | null = null
@@ -100,9 +101,7 @@ export default function SqlRunner({ defaultQuery = '', height = '160px' }: SqlRu
       }
     }
     init()
-    return () => {
-      database?.close()
-    }
+    return () => { database?.close() }
   }, [])
 
   const runQuery = useCallback(() => {
@@ -114,36 +113,50 @@ export default function SqlRunner({ defaultQuery = '', height = '160px' }: SqlRu
       const queries = query.split(';').map((q) => q.trim()).filter((q) => q.length > 0)
       if (queries.length === 0) return
 
-      let lastResult: { columns: string[]; values: any[][] } | null = null
+      let lastResult: { columns: string[]; values: string[][] } | null = null
 
       for (const q of queries) {
         const stmt = db.prepare(q)
         const cols = stmt.getColumnNames()
-        const rows: any[][] = []
+        const rows: string[][] = []
         while (stmt.step()) {
-          rows.push(stmt.get() as any[])
+          rows.push(stmt.get().map((v) => (v === null || v === undefined ? 'NULL' : String(v))))
         }
         lastResult = { columns: cols, values: rows }
         stmt.free()
       }
 
-      if (lastResult) {
-        setResults(lastResult)
-      }
+      if (lastResult) setResults(lastResult)
     } catch (err) {
       setError((err as Error).message)
     }
   }, [db, query])
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      runQuery()
+    }
+  }
+
+  const copyAsCsv = async () => {
+    if (!results) return
+    const header = results.columns.join(',')
+    const rows = results.values.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(','))
+    const csv = [header, ...rows].join('\n')
+    await navigator.clipboard.writeText(csv)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="relative">
+    <div className="space-y-3" onKeyDown={handleKeyDown}>
+      <div>
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Write your SQL query here..."
-          className="w-full font-mono text-sm bg-card border-2 border-border rounded-xl p-4 text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent transition-colors resize-y"
-          style={{ minHeight: height, height: 'auto' }}
+          className="w-full font-mono text-sm bg-card border-2 border-border rounded-xl p-4 text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent transition-colors resize-y min-h-[120px]"
           spellCheck={false}
         />
         <div className="flex items-center justify-between mt-3">
@@ -151,15 +164,28 @@ export default function SqlRunner({ defaultQuery = '', height = '160px' }: SqlRu
             <button
               onClick={runQuery}
               disabled={loading || !db}
-              className="px-4 py-1.5 bg-accent text-white text-sm font-semibold rounded-xl border-2 border-accent hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-accent text-white text-sm font-semibold rounded-xl border-2 border-accent hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ▶ Run
+              <Play size={14} />
+              Run
+              <span className="text-[10px] opacity-60 hidden sm:inline">⌘⏎</span>
             </button>
             {loading && (
               <span className="text-xs text-text-muted">Loading SQL engine...</span>
             )}
           </div>
-          <span className="text-xs text-text-muted">Tables: employees, departments, products, orders</span>
+          <div className="flex items-center gap-2">
+            {results && (
+              <button
+                onClick={copyAsCsv}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text bg-cream-dark border border-border hover:border-accent transition-all"
+              >
+                {copied ? <Clipboard size={13} /> : <Download size={13} />}
+                {copied ? 'Copied!' : 'CSV'}
+              </button>
+            )}
+            <span className="text-xs text-text-muted">Tables: employees, departments, products, orders</span>
+          </div>
         </div>
       </div>
 
@@ -171,8 +197,10 @@ export default function SqlRunner({ defaultQuery = '', height = '160px' }: SqlRu
 
       {results && (
         <div>
-          <div className="text-xs text-text-muted mb-2">
-            {results.values.length} row{results.values.length !== 1 ? 's' : ''}
+          <div className="flex items-center gap-2 text-xs text-text-muted mb-2">
+            <span>{results.values.length} row{results.values.length !== 1 ? 's' : ''}</span>
+            <span className="opacity-30">·</span>
+            <span>{results.columns.length} columns</span>
           </div>
           <TableViz
             columns={results.columns}
