@@ -1,5 +1,6 @@
 'use client'
 
+// ── Chat input with textarea, image attachment, and paste handling ──
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ImagePlus, X } from 'lucide-react'
 
@@ -18,6 +19,7 @@ const MAX_FILE_SIZE = 4 * 1024 * 1024
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 const MAX_DIM = 1200
 
+// Downscale image via canvas if it exceeds MAX_DIM or MAX_FILE_SIZE
 function resizeImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -53,6 +55,7 @@ function resizeImage(file: File): Promise<Blob> {
   })
 }
 
+// Validate, resize, and read a file as a base64 attachment
 async function readFileAsBase64(file: File): Promise<Attachment> {
   if (!ACCEPTED_TYPES.includes(file.type)) {
     throw new Error(`Unsupported file type: ${file.type}`)
@@ -74,13 +77,14 @@ async function readFileAsBase64(file: File): Promise<Attachment> {
 }
 
 export default function ChatInput({ onSend, disabled, language }: ChatInputProps) {
-  const [input, setInput] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
-  const [previews, setPreviews] = useState<string[]>([])
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [input, setInput] = useState('') // Current textarea value
+  const [attachments, setAttachments] = useState<Attachment[]>([]) // Processed image attachments
+  const [previews, setPreviews] = useState<string[]>([]) // Base64 data URLs for preview thumbnails
+  const textareaRef = useRef<HTMLTextAreaElement>(null) // Auto-resize textarea
+  const fileInputRef = useRef<HTMLInputElement>(null) // Hidden file picker
   const isArabic = language === 'ar'
 
+  // Auto-resize textarea height to fit content
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -88,6 +92,7 @@ export default function ChatInput({ onSend, disabled, language }: ChatInputProps
     }
   }, [input])
 
+  // Process selected/pasted files into base64 attachments
   const handleFiles = useCallback(async (files: FileList) => {
     const newAttachments: Attachment[] = []
     const newPreviews: string[] = []
@@ -104,11 +109,13 @@ export default function ChatInput({ onSend, disabled, language }: ChatInputProps
     setPreviews((prev) => [...prev, ...newPreviews])
   }, [])
 
+  // Remove an attachment by index
   const removeAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
     setPreviews((prev) => prev.filter((_, i) => i !== index))
   }
 
+  // Send the message + attachments, then clear input state
   const handleSubmit = () => {
     const trimmed = input.trim()
     if ((!trimmed && attachments.length === 0) || disabled) return
@@ -118,6 +125,7 @@ export default function ChatInput({ onSend, disabled, language }: ChatInputProps
     setPreviews([])
   }
 
+  // Submit on Enter (Shift+Enter for newline)
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -125,6 +133,7 @@ export default function ChatInput({ onSend, disabled, language }: ChatInputProps
     }
   }
 
+  // Handle pasted images from clipboard
   const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return

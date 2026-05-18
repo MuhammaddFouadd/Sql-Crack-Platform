@@ -1,5 +1,6 @@
 'use client'
 
+// ── Renders a single chat bubble (user or assistant) with optional images ──
 import MarkdownMessage from './MarkdownMessage'
 
 interface Attachment {

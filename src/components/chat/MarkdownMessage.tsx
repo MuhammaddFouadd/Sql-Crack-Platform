@@ -1,5 +1,6 @@
 'use client'
 
+// ── Renders markdown content with syntax-highlighted code blocks ──
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import CodeBlock from '@/components/ui/CodeBlock'
@@ -14,6 +15,7 @@ export default function MarkdownMessage({ content }: MarkdownMessageProps) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          // Render fenced code blocks with CodeBlock, inline code with plain spans
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             const lang = match ? match[1] : ''
