@@ -1,5 +1,7 @@
 'use client'
 
+import MarkdownMessage from './MarkdownMessage'
+
 interface Attachment {
   mimeType: string
   data: string
@@ -53,7 +55,13 @@ export default function ChatMessage({ role, text, language, images }: ChatMessag
             ))}
           </div>
         )}
-        {text && <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>}
+        {text && (
+          isUser ? (
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
+          ) : (
+            <MarkdownMessage content={text} />
+          )
+        )}
       </div>
     </div>
   )
