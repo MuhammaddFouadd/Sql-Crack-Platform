@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { formatSQL, normalizeSQL } from '@/lib/sql-format'
+import { saveSolved, isSolved } from '@/lib/progress'
 import { Check, X, Wand2, Eye, EyeOff, HelpCircle } from 'lucide-react'
 
 interface PracticeAnswerProps {
+  lessonId: string
   question: string
   hint: string
   solution: string
@@ -13,9 +15,9 @@ interface PracticeAnswerProps {
 
 type CheckStatus = 'idle' | 'correct' | 'wrong'
 
-export default function PracticeAnswer({ question, hint, solution, index }: PracticeAnswerProps) {
+export default function PracticeAnswer({ lessonId, question, hint, solution, index }: PracticeAnswerProps) {
   const [userSql, setUserSql] = useState('')
-  const [status, setStatus] = useState<CheckStatus>('idle')
+  const [status, setStatus] = useState<CheckStatus>(isSolved(lessonId, index) ? 'correct' : 'idle')
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
   const formatTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -39,7 +41,9 @@ export default function PracticeAnswer({ question, hint, solution, index }: Prac
     if (!userSql.trim()) return
     const user = normalizeSQL(userSql)
     const expected = normalizeSQL(solution)
-    setStatus(user === expected ? 'correct' : 'wrong')
+    const correct = user === expected
+    setStatus(correct ? 'correct' : 'wrong')
+    if (correct) saveSolved(lessonId, index)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
