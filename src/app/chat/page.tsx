@@ -73,43 +73,113 @@ export default function ChatPage() {
 
   const handleSend = async (text: string, images?: Attachment[]) => {
     const userMsg: Message = { role: 'user', text, images }
-    const updated = [...messages, userMsg]
-    setMessages(updated)
+    setMessages((prev) => [...prev, userMsg])
     setLoading(true)
 
-    try {
-      const history = messages.map((m) => ({
-        role: m.role,
-        text: m.text,
-      }))
+    const history = messages.map((m) => ({
+      role: m.role,
+      text: m.text,
+    }))
 
-      const res = await fetch('/api/chat', {
+    setMessages((prev) => [...prev, { role: 'assistant', text: '' }])
+
+    let res: Response
+    try {
+      res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, images, history, language }),
       })
-
-      const data = await res.json()
-
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-
-      const assistantMsg: Message = { role: 'assistant', text: data.response }
-      setMessages((prev) => [...prev, assistantMsg])
-    } catch (e) {
-      console.error('Chat error:', e)
-      const serverMsg = e instanceof Error ? e.message : ''
-      const errText =
-        language === 'ar'
-          ? 'عذراً، حدث خطأ. حاول مرة أخرى.'
-          : 'Sorry, something went wrong. Please try again.'
-      const errorMsg: Message = {
-        role: 'assistant',
-        text: serverMsg || errText,
-      }
-      setMessages((prev) => [...prev, errorMsg])
-    } finally {
+    } catch {
+      setMessages((prev) => {
+        const m = [...prev]
+        if (m[m.length - 1]?.role === 'assistant') m[m.length - 1] = { role: 'assistant', text: 'Network error. Check your connection.' }
+        return m
+      })
       setLoading(false)
+      return
     }
+
+    if (!res.ok) {
+      let errorMsg = 'AI service error'
+      try { const data = await res.json(); errorMsg = data.error || errorMsg } catch {}
+      setMessages((prev) => {
+        const m = [...prev]
+        if (m[m.length - 1]?.role === 'assistant') m[m.length - 1] = { role: 'assistant', text: errorMsg }
+        return m
+      })
+      setLoading(false)
+      return
+    }
+
+    const isStream = (res.headers.get('Content-Type') || '').includes('text/event-stream')
+
+    if (isStream) {
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let assistantText = ''
+      let flushing = false
+
+      const scheduleFlush = () => {
+        if (flushing) return
+        flushing = true
+        requestAnimationFrame(() => {
+          flushing = false
+          const t = assistantText
+          setMessages((prev) => {
+            const m = [...prev]
+            if (m[m.length - 1]?.role === 'assistant') m[m.length - 1] = { role: 'assistant', text: t }
+            return m
+          })
+        })
+      }
+
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6)
+          if (payload === '[DONE]') continue
+          try {
+            const parsed = JSON.parse(payload)
+            if (parsed.error) {
+              assistantText = parsed.error
+              scheduleFlush()
+              reader.cancel()
+              break
+            }
+            if (parsed.text) {
+              assistantText += parsed.text
+              scheduleFlush()
+            }
+          } catch {}
+        }
+      }
+
+      const t = assistantText
+      setMessages((prev) => {
+        const m = [...prev]
+        if (m[m.length - 1]?.role === 'assistant') m[m.length - 1] = { role: 'assistant', text: t }
+        return m
+      })
+    } else {
+      try {
+        const data = await res.json()
+        setMessages((prev) => {
+          const m = [...prev]
+          if (m[m.length - 1]?.role === 'assistant') m[m.length - 1] = { role: 'assistant', text: data.response || data.error || '' }
+          return m
+        })
+      } catch {}
+    }
+
+    setLoading(false)
   }
 
   const handleLanguageChange = (lang: 'en' | 'ar') => {
