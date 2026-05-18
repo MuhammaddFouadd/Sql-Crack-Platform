@@ -16,6 +16,12 @@ interface Message {
   images?: Attachment[]
 }
 
+interface StoredMessage {
+  role: 'user' | 'assistant'
+  text: string
+  hasImages: boolean
+}
+
 const STORAGE_KEY = 'sql-mentor-chat'
 const LANGUAGE_KEY = 'sql-mentor-lang'
 
@@ -24,11 +30,17 @@ const greetings: Record<'en' | 'ar', string> = {
   ar: 'مرحباً! أنا مرشدك في SQL. صف لي المشكلة التي تعمل عليها وسأساعدك خطوة بخطوة بالتلميحات والتوجيه.',
 }
 
+function stripImages(m: Message): StoredMessage {
+  return { role: m.role, text: m.text, hasImages: !!m.images?.length }
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
+      if (!saved) return []
+      const parsed: StoredMessage[] = JSON.parse(saved)
+      return parsed.map((m) => ({ role: m.role, text: m.text }))
     } catch {
       return []
     }
@@ -44,7 +56,11 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+    const trimmed = messages.map(stripImages)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed))
+    } catch {
+    }
   }, [messages])
 
   useEffect(() => {
@@ -65,7 +81,6 @@ export default function ChatPage() {
       const history = messages.map((m) => ({
         role: m.role,
         text: m.text,
-        images: m.images,
       }))
 
       const res = await fetch('/api/chat', {
