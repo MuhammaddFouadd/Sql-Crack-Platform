@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Database as SqlJsDatabase, SqlJsStatic } from 'sql.js'
 import { formatSQL } from '@/lib/sql-format'
 import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
@@ -64,9 +64,15 @@ function resultsEqual(user: { columns: string[]; values: string[][] }, solution:
 
 export default function PracticeAnswer({ lessonId, question, hint, solution, index }: PracticeAnswerProps) {
   const [userSql, setUserSql] = useState('')
-  const [status, setStatus] = useState<CheckStatus>(() =>
-    isSolved(lessonId, index) ? 'correct' : 'idle'
-  )
+  const [status, setStatus] = useState<CheckStatus>('idle')
+  const [loadingSolved, setLoadingSolved] = useState(true)
+
+  useEffect(() => {
+    isSolved(lessonId, index).then((solved) => {
+      if (solved) setStatus('correct')
+      setLoadingSolved(false)
+    })
+  }, [lessonId, index])
   const [userResult, setUserResult] = useState<{ columns: string[]; values: string[][] } | null>(null)
   const [expectedResult, setExpectedResult] = useState<{ columns: string[]; values: string[][] } | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -144,7 +150,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
 
       const correct = resultsEqual(userRes, solRes)
       setStatus(correct ? 'correct' : 'wrong')
-      if (correct) saveSolved(lessonId, index)
+      if (correct) await saveSolved(lessonId, index)
 
       db.close()
     } catch (err) {

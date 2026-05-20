@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut } from '@/lib/auth'
+import { getCurrentUser, signIn as authSignIn, signUp as authSignUp, signOut as authSignOut, onAuthChange } from '@/lib/auth'
 
 interface AuthUser {
   email: string
@@ -19,7 +19,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: false,
+  loading: true,
   signIn: async () => null,
   signUp: async () => null,
   logout: async () => {},
@@ -30,37 +30,49 @@ export const useAuth = () => useContext(AuthContext)
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setUser(getCurrentUser())
+    getCurrentUser().then((u) => {
+      setUser(u)
+      setLoading(false)
+    })
+    const unsub = onAuthChange((u) => {
+      setUser(u)
+    })
+    return unsub
   }, [])
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
-    const result = authSignIn(email, password)
+    const result = await authSignIn(email, password)
     if (result.success) {
-      setUser(getCurrentUser())
+      const u = await getCurrentUser()
+      setUser(u)
       return null
     }
     return result.error || 'Failed to sign in.'
   }
 
   const signUp = async (email: string, password: string): Promise<string | null> => {
-    const result = authSignUp(email, password)
+    const result = await authSignUp(email, password)
     if (result.success) {
       return null
     }
     return result.error || 'Failed to create account.'
   }
 
-  const signInWithGoogle = async () => {}
+  const signInWithGoogle = async () => {
+    const supabase = (await import('@/lib/supabase/client')).createClient()
+    await supabase.auth.signInWithOAuth({ provider: 'google' })
+  }
 
   const logout = async () => {
-    authSignOut()
+    await authSignOut()
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading: false, signIn, signUp, logout, signInWithGoogle }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, signInWithGoogle }}>
       {children}
     </AuthContext.Provider>
   )

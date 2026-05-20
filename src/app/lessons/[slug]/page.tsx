@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
@@ -26,9 +26,16 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
   const prev = idx > 0 ? lessons[idx - 1] : null
   const next = idx < lessons.length - 1 ? lessons[idx + 1] : null
 
-  const progress = lesson ? getLessonProgress(lesson.id, lesson.practiceQuestions.length) : null
-  const progressSolved = progress?.solved ?? 0
-  const progressTotal = progress?.total ?? 0
+  const [progressSolved, setProgressSolved] = useState(0)
+  const [progressTotal, setProgressTotal] = useState(0)
+
+  useEffect(() => {
+    if (!lesson) return
+    getLessonProgress(lesson.id, lesson.practiceQuestions.length).then((p) => {
+      setProgressSolved(p.solved)
+      setProgressTotal(p.total)
+    })
+  }, [lesson])
 
   if (!lesson) {
     return (

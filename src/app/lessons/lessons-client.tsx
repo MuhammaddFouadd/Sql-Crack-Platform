@@ -16,16 +16,15 @@ const difficultyConfig = {
 export default function LessonsClient() {
   const [progressMap, setProgressMap] = useState<Record<string, { solved: number; total: number; completed: boolean }>>({})
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     const counts: Record<string, number> = {}
     for (const l of lessons) counts[l.id] = l.practiceQuestions.length
-    setProgressMap(getAllProgress(lessons.map((l) => l.id), counts))
+    const result = await getAllProgress(lessons.map((l) => l.id), counts)
+    setProgressMap(result)
   }, [])
 
   useEffect(() => {
     refresh()
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
   }, [refresh])
 
   const groups = {
