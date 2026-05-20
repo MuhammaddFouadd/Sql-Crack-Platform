@@ -1,4 +1,4 @@
-# Sql Craker
+# SQL Master
 
 **Master SQL. Crack the Interview.**
 
@@ -6,27 +6,48 @@
 
 👉 **Try it live:** [https://sql-master-five.vercel.app](https://sql-master-five.vercel.app)
 
-Interactive SQL learning platform with a built-in browser SQL engine, LeetCode-style practice, and interactive lessons.
+Interactive SQL learning platform with a built-in browser SQL engine, 20+ structured lessons, LeetCode-style practice, interactive visualizations (joins, window functions, indexes), and C++ mental model representations for every concept.
+
+---
 
 ## Features
 
-### Interactive Lessons
-14 structured lessons from `SELECT` to Window Functions. Each lesson includes explanations, syntax references, examples, common mistakes, and practice questions with a built-in answer checker.
+### 📚 Structured Lessons
+20+ lessons from `SELECT` to Relational Algebra. Each lesson includes:
+- **Explanation** — structured reference with comparison tables
+- **Syntax Reference** — ready-to-run SQL patterns
+- **Interactive Examples** — run SQL live in the browser against pre-loaded schemas
+- **C++ Mental Models** — see every SQL operation expressed as intuitive C++ code
+- **Common Mistakes** — exam-style trap explanations
+- **Practice Questions** — progressive difficulty with built-in answer checker
 
-### SQL Playground
+### 🧠 Interactive Visualizations
+- **Join Engine** — step through INNER, LEFT, RIGHT, FULL joins row by row
+- **Window Viz** — see how ROW_NUMBER, RANK, DENSE_RANK assign values visually
+- **Execution Pipeline** — understand SQL's logical execution order
+- **Index Engine** — compare full table scan vs index lookup performance
+- **Internal Engine** — watch how SQL operations map to C++ loops
+
+### 🎮 SQL Playground
 Browser-based playground powered by `sql.js` (SQLite via WebAssembly):
 - Monaco Editor with SQL syntax highlighting
 - Schema browser with PK/NN badges and row counts
 - Multiple pre-defined schemas (E-Commerce, Library)
 - SQL formatter
 - Sortable result tables with CSV export
+- Query history
 - Keyboard shortcut: `⌘⏎` to run
 
-### Practice Answer Checker
+### ✅ Practice Answer Checker
 Write SQL, execute it against an in-memory SQLite database, and compare your results side-by-side with expected output.
 
-### Progress Tracking
-Solved questions persist in `localStorage`. Track your journey across all lessons with progress bars and completion badges.
+### 📊 Progress Tracking
+Solved questions persist in your account. Track your journey across all lessons with progress bars and completion badges.
+
+### 🔐 Authentication
+Supabase-powered auth with email/password. Auto-login after signup, session persistence, and personalized progress tracking.
+
+---
 
 ## Quick Start
 
@@ -35,7 +56,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). No backend required — everything works offline.
+Open [http://localhost:3000](http://localhost:3000). No backend required — everything works offline (progress uses localStorage when offline).
 
 ## Commands
 
@@ -46,6 +67,8 @@ Open [http://localhost:3000](http://localhost:3000). No backend required — eve
 | `npm run start` | Start production server |
 | `npm run lint` | Lint all files |
 
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -55,8 +78,39 @@ Open [http://localhost:3000](http://localhost:3000). No backend required — eve
 | Styling | Tailwind CSS v4 |
 | Editor | Monaco Editor |
 | SQL Engine | sql.js (SQLite via WebAssembly) |
+| Auth | Supabase (SSR) |
 | Icons | Lucide |
-| Auth | localStorage token auth |
+| Markdown | react-markdown + remark-gfm |
+
+---
+
+## Lesson Map
+
+| # | Lesson | Difficulty |
+|---|--------|-----------|
+| 1 | SELECT | Beginner |
+| 2 | WHERE | Beginner |
+| 3 | ORDER BY | Beginner |
+| 4 | GROUP BY | Beginner |
+| 5 | HAVING | Beginner |
+| 6 | JOINs (INNER, LEFT, RIGHT, FULL, CROSS, SELF) | Intermediate |
+| 7 | Subqueries | Intermediate |
+| 8 | CASE WHEN | Intermediate |
+| 9 | CTEs (WITH clause) | Intermediate |
+| 10 | Window Functions | Advanced |
+| 11 | Ranking Functions (RANK, DENSE_RANK, ROW_NUMBER, NTILE) | Advanced |
+| 12 | Pattern Matching (LIKE, ILIKE, Regex) | Intermediate |
+| 13 | Set Operations (UNION, INTERSECT, EXCEPT) | Intermediate |
+| 14 | DDL — CREATE TABLE | Beginner |
+| 15 | Keys in SQL (PK, FK, Composite, Surrogate, Natural) | Intermediate |
+| 16 | DML — INSERT, UPDATE, DELETE | Beginner |
+| 17 | ALTER TABLE & DROP | Intermediate |
+| 18 | EXISTS & NOT EXISTS (Correlated Subqueries) | Intermediate |
+| 19 | Division Queries ("for all" pattern) | Advanced |
+| 20 | Relational Algebra (σ, π, ⋈, ∪, −, ∩) | Advanced |
+| 21 | Exam Prep | Advanced |
+
+---
 
 ## Project Structure
 
@@ -80,8 +134,8 @@ src/
 │   ├── ui/               # CodeBlock, SqlRunner, SqlEditor
 │   └── viz/              # Interactive visualizations
 ├── lib/
-│   ├── data/             # Lesson content
-│   ├── auth.ts           # localStorage token auth
+│   ├── data/             # Lesson content (7200+ lines)
+│   ├── auth.ts           # Supabase auth helpers
 │   ├── progress.ts       # Progress tracker
 │   ├── db-schema.ts      # Practice schema DDL
 │   ├── playground-schemas.ts
@@ -89,13 +143,11 @@ src/
 └── globals.css           # Design tokens (light + dark)
 ```
 
+---
+
 ## Design
 
-**Light mode:** warm cream backgrounds, rounded cards, thick borders, large bold typography.
+**Light mode:** warm cream backgrounds, rounded cards, thick borders, large bold typography.  
 **Dark mode:** Monokai Pro Spectrum palette (`#222222` bg, `#f7f1ff` text, `#fd9353` accent).
 
 Dark mode persists to `localStorage` and respects `prefers-color-scheme`. Flash prevention via inline script in the root layout.
-
-## Authentication
-
-Simple localStorage-based token auth. Sign up with email/password — credentials are stored in your browser. No backend or third-party services required.

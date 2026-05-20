@@ -6065,12 +6065,387 @@ void insertEmployee(Employee e) {
     ]
   },
   {
+    id: 'sql-keys',
+    title: 'Keys in SQL — PK, FK, Unique, Composite & More',
+    description: 'Understand all key types: super, candidate, primary, foreign, composite, surrogate, and natural keys',
+    icon: '🔑',
+    difficulty: 'intermediate',
+    prerequisites: ['ddl-create', 'select'],
+    topics: ['PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'COMPOSITE KEY', 'SUPER KEY', 'CANDIDATE KEY', 'SURROGATE KEY', 'NATURAL KEY', 'ALTERNATE KEY'],
+    explanation: `── What Is a Key? ──
+A key is a column (or set of columns) that uniquely identifies a row in a table.
+Keys enforce integrity and define relationships between tables.
+
+── Key Types Hierarchy ──
+Super Key → Candidate Key → Primary Key (chosen) + Alternate Keys (not chosen)
+                    ↓
+              Composite Key (if multiple columns)
+                    ↓
+           Foreign Key (references another table's PK)
+
+── Key Types Reference ──
+| Key Type       | Definition                                  | Unique? | NULL? | Count per Table |
+|----------------|---------------------------------------------|:-------:|:-----:|:---------------:|
+| Super Key      | Any set of columns that uniquely IDs a row  | ✅      | ✅    | Many            |
+| Candidate Key  | Minimal super key (no unnecessary columns)  | ✅      | ❌    | Many            |
+| Primary Key    | Chosen candidate key (row identifier)       | ✅      | ❌    | ONE             |
+| Alternate Key  | Candidate key NOT chosen as PK              | ✅      | ❌    | Many            |
+| Foreign Key    | References PK in another table              | ❌      | ✅    | Many            |
+| Composite Key  | Key made of MULTIPLE columns                | ✅      | ❌    | Depends         |
+| Surrogate Key  | Artificial key (auto-increment, UUID)       | ✅      | ❌    | Usually PK      |
+| Natural Key    | Key from real-world data (SSN, email)       | ✅      | ❌    | Varies          |
+
+── Primary Key Rules ──
+- ONLY ONE per table
+- Cannot be NULL (enforced automatically)
+- Can be SINGLE column or COMPOSITE (multiple columns)
+- A composite PK means the COMBINATION of values must be unique
+- Every table SHOULD have a PK (best practice)
+
+CREATE TABLE students (
+  id INT PRIMARY KEY,                        -- single-column PK
+  name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE enrollments (
+  student_id INT,
+  course_id INT,
+  PRIMARY KEY (student_id, course_id)        -- composite PK
+);
+
+── Foreign Key Rules ──
+- References a PK (or UNIQUE) column in another table
+- Can be NULL (if not declared NOT NULL)
+- A table can have MULTIPLE FKs referencing different tables
+- FK value MUST exist in the parent table's PK (or be NULL)
+- ON DELETE / ON UPDATE: define what happens when parent row is deleted/updated
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer_id INT REFERENCES customers(id),   -- column-level FK
+  product_id INT,
+  FOREIGN KEY (product_id) REFERENCES products(id)  -- table-level FK
+);
+
+── Foreign Key Actions ──
+| Action         | On Parent DELETE / UPDATE              |
+|----------------|----------------------------------------|
+| NO ACTION      | Prevent delete if child rows exist (default) |
+| RESTRICT       | Same as NO ACTION (check immediate)    |
+| CASCADE        | Delete/update child rows automatically |
+| SET NULL       | Set FK to NULL in child rows           |
+| SET DEFAULT    | Set FK to default value in child rows  |
+
+── Surrogate vs Natural Keys ──
+| Aspect         | Surrogate Key                        | Natural Key                         |
+|----------------|--------------------------------------|-------------------------------------|
+| Source         | System-generated (id, UUID)          | Real-world data (SSN, email, ISBN)  |
+| Stability      | ✅ Never changes                     | ❌ Can change (person changes name) |
+| Simplicity     | Single column, always INT or UUID    | May be composite, variable length   |
+| Meaning        | Meaningless outside the DB           | Has real-world meaning              |
+| Best for       | Primary Key (stable, simple)         | Alternate Key / Unique constraint   |
+
+-- Surrogate PK (recommended)
+CREATE TABLE users (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE     -- natural key as alternate
+);
+
+── UNIQUE Constraint vs PRIMARY KEY ──
+| Aspect        | PRIMARY KEY                  | UNIQUE                        |
+|---------------|------------------------------|-------------------------------|
+| NULLs allowed | ❌ No                        | ✅ Yes (one NULL in most DBs) |
+| Count per table | ONE                       | Many                          |
+| Purpose       | Row identifier               | Enforce data uniqueness       |
+| FK target     | ✅ Can be referenced by FK   | ✅ Can be referenced by FK    |`,
+    syntax: `-- Single-column Primary Key
+CREATE TABLE departments (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE
+);
+
+-- Composite Primary Key
+CREATE TABLE course_enrollments (
+  student_id INT,
+  course_id INT,
+  enrolled_date DATE DEFAULT CURRENT_DATE,
+  PRIMARY KEY (student_id, course_id),
+  FOREIGN KEY (student_id) REFERENCES students(id)
+);
+
+-- Surrogate PK + Natural Key as UNIQUE
+CREATE TABLE products (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  sku VARCHAR(50) NOT NULL UNIQUE,       -- natural key
+  name VARCHAR(200) NOT NULL,
+  category_id INT REFERENCES categories(id)
+);
+
+-- FK with CASCADE
+CREATE TABLE order_items (
+  id INT PRIMARY KEY,
+  order_id INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id INT NOT NULL REFERENCES products(id),
+  quantity INT NOT NULL CHECK (quantity > 0)
+);
+
+-- Multiple FKs referencing different tables
+CREATE TABLE reviews (
+  id INT PRIMARY KEY,
+  product_id INT REFERENCES products(id),
+  user_id INT REFERENCES users(id),
+  rating INT CHECK (rating BETWEEN 1 AND 5)
+);`,
+    examples: [
+      {
+        title: 'Primary Key + Foreign Key relationship',
+        sql: `CREATE TABLE customers (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL
+);
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer_id INT NOT NULL REFERENCES customers(id),
+  total DECIMAL(10,2) NOT NULL,
+  order_date DATE DEFAULT CURRENT_DATE
+);
+
+-- Insert customers
+INSERT INTO customers VALUES (1, 'Alice', 'alice@email.com');
+INSERT INTO customers VALUES (2, 'Bob', 'bob@email.com');
+
+-- Insert orders (FK links to customers)
+INSERT INTO orders VALUES (101, 1, 250.00, '2024-01-15');
+INSERT INTO orders VALUES (102, 1, 100.00, '2024-02-01');
+INSERT INTO orders VALUES (103, 2, 75.50, '2024-01-20');
+
+-- This fails: no customer with id=99
+-- INSERT INTO orders VALUES (104, 99, 50.00, '2024-03-01');
+-- ERROR: insert or update violates foreign key constraint`,
+        explanation: 'customers.id is the PRIMARY KEY. orders.customer_id is a FOREIGN KEY referencing customers.id. Every order must belong to an existing customer — referential integrity enforced.',
+        sourceTables: [],
+        cppRepresentation: `// Intuitive C++ representation of: PK + FK relationship
+struct Customer { int id; string name; string email; };
+struct Order { int id; int customer_id; double total; string date; };
+
+Customer customers[] = {{1, "Alice", "alice@email.com"}, {2, "Bob", "bob@email.com"}};
+Order orders[] = {{101, 1, 250.00, "2024-01-15"}, {102, 1, 100.00, "2024-02-01"}, {103, 2, 75.50, "2024-01-20"}};
+
+// FK constraint check: every order must reference a valid customer
+for (int i = 0; i < 3; i++) {
+    bool found = false;
+    for (int j = 0; j < 2; j++) {
+        if (orders[i].customer_id == customers[j].id) { found = true; break; }
+    }
+    if (!found) cout << "FK violation! Order " << orders[i].id << " has no customer.\\n";
+}
+
+// Join: orders with customer info
+for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 2; j++) {
+        if (orders[i].customer_id == customers[j].id)
+            cout << orders[i].id << " | " << customers[j].name << " | $" << orders[i].total << "\\n";
+    }
+}`
+      },
+      {
+        title: 'Composite Primary Key',
+        sql: `-- Each student can enroll in many courses
+-- Each course can have many students
+-- A student can only enroll ONCE in a given course
+CREATE TABLE enrollments (
+  student_id INT NOT NULL,
+  course_id INT NOT NULL,
+  grade CHAR(2),
+  semester VARCHAR(20),
+  PRIMARY KEY (student_id, course_id),
+  FOREIGN KEY (student_id) REFERENCES students(id),
+  FOREIGN KEY (course_id) REFERENCES courses(id)
+);
+
+-- Valid inserts
+INSERT INTO enrollments VALUES (1, 101, 'A', '2024 Fall');
+INSERT INTO enrollments VALUES (1, 102, 'B+', '2024 Fall');
+INSERT INTO enrollments VALUES (2, 101, 'A-', '2024 Fall');
+
+-- This fails: student 1 already enrolled in course 101
+-- INSERT INTO enrollments VALUES (1, 101, 'C', '2024 Fall');
+-- ERROR: duplicate key violates primary key constraint`,
+        explanation: 'The composite PK (student_id, course_id) ensures a student cannot enroll in the same course twice. Each pair must be unique. Both columns together form the row identifier.',
+        sourceTables: [],
+        cppRepresentation: `// Intuitive C++ representation of: composite PK constraint
+struct Enrollment { int student_id; int course_id; string grade; string semester; };
+Enrollment enrollments[] = {{1, 101, "A", "2024 Fall"}, {1, 102, "B+", "2024 Fall"}, {2, 101, "A-", "2024 Fall"}};
+
+// Composite PK uniqueness check: no duplicate (student_id, course_id) pairs
+for (int i = 0; i < 3; i++) {
+    for (int j = i + 1; j < 3; j++) {
+        if (enrollments[i].student_id == enrollments[j].student_id
+            && enrollments[i].course_id == enrollments[j].course_id)
+            cout << "Duplicate key violation! (" << enrollments[i].student_id
+                 << ", " << enrollments[i].course_id << ")\\n";
+    }
+}`
+      },
+      {
+        title: 'ON DELETE CASCADE — automatic cleanup',
+        sql: `-- When a customer is deleted, their orders are deleted too
+CREATE TABLE customers (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer_id INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  total DECIMAL(10,2)
+);
+
+INSERT INTO customers VALUES (1, 'Alice');
+INSERT INTO orders VALUES (1, 1, 100.00);
+INSERT INTO orders VALUES (2, 1, 50.00);
+
+-- Delete Alice → both orders are automatically deleted
+DELETE FROM customers WHERE id = 1;
+
+-- orders table is now empty
+SELECT * FROM orders;  -- 0 rows`,
+        explanation: 'ON DELETE CASCADE propagates the DELETE from parent to child. When customer 1 is deleted, both orders referencing customer_id = 1 are automatically removed. No manual cleanup needed.',
+        sourceTables: [],
+        cppRepresentation: `// Intuitive C++ representation of: ON DELETE CASCADE
+struct Customer { int id; string name; };
+struct Order { int id; int customer_id; double total; };
+
+Customer customers[] = {{1, "Alice"}};
+Order orders[] = {{1, 1, 100.00}, {2, 1, 50.00}};
+
+// Delete customer with id=1 AND cascade to orders
+int deleteId = 1;
+
+// Remove customer
+customerCount = 0;  // or remove specific element
+
+// Cascade: remove all orders referencing customer_id = deleteId
+int newOrderCount = 0;
+for (int i = 0; i < 2; i++) {
+    if (orders[i].customer_id != deleteId)
+        orders[newOrderCount++] = orders[i];
+}
+// newOrderCount == 0 → all orders deleted with the customer`
+      },
+      {
+        title: 'Surrogate vs Natural Key in practice',
+        sql: `-- Design A: Natural key as PK (fragile)
+CREATE TABLE books_natural (
+  isbn VARCHAR(13) PRIMARY KEY,         -- ISBN can change? Rare, but possible
+  title VARCHAR(200) NOT NULL,
+  author VARCHAR(100)
+);
+-- Problem: ISBN is long, joins are slower, and ISBN format can vary
+
+-- Design B: Surrogate key + Natural key as UNIQUE (robust)
+CREATE TABLE books_surrogate (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  isbn VARCHAR(13) NOT NULL UNIQUE,      -- natural key as alternate
+  title VARCHAR(200) NOT NULL,
+  author VARCHAR(100)
+);
+-- Benefit: short INT PK for joins, ISBN stays unique but can be changed
+
+-- Joining on INT is faster than VARCHAR
+SELECT b.title, o.quantity
+FROM books_surrogate b
+JOIN order_items o ON b.id = o.book_id;  -- INT join = fast`,
+        explanation: 'Surrogate keys (auto-increment INT) are better for PK because they are small, stable, and meaningless. Natural keys (ISBN, SSN, email) should be enforced as UNIQUE but used as alternate keys, not PK.',
+        sourceTables: [],
+        cppRepresentation: `// Intuitive C++ representation of: surrogate vs natural key comparison
+// Natural key as PK: string comparison (slow)
+struct BookNatural { string isbn; string title; string author; };
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < bookCount; j++)
+        if (orders[i].isbn == booksNatural[j].isbn)  // string compare = slow
+            // ...
+
+// Surrogate key as PK: int comparison (fast)
+struct BookSurrogate { int id; string isbn; string title; string author; };
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < bookCount; j++)
+        if (orders[i].book_id == booksSurrogate[j].id)  // int compare = fast
+            // ...`
+      }
+    ],
+    commonMistakes: [
+      'Using a natural key (email, SSN, username) as PK — these can change or be reused. Always use a surrogate INT/UUID PK.',
+      'Forgetting that a composite PK means the COMBINATION must be unique, not each individual column.',
+      'Omitting ON DELETE CASCADE and then manually deleting related rows (use CASCADE or handle in application code).',
+      'Declaring a FK column as nullable when it should be NOT NULL (e.g., every order MUST have a customer).',
+      'Creating multiple PRIMARY KEYs on one table (only one PK allowed — use UNIQUE for additional unique columns).',
+      'Using VARCHAR columns as PKs — joins on INT are significantly faster than joins on strings.',
+      'Not naming FK constraints — makes ALTER TABLE and troubleshooting much harder.'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Create a "library" schema with two tables: "members" (id, name, email) and "loans" (id, member_id, book_id, loan_date, return_date). Define appropriate PKs, FKs, and a UNIQUE constraint on email.',
+        hint: 'members: id INT PK, email VARCHAR UNIQUE NOT NULL. loans: id INT PK, member_id INT FK → members(id), book_id INT NOT NULL FK → books(id).',
+        solution: `CREATE TABLE members (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL
+);
+
+CREATE TABLE loans (
+  id INT PRIMARY KEY,
+  member_id INT NOT NULL REFERENCES members(id),
+  book_id INT NOT NULL REFERENCES books(id),
+  loan_date DATE DEFAULT CURRENT_DATE,
+  return_date DATE
+);`
+      },
+      {
+        question: 'Explain the difference in behavior when deleting a parent row with ON DELETE CASCADE vs ON DELETE SET NULL vs default (NO ACTION). Which one deletes child rows automatically?',
+        hint: 'CASCADE deletes children, SET NULL sets FK to NULL, NO ACTION prevents the delete if children exist.',
+        solution: `-- CASCADE: Deleting a customer also deletes ALL their orders
+DELETE FROM customers WHERE id = 1;
+-- Child rows in orders with customer_id = 1 are AUTOMATICALLY deleted
+
+-- SET NULL: Deleting a customer sets the FK to NULL in their orders
+DELETE FROM customers WHERE id = 1;
+-- orders.customer_id becomes NULL for all orders referencing customer 1
+
+-- NO ACTION (default): Deleting a customer FAILS if they have orders
+DELETE FROM customers WHERE id = 1;
+-- ERROR: update or delete on "customers" violates foreign key constraint
+
+-- CASCADE is the only one that DELETES child rows automatically.`
+      },
+      {
+        question: 'Design a table for "product_tags" where each product can have many tags and each tag can belong to many products (many-to-many). A product should not have the same tag twice. Use a composite PK.',
+        hint: 'product_tags(product_id, tag_id) as composite PK, plus two FKs referencing products(id) and tags(id).',
+        solution: `CREATE TABLE product_tags (
+  product_id INT NOT NULL REFERENCES products(id),
+  tag_id INT NOT NULL REFERENCES tags(id),
+  PRIMARY KEY (product_id, tag_id)
+);
+
+-- This works: different tags for same product
+INSERT INTO product_tags VALUES (1, 1);  -- product 1, tag 'sale'
+INSERT INTO product_tags VALUES (1, 2);  -- product 1, tag 'new'
+
+-- This fails: same product + same tag again
+-- INSERT INTO product_tags VALUES (1, 1);
+-- ERROR: duplicate key violates primary key constraint`
+      }
+    ]
+  },
+  {
     id: 'dml-crud',
     title: 'DML — INSERT, UPDATE, DELETE',
     description: 'Modify table data with INSERT, UPDATE, and DELETE statements',
     icon: '✏️',
     difficulty: 'beginner',
-    prerequisites: ['select', 'ddl-create'],
+    prerequisites: ['select', 'ddl-create', 'sql-keys'],
     topics: ['INSERT', 'UPDATE', 'DELETE', 'INSERT INTO SELECT', 'TRUNCATE vs DELETE vs DROP'],
     explanation: `── DML Operations ──
 | Operation | SQL Keyword | What It Does                     | WHERE Clause? |
