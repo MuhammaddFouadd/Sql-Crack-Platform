@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useEffect, useState, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import initSqlJs from 'sql.js'
 import { EXAMPLE_SCHEMA_SQL } from '@/lib/example-data'
 import CodeBlock from '@/components/ui/CodeBlock'
@@ -73,6 +75,20 @@ function CollapseSection({
       </div>
     </div>
   )
+}
+
+const mdComponents: any = {
+  table: ({ children }: any) => (
+    <div className="overflow-x-auto my-2">
+      <table className="w-full text-sm border-collapse">{children}</table>
+    </div>
+  ),
+  th: ({ children }: any) => (
+    <th className="border border-border bg-cream-dark px-3 py-1.5 text-left font-semibold text-text">{children}</th>
+  ),
+  td: ({ children }: any) => (
+    <td className="border border-border px-3 py-1.5 text-text-secondary">{children}</td>
+  ),
 }
 
 export default function ExampleViewer({ examples }: { examples: ExampleData[] }) {
@@ -285,8 +301,10 @@ export default function ExampleViewer({ examples }: { examples: ExampleData[] })
                     icon={<span className="text-base leading-none">💡</span>}
                     iconColor="text-yellow"
                   >
-                    <div className="text-sm text-text-secondary leading-relaxed">
-                      {ex.explanation}
+                    <div className="text-sm text-text-secondary leading-relaxed markdown-content">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                        {ex.explanation}
+                      </ReactMarkdown>
                     </div>
                   </CollapseSection>
 

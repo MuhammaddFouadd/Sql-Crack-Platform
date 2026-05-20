@@ -2,6 +2,8 @@
 
 import { use, useState, useEffect } from 'react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
 import { getLessonViz, renderLessonViz, getLessonInternalEngine } from '@/components/viz/LessonViz'
@@ -47,6 +49,20 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
   }
 
   const allDone = progressSolved >= progressTotal && progressTotal > 0
+
+  const mdComponents: any = {
+    table: ({ children }: any) => (
+      <div className="overflow-x-auto my-4">
+        <table className="w-full text-sm border-collapse">{children}</table>
+      </div>
+    ),
+    th: ({ children }: any) => (
+      <th className="border border-border bg-cream-dark px-3 py-2 text-left font-semibold text-text">{children}</th>
+    ),
+    td: ({ children }: any) => (
+      <td className="border border-border px-3 py-2 text-text-secondary">{children}</td>
+    ),
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 animate-fade-in">
@@ -97,8 +113,10 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
       <div className="space-y-8">
         <div className="bg-card border-2 border-border rounded-2xl p-6">
           <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Explanation</h2>
-          <div className="text-text leading-relaxed whitespace-pre-wrap">
-            {lesson.explanation}
+          <div className="text-text leading-relaxed markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+              {lesson.explanation}
+            </ReactMarkdown>
           </div>
         </div>
 
