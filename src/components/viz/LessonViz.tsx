@@ -346,6 +346,183 @@ interface VizStep {
   tables: VizStepTable[];
 }
 
+const patternViz = {
+  steps: [
+    {
+      title: 'Start with raw text data',
+      description: 'Every column value is just a string of characters',
+      detail: 'SQL pattern matching scans each row and checks if the text matches the pattern.',
+      tables: [{
+        title: 'employees',
+        columns: ['name', 'email'],
+        data: [
+          ['Alice', 'alice@company.com'],
+          ['Bob', 'bob@company.com'],
+          ['Charlie', 'charlie@company.com'],
+          ['Diana', 'diana@company.com'],
+          ['Eve', 'eve@work.com'],
+        ],
+      }],
+    },
+    {
+      title: 'LIKE applies wildcards',
+      description: '% matches any sequence, _ matches exactly one character',
+      detail: 'LIKE \'%@company.com\' checks if the email ends with "@company.com". The % is a wildcard matching everything before it.',
+      tables: [
+        {
+          title: 'all emails checked',
+          columns: ['name', 'email', 'matches pattern?'],
+          data: [
+            ['Alice', 'alice@company.com', 'Yes ✓'],
+            ['Bob', 'bob@company.com', 'Yes ✓'],
+            ['Charlie', 'charlie@company.com', 'Yes ✓'],
+            ['Diana', 'diana@company.com', 'Yes ✓'],
+            ['Eve', 'eve@work.com', 'No ✗'],
+          ],
+          highlightRows: [0, 1, 2, 3],
+          fadeRows: [4],
+        },
+        {
+          title: 'filtered result',
+          columns: ['name', 'email'],
+          data: [
+            ['Alice', 'alice@company.com'],
+            ['Bob', 'bob@company.com'],
+            ['Charlie', 'charlie@company.com'],
+            ['Diana', 'diana@company.com'],
+          ],
+        },
+      ],
+    },
+  ],
+}
+
+const stringViz = {
+  steps: [
+    {
+      title: 'Raw text stored in table',
+      description: 'Strings are stored as-is in the database',
+      tables: [{
+        title: 'employees',
+        columns: ['name', 'department', 'city'],
+        data: [
+          ['Alice', 'Engineering', 'New York'],
+          ['Bob', 'Engineering', 'San Francisco'],
+          ['Charlie', 'Product', 'New York'],
+        ],
+      }],
+    },
+    {
+      title: 'Functions transform the text',
+      description: 'UPPER, LOWER, SUBSTR, CONCAT change string values',
+      detail: 'String functions do NOT modify the original data — they create new computed values in the result.',
+      tables: [
+        {
+          title: 'UPPER(name)',
+          columns: ['original', 'result'],
+          data: [
+            ['Alice', 'ALICE'],
+            ['Bob', 'BOB'],
+            ['Charlie', 'CHARLIE'],
+          ],
+          highlightCols: [1],
+        },
+        {
+          title: 'LENGTH(name)',
+          columns: ['original', 'result'],
+          data: [
+            ['Alice', '5'],
+            ['Bob', '3'],
+            ['Charlie', '7'],
+          ],
+          highlightCols: [1],
+        },
+        {
+          title: 'CONCAT(department, city)',
+          columns: ['original1', 'original2', 'result'],
+          data: [
+            ['Engineering', 'New York', 'EngineeringNew York'],
+            ['Engineering', 'San Francisco', 'EngineeringSan Francisco'],
+          ],
+          highlightCols: [2],
+        },
+      ],
+    },
+  ],
+}
+
+const setViz = {
+  steps: [
+    {
+      title: 'Two separate result sets',
+      description: 'Each SELECT query returns its own result',
+      detail: 'Set operations work on complete SELECT queries. Each SELECT must have the same number of columns.',
+      tables: [
+        {
+          title: 'Query A: high earners',
+          columns: ['name', 'salary'],
+          data: [
+            ['Alice', '95000'],
+            ['Eve', '120000'],
+            ['Ivy', '90000'],
+          ],
+        },
+        {
+          title: 'Query B: active employees',
+          columns: ['name', 'salary'],
+          data: [
+            ['Alice', '95000'],
+            ['Bob', '82000'],
+            ['Eve', '120000'],
+            ['Frank', '71000'],
+            ['Ivy', '90000'],
+          ],
+        },
+      ],
+    },
+    {
+      title: 'UNION combines, removes duplicates',
+      description: 'Rows appearing in both sets appear only once',
+      detail: 'UNION stacks the results vertically and removes any duplicate rows. UNION ALL keeps duplicates.',
+      tables: [{
+        title: 'A UNION B (high earners OR active)',
+        columns: ['name', 'salary'],
+        data: [
+          ['Alice', '95000'],
+          ['Bob', '82000'],
+          ['Eve', '120000'],
+          ['Frank', '71000'],
+          ['Ivy', '90000'],
+        ],
+      }],
+    },
+    {
+      title: 'INTERSECT keeps only matches',
+      description: 'Rows must exist in BOTH sets',
+      tables: [{
+        title: 'A INTERSECT B (high earners AND active)',
+        columns: ['name', 'salary'],
+        data: [
+          ['Alice', '95000'],
+          ['Eve', '120000'],
+          ['Ivy', '90000'],
+        ],
+      }],
+    },
+    {
+      title: 'EXCEPT removes second set',
+      description: 'Rows from A that do NOT exist in B',
+      tables: [{
+        title: 'A EXCEPT B (high earners NOT active)',
+        columns: ['name', 'salary'],
+        data: [
+          ['---', '---'],
+        ],
+      }],
+    },
+  ],
+}
+
 const lessonsVizMap: Record<string, {
   label: string; type: 'stepflow' | 'join' | 'window';
   steps?: VizStep[]
@@ -361,6 +538,9 @@ const lessonsVizMap: Record<string, {
   cte: { label: 'How CTEs work step by step', type: 'stepflow', steps: cteViz.steps },
   'window-functions': { label: 'Interactive window function visualizer', type: 'window' },
   'rank-functions': { label: 'Interactive ranking visualizer', type: 'window' },
+  'pattern-matching': { label: 'How pattern matching works', type: 'stepflow', steps: patternViz.steps },
+  'string-functions': { label: 'How string transformations work', type: 'stepflow', steps: stringViz.steps },
+  'set-operations': { label: 'How set operations combine data', type: 'stepflow', steps: setViz.steps },
 }
 
 const lessonsInternalEngineMap: Record<string, React.ReactNode> = {

@@ -4,10 +4,11 @@ import { use } from 'react'
 import Link from 'next/link'
 import { lessons } from '@/lib/data/lessons'
 import { cn } from '@/lib/utils'
-import CodeBlock from '@/components/ui/CodeBlock'
 import { getLessonViz, renderLessonViz, getLessonInternalEngine } from '@/components/viz/LessonViz'
 import SqlRunner from '@/components/SqlRunner'
 import PracticeAnswer from '@/components/lessons/PracticeAnswer'
+import ExampleViewer from '@/components/lessons/ExampleViewer'
+import CodeBlock from '@/components/ui/CodeBlock'
 import { getLessonProgress } from '@/lib/progress'
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -138,17 +139,7 @@ export default function LessonPage({ params }: { params: Promise<{ slug: string 
 
         <div>
           <h2 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">Examples</h2>
-          <div className="space-y-6">
-            {lesson.examples.map((ex, i) => (
-              <div key={i} className="bg-card border-2 border-border rounded-2xl p-6">
-                <h3 className="text-base font-bold text-text mb-3">{ex.title}</h3>
-                <CodeBlock code={ex.sql} title="sql" />
-                <div className="mt-3 text-sm text-text-secondary bg-cream-dark border-2 border-border rounded-xl p-4">
-                  {ex.explanation}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ExampleViewer examples={lesson.examples} />
         </div>
 
         <div className="bg-rose-light border-2 border-rose/30 rounded-2xl p-6">

@@ -7,6 +7,7 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import ThemeProvider from '@/components/ThemeProvider'
 import ScrollToTop from '@/components/ScrollToTop'
 import AuthProvider from '@/context/AuthContext'
+import LoginReminder from '@/components/LoginReminder'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <AuthProvider>
             <Header />
+            <LoginReminder />
             <main className="min-h-[calc(100vh-5.5rem)]">
               {children}
             </main>

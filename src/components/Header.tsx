@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useTheme } from './ThemeProvider'
 import { useAuth } from '@/context/AuthContext'
@@ -16,6 +16,7 @@ const links = [
 
 export default function Header() {
   const pathname = usePathname()
+  const router = useRouter()
   const { theme, toggle } = useTheme()
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -83,7 +84,7 @@ export default function Header() {
                       <p className="px-3 py-1.5 text-xs text-text-muted truncate">{user.email}</p>
                       <div className="h-px bg-border my-1" />
                       <button
-                        onClick={() => { logout(); setMenuOpen(false) }}
+                        onClick={async () => { await logout(); setMenuOpen(false); router.push('/') }}
                         className="flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:text-rose hover:bg-rose-light/50 transition-colors"
                       >
                         <LogOut size={13} />
