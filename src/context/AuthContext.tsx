@@ -8,11 +8,15 @@ interface AuthUser {
   userId: string
 }
 
+export interface SignUpResult {
+  needsEmailConfirm: boolean
+}
+
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<string | null>
-  signUp: (email: string, password: string) => Promise<string | null>
+  signUp: (email: string, password: string) => Promise<SignUpResult | string | null>
   logout: () => Promise<void>
   signInWithGoogle: () => Promise<void>
 }
@@ -53,10 +57,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return result.error || 'Failed to sign in.'
   }
 
-  const signUp = async (email: string, password: string): Promise<string | null> => {
+  const signUp = async (email: string, password: string): Promise<SignUpResult | string | null> => {
     const result = await authSignUp(email, password)
     if (result.success) {
-      return null
+      if (!result.needsEmailConfirm) {
+        const u = await getCurrentUser()
+        setUser(u)
+        return { needsEmailConfirm: false }
+      }
+      return { needsEmailConfirm: true }
     }
     return result.error || 'Failed to create account.'
   }

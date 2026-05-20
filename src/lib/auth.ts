@@ -1,15 +1,22 @@
 import { createClient } from './supabase/client'
 
-export async function signUp(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+export async function signUp(email: string, password: string): Promise<{
+  success: boolean
+  error?: string
+  needsEmailConfirm?: boolean
+}> {
   const supabase = createClient()
-  const { error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({ email, password })
   if (error) {
     if (error.message.includes('already registered')) {
       return { success: false, error: 'An account with this email already exists.' }
     }
     return { success: false, error: error.message }
   }
-  return { success: true }
+  if (data?.session) {
+    return { success: true, needsEmailConfirm: false }
+  }
+  return { success: true, needsEmailConfirm: true }
 }
 
 export async function signIn(email: string, password: string): Promise<{ success: boolean; error?: string }> {

@@ -4,7 +4,7 @@ import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/context/AuthContext'
-import { Loader2, UserPlus } from 'lucide-react'
+import { Loader2, UserPlus, MailCheck } from 'lucide-react'
 
 export default function SignupClient() {
   const router = useRouter()
@@ -13,6 +13,7 @@ export default function SignupClient() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [confirmSent, setConfirmSent] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleEmailSignUp = async (e: FormEvent) => {
@@ -30,13 +31,45 @@ export default function SignupClient() {
     }
 
     setLoading(true)
-    const err = await signUp(email, password)
-    if (err) {
-      setError(err)
+    const result = await signUp(email, password)
+
+    if (result === null || typeof result === 'string') {
+      setError(result || 'Failed to create account.')
+      setLoading(false)
+      return
+    }
+
+    if (result.needsEmailConfirm) {
+      setConfirmSent(true)
     } else {
-      router.push('/login')
+      router.push('/lessons')
     }
     setLoading(false)
+  }
+
+  if (confirmSent) {
+    return (
+      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <div className="bg-card border-2 border-border rounded-3xl p-8 text-center">
+            <div className="w-14 h-14 rounded-xl bg-accent-light flex items-center justify-center mx-auto mb-4">
+              <MailCheck size={28} className="text-accent" />
+            </div>
+            <h1 className="text-xl font-bold text-text mb-2">Check your email</h1>
+            <p className="text-sm text-text-secondary leading-relaxed mb-6">
+              We sent a confirmation link to <strong className="text-text">{email}</strong>.
+              Click it to activate your account, then sign in.
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm border-2 border-accent hover:opacity-90 transition-opacity"
+            >
+              Go to Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
