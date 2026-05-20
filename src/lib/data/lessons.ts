@@ -6289,17 +6289,50 @@ ON DELETE CASCADE;`
     difficulty: 'intermediate',
     prerequisites: ['subqueries', 'select', 'where'],
     topics: ['EXISTS', 'NOT EXISTS', 'correlated subquery', 'IN vs EXISTS', 'NULL safety', 'division pattern'],
-    explanation: `EXISTS returns TRUE if the subquery returns at least one row. It stops scanning as soon as a match is found (short-circuit evaluation).
+    explanation: `── What EXISTS / NOT EXISTS Do ──
+EXISTS  → TRUE  if subquery returns ≥1 row  (short-circuits on first match)
+NOT EXISTS → TRUE  if subquery returns 0 rows  (NULL-safe — unlike NOT IN)
 
-NOT EXISTS returns TRUE if the subquery returns zero rows. It is NULL-safe — unlike NOT IN, NOT EXISTS handles NULLs correctly.
+The SELECT list inside EXISTS never matters — only row existence is checked. Convention: SELECT 1.
 
-Correlated subqueries reference columns from the outer query. EXISTS with correlation is the standard way to test "has/has not" relationships.
+── Correlated Subqueries ──
+A subquery is "correlated" when it references a column from the outer query.
+The inner query re-executes FOR EACH row of the outer query — like a nested loop.
 
-Key difference: EXISTS vs IN
-- EXISTS can be correlated (re-evaluated per outer row)
-- IN with a subquery runs the subquery once
-- NOT EXISTS is NULL-safe; NOT IN is NOT NULL-safe
-- EXISTS typically faster when the subquery can short-circuit`,
+SELECT name FROM employees e
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer = e.name);
+--                   ↑ correlation: links inner to outer row
+
+Execution order: for each employee → run the subquery → if any order matches, include.
+
+── EXISTS vs IN vs JOIN ──
+| Use Case                          | Best Tool        | Why                                  |
+|-----------------------------------|------------------|--------------------------------------|
+| "Has at least one" (boolean)      | EXISTS           | Short-circuits, can be correlated    |
+| "Value in a fixed list"           | IN               | Cleaner for uncorrelated checks      |
+| "Value in subquery (no NULLs)"    | IN               | Simple, readable                     |
+| "Value in subquery (has NULLs)"   | EXISTS           | NULL-safe, NOT IN breaks with NULLs  |
+| "Need data from both tables"      | JOIN             | Access columns from both sides       |
+
+── NULL Safety Trap ──
+NOT EXISTS is NULL-safe; NOT IN is NOT.
+Reason: x NOT IN (1, 2, NULL) → x <> 1 AND x <> 2 AND x <> NULL → UNKNOWN (zero rows).
+NOT EXISTS only checks if the subquery returns rows — NULLs inside don't affect the boolean.
+
+── When EXISTS Runs Faster ──
+EXISTS short-circuits: stops scanning the inner table as soon as it finds one match.
+IN must evaluate all rows in the subquery first, then compare.
+For large correlated checks, EXISTS is typically faster.
+
+── Mental Model (C++ Style) ──
+for each outer_row in table_a:
+    bool found = false
+    for each inner_row in table_b:
+        if inner_row.foreign_key == outer_row.id:
+            found = true
+            break              // short-circuit
+    if (found)  → EXISTS matches
+    if (!found) → NOT EXISTS matches`,
     syntax: `-- EXISTS — find rows that have matches
 SELECT column1, column2
 FROM table_a a
@@ -6460,10 +6493,11 @@ for (int i = 0; i < employeeCount; i++) {
       }
     ],
     commonMistakes: [
-      'Using NOT IN with a subquery that might return NULL (get empty results silently)',
-      'Adding ORDER BY inside an EXISTS subquery (unnecessary — EXISTS only checks row count)',
-      'Forgetting the correlation condition (without it, EXISTS checks the same thing for every outer row)',
-      'Writing complex EXISTS subqueries that could be expressed as simple JOINs (EXISTS is for boolean checks, not data retrieval)'
+      'NOT IN with NULLs: if subquery returns ANY NULL, NOT IN returns zero rows silently. Always use NOT EXISTS for NULL-safe exclusion.',
+      'ORDER BY inside EXISTS: pointless — EXISTS only checks row count, ordering changes nothing.',
+      'Missing correlation: without linking inner to outer (e.g., WHERE o.customer = e.name), EXISTS checks the same thing for every row.',
+      'Using EXISTS when you need JOIN data: EXISTS is a boolean check — you cannot access columns from the subquery. Use JOIN if you need inner table columns.',
+      'SELECT * inside EXISTS: misleading. Only row existence matters — use SELECT 1 for clarity.'
     ],
     practiceQuestions: [
       {
@@ -6501,6 +6535,23 @@ WHERE NOT EXISTS (
         AND o.product_id = p.id
     )
 );`
+      },
+      {
+        question: 'Rewrite this IN query using EXISTS instead, and explain which is better and why: SELECT name FROM products WHERE id IN (SELECT product_id FROM orders WHERE quantity > 5);',
+        hint: 'For EXISTS, correlate: WHERE EXISTS (SELECT 1 FROM orders WHERE product_id = p.id AND quantity > 5). Both work here since no NULLs, but EXISTS short-circuits.',
+        solution: `SELECT p.name
+FROM products p
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+    AND o.quantity > 5
+);
+
+-- EXISTS is better here because:
+-- 1. Short-circuits on first match per product (faster with large data)
+-- 2. Can be correlated (re-evaluated per outer row)
+-- 3. Same NULL-safety (no NULLs in this case)
+-- IN would evaluate the full subquery first, then compare.`
       }
     ]
   },
