@@ -64,9 +64,9 @@ FROM employees;`,
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT * FROM employees;
 struct Employee { string name; string department; double salary; string status; string city; };
-vector<Employee> result = employees;  // Pass-through: all columns, all rows
-for (auto& e : result)
-    cout << e.name << " | " << e.department << " | " << e.salary << "\\n";`
+// employees[] is the input table, passed through directly
+for (int i = 0; i < employeeCount; i++)
+    cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << "\\n";`
       },
       {
         title: 'Select specific columns',
@@ -75,12 +75,8 @@ FROM employees;`,
         explanation: 'Returns only the name, department, and salary columns for all employees.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary FROM employees;
-struct Result { string name; string department; double salary; };
-vector<Result> result;
-for (auto& e : employees)
-    result.push_back({e.name, e.department, e.salary});
-for (auto& r : result)
-    cout << r.name << " | " << r.department << " | " << r.salary << "\\n";`
+for (int i = 0; i < employeeCount; i++)
+    cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << "\\n";`
       },
       {
         title: 'Column alias with AS',
@@ -91,12 +87,8 @@ FROM employees;`,
         explanation: 'Calculates annual salary (monthly salary × 12) and renames the computed column to "annual_salary" using AS.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, salary * 12 AS annual_salary FROM employees;
-struct Result { string name; double annual_salary; };
-vector<Result> result;
-for (auto& e : employees)
-    result.push_back({e.name, e.salary * 12});
-for (auto& r : result)
-    cout << r.name << " | $" << r.annual_salary << "\\n";`
+for (int i = 0; i < employeeCount; i++)
+    cout << employees[i].name << " | $" << employees[i].salary * 12 << "\\n";`
       },
       {
         title: 'DISTINCT unique values',
@@ -105,11 +97,15 @@ FROM employees;`,
         explanation: 'Returns each unique department name once, removing duplicates.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT DISTINCT department FROM employees;
-unordered_set<string> seen;
-for (auto& e : employees) {
-    if (seen.find(e.department) == seen.end()) {
-        seen.insert(e.department);
-        cout << e.department << "\\n";
+string seen[100];
+int seenCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    bool found = false;
+    for (int j = 0; j < seenCount; j++)
+        if (seen[j] == employees[i].department) { found = true; break; }
+    if (!found) {
+        seen[seenCount++] = employees[i].department;
+        cout << employees[i].department << "\\n";
     }
 }`
       },
@@ -122,11 +118,14 @@ LIMIT 3;`,
         explanation: 'Returns only the top 3 highest-paid employees.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 3;
-sort(employees.begin(), employees.end(),
-    [](auto& a, auto& b) { return a.salary > b.salary; });
-int limit = 3;
-for (int i = 0; i < min(limit, (int)employees.size()); i++)
-    cout << employees[i].name << " | $" << employees[i].salary << "\\n";`
+        for (int i = 0; i < employeeCount; i++)
+            for (int j = i + 1; j < employeeCount; j++)
+                if (employees[i].salary < employees[j].salary)
+                    { Employee t = employees[i]; employees[i] = employees[j]; employees[j] = t; }
+        int limit = 3;
+        int n = limit < employeeCount ? limit : employeeCount;
+        for (int i = 0; i < n; i++)
+            cout << employees[i].name << " | $" << employees[i].salary << "\\n";`
       },
       {
         title: 'Expression in SELECT',
@@ -138,15 +137,20 @@ LIMIT 5;`,
         explanation: 'Projects employee details along with a computed annual salary column.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary, salary * 12 AS annual_salary FROM employees LIMIT 5;
-struct Result { string name; string department; double salary; double annual_salary; };
-vector<Result> result;
-int limit = 5;
-for (int i = 0; i < min(limit, (int)employees.size()); i++) {
-    auto& e = employees[i];
-    result.push_back({e.name, e.department, e.salary, e.salary * 12});
-}
-for (auto& r : result)
-    cout << r.name << " | " << r.department << " | " << r.salary << " | " << r.annual_salary << "\\n";`
+        struct Result { string name; string department; double salary; double annual_salary; };
+        Result result[100];
+        int resultCount = 0;
+        int limit = 5;
+        int n = limit < employeeCount ? limit : employeeCount;
+        for (int i = 0; i < n; i++) {
+            result[resultCount].name = employees[i].name;
+            result[resultCount].department = employees[i].department;
+            result[resultCount].salary = employees[i].salary;
+            result[resultCount].annual_salary = employees[i].salary * 12;
+            resultCount++;
+        }
+        for (int i = 0; i < resultCount; i++)
+            cout << result[i].name << " | " << result[i].department << " | " << result[i].salary << " | " << result[i].annual_salary << "\\n";`
       },
       {
         title: 'Constants without FROM',
@@ -168,11 +172,26 @@ ORDER BY department;`,
         explanation: 'DISTINCT applies to ALL selected columns together. This returns every unique combination of department and status.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT DISTINCT department, status FROM employees ORDER BY department;
-set<pair<string, string>> seen;
-for (auto& e : employees)
-    seen.insert({e.department, e.status});
-for (auto& p : seen)
-    cout << p.first << " | " << p.second << "\\n";`
+        struct Pair { string first; string second; };
+        Pair seen[100];
+        int seenCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            bool found = false;
+            for (int j = 0; j < seenCount; j++)
+                if (seen[j].first == employees[i].department && seen[j].second == employees[i].status)
+                    { found = true; break; }
+            if (!found) {
+                seen[seenCount].first = employees[i].department;
+                seen[seenCount].second = employees[i].status;
+                seenCount++;
+            }
+        }
+        for (int i = 0; i < seenCount; i++)
+            for (int j = i + 1; j < seenCount; j++)
+                if (seen[i].first > seen[j].first || (seen[i].first == seen[j].first && seen[i].second > seen[j].second))
+                    { Pair t = seen[i]; seen[i] = seen[j]; seen[j] = t; }
+        for (int i = 0; i < seenCount; i++)
+            cout << seen[i].first << " | " << seen[i].second << "\\n";`
       },
       {
         title: 'SELECT with WHERE filter',
@@ -183,13 +202,17 @@ ORDER BY salary DESC;`,
         explanation: 'Combines SELECT with WHERE to filter results. Only Engineering department employees are returned, sorted by salary from highest to lowest.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary FROM employees WHERE department = 'Engineering' ORDER BY salary DESC;
-vector<Employee> filtered;
-for (auto& e : employees)
-    if (e.department == "Engineering") filtered.push_back(e);
-sort(filtered.begin(), filtered.end(),
-    [](auto& a, auto& b) { return a.salary > b.salary; });
-for (auto& e : filtered)
-    cout << e.name << " | " << e.department << " | " << e.salary << "\\n";`
+        Employee filtered[100];
+        int filteredCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (employees[i].department == "Engineering")
+                { filtered[filteredCount] = employees[i]; filteredCount++; }
+        for (int i = 0; i < filteredCount; i++)
+            for (int j = i + 1; j < filteredCount; j++)
+                if (filtered[i].salary < filtered[j].salary)
+                    { Employee t = filtered[i]; filtered[i] = filtered[j]; filtered[j] = t; }
+        for (int i = 0; i < filteredCount; i++)
+            cout << filtered[i].name << " | " << filtered[i].department << " | " << filtered[i].salary << "\\n";`
       },
       {
         title: 'SELECT with ORDER BY',
@@ -199,11 +222,16 @@ ORDER BY salary DESC;`,
         explanation: 'SELECT retrieves the columns, ORDER BY sorts the results. This query lists all employees from highest to lowest salary.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary FROM employees ORDER BY salary DESC;
-vector<Employee> sorted = employees;
-sort(sorted.begin(), sorted.end(),
-    [](auto& a, auto& b) { return a.salary > b.salary; });
-for (auto& e : sorted)
-    cout << e.name << " | " << e.department << " | " << e.salary << "\\n";`
+        Employee sorted[100];
+        int sortedCount = employeeCount;
+        for (int i = 0; i < sortedCount; i++)
+            sorted[i] = employees[i];
+        for (int i = 0; i < sortedCount; i++)
+            for (int j = i + 1; j < sortedCount; j++)
+                if (sorted[i].salary < sorted[j].salary)
+                    { Employee t = sorted[i]; sorted[i] = sorted[j]; sorted[j] = t; }
+        for (int i = 0; i < sortedCount; i++)
+            cout << sorted[i].name << " | " << sorted[i].department << " | " << sorted[i].salary << "\\n";`
       },
       {
         title: 'SELECT with CASE for labels',
@@ -218,19 +246,26 @@ ORDER BY salary DESC;`,
         explanation: 'Uses CASE inside SELECT to transform salary values into readable tier labels — High, Medium, or Entry — without altering the underlying data.',
         sourceTables: ['employees'],
         cppRepresentation: `// Intuitive C++ representation of: SELECT name, salary, CASE WHEN salary >= 100000 THEN 'High' ... END AS salary_tier FROM employees ORDER BY salary DESC;
-auto salaryTier = [](double s) -> string {
-    if (s >= 100000) return "High";
-    if (s >= 60000) return "Medium";
-    return "Entry";
-};
-struct Result { string name; double salary; string tier; };
-vector<Result> result;
-for (auto& e : employees)
-    result.push_back({e.name, e.salary, salaryTier(e.salary)});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.salary > b.salary; });
-for (auto& r : result)
-    cout << r.name << " | " << r.salary << " | " << r.tier << "\\n";`
+        string salaryTier(double s) {
+            if (s >= 100000) return "High";
+            if (s >= 60000) return "Medium";
+            return "Entry";
+        }
+        struct Result { string name; double salary; string tier; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            result[resultCount].name = employees[i].name;
+            result[resultCount].salary = employees[i].salary;
+            result[resultCount].tier = salaryTier(employees[i].salary);
+            resultCount++;
+        }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].salary < result[j].salary)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }
+        for (int i = 0; i < resultCount; i++)
+            cout << result[i].name << " | " << result[i].salary << " | " << result[i].tier << "\\n";`
       }
     ],
     commonMistakes: [
@@ -317,10 +352,16 @@ FROM employees
 WHERE salary >= 90000;`,
         explanation: 'Finds employees earning $90,000 or more.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (e.salary >= 90000)
-        result.push_back({e.name, e.department, e.salary});`
+        cppRepresentation: `struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (employees[i].salary >= 90000) {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }`
       },
       {
         title: 'AND — multiple conditions',
@@ -331,10 +372,16 @@ WHERE department = 'Engineering'
   AND status = 'active';`,
         explanation: 'Finds active Engineering employees earning at least $80,000.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (e.department == "Engineering" && e.salary >= 80000 && e.status == "active")
-        result.push_back({e.name, e.department, e.salary});`
+        cppRepresentation: `struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (employees[i].department == "Engineering" && employees[i].salary >= 80000 && employees[i].status == "active") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }`
       },
       {
         title: 'IN — set membership',
@@ -345,13 +392,26 @@ WHERE department IN ('Engineering', 'Product')
 ORDER BY salary DESC;`,
         explanation: 'Lists active employees in Engineering or Product departments, sorted by salary.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> target = {"Engineering", "Product"};
-vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (target.contains(e.department) && e.status == "active")
-        result.push_back({e.name, e.department, e.salary});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `string target[2] = {"Engineering", "Product"};
+        int targetCount = 2;
+        struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            bool inTarget = false;
+            for (int j = 0; j < targetCount; j++)
+                if (employees[i].department == target[j]) { inTarget = true; break; }
+            if (inTarget && employees[i].status == "active") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }
+        }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].salary < result[j].salary)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'BETWEEN — range filter',
@@ -361,10 +421,16 @@ WHERE salary BETWEEN 60000 AND 90000
   AND status = 'active';`,
         explanation: 'Finds active employees earning between $60,000 and $90,000 inclusive.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (e.salary >= 60000 && e.salary <= 90000 && e.status == "active")
-        result.push_back({e.name, e.department, e.salary});`
+        cppRepresentation: `struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (employees[i].salary >= 60000 && employees[i].salary <= 90000 && employees[i].status == "active") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }`
       },
       {
         title: 'LIKE — pattern matching',
@@ -374,12 +440,20 @@ WHERE name LIKE '%e%'
 ORDER BY price DESC;`,
         explanation: 'Finds products whose name contains the letter "e", sorted from most to least expensive.',
         sourceTables: ['products'],
-        cppRepresentation: `vector<tuple<string,string,double>> result;
-for (auto& p : products)
-    if (p.name.find('e') != string::npos)
-        result.push_back({p.name, p.category, p.price});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `struct Result { string name; string category; double price; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < productCount; i++)
+            if (products[i].name.find('e') != -1) {
+                result[resultCount].name = products[i].name;
+                result[resultCount].category = products[i].category;
+                result[resultCount].price = products[i].price;
+                resultCount++;
+            }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].price < result[j].price)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'Combining AND / OR with parentheses',
@@ -390,11 +464,23 @@ WHERE (department = 'Engineering' OR department = 'Product')
   AND status = 'active';`,
         explanation: 'Filters with OR inside parentheses to group alternatives, then AND with other conditions. Without parentheses, AND binds tighter than OR.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> cities = {"New York", "San Francisco"};
-vector<tuple<string,string,double,string>> result;
-for (auto& e : employees)
-    if ((e.department == "Engineering" || e.department == "Product") && cities.contains(e.city) && e.status == "active")
-        result.push_back({e.name, e.department, e.salary, e.city});`
+        cppRepresentation: `string cities[2] = {"New York", "San Francisco"};
+        int cityCount = 2;
+        struct Result { string name; string department; double salary; string city; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            bool inCity = false;
+            for (int j = 0; j < cityCount; j++)
+                if (employees[i].city == cities[j]) { inCity = true; break; }
+            if ((employees[i].department == "Engineering" || employees[i].department == "Product") && inCity && employees[i].status == "active") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                result[resultCount].city = employees[i].city;
+                resultCount++;
+            }
+        }`
       },
       {
         title: 'Not equal and NOT operator',
@@ -406,12 +492,20 @@ WHERE department <> 'Marketing'
 ORDER BY salary DESC;`,
         explanation: '<> means "not equal". NOT negates a condition. This finds all active non-Marketing employees outside of Austin.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (e.department != "Marketing" && e.status == "active" && e.city != "Austin")
-        result.push_back({e.name, e.department, e.salary});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (employees[i].department != "Marketing" && employees[i].status == "active" && employees[i].city != "Austin") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].salary < result[j].salary)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'IS NULL — finding missing data',
@@ -421,11 +515,19 @@ WHERE email IS NOT NULL
 ORDER BY name;`,
         explanation: 'IS NOT NULL filters out rows where email is null. To find missing data use IS NULL. NULL comparisons with = never work.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<pair<string,string>> result;
-for (auto& e : employees)
-    if (!e.email.empty())
-        result.push_back({e.name, e.email});
-sort(result.begin(), result.end());`
+        cppRepresentation: `struct Result { string name; string email; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if (!employees[i].email.empty()) {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].email = employees[i].email;
+                resultCount++;
+            }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].name > result[j].name)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'NOT IN — excluding values',
@@ -436,13 +538,26 @@ WHERE department NOT IN ('Marketing', 'Product')
 ORDER BY salary;`,
         explanation: 'NOT IN excludes rows matching any value in the list. Combined with BETWEEN for a salary range filter.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> exclude = {"Marketing", "Product"};
-vector<tuple<string,string,double>> result;
-for (auto& e : employees)
-    if (!exclude.contains(e.department) && e.salary >= 60000 && e.salary <= 100000)
-        result.push_back({e.name, e.department, e.salary});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) < get<2>(b); });`
+        cppRepresentation: `string exclude[2] = {"Marketing", "Product"};
+        int excludeCount = 2;
+        struct Result { string name; string department; double salary; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            bool excluded = false;
+            for (int j = 0; j < excludeCount; j++)
+                if (employees[i].department == exclude[j]) { excluded = true; break; }
+            if (!excluded && employees[i].salary >= 60000 && employees[i].salary <= 100000) {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                resultCount++;
+            }
+        }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].salary > result[j].salary)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'Date range filtering',
@@ -452,12 +567,20 @@ WHERE order_date BETWEEN '2024-01-01' AND '2024-03-31'
 ORDER BY order_date;`,
         explanation: 'Filters orders to only those placed in Q1 2024 using BETWEEN, which is inclusive of both boundary dates.',
         sourceTables: ['orders'],
-        cppRepresentation: `vector<tuple<string,double,string>> result;
-for (auto& o : orders)
-    if (o.order_date >= "2024-01-01" && o.order_date <= "2024-03-31")
-        result.push_back({o.customer, o.total, o.order_date});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) < get<2>(b); });`
+        cppRepresentation: `struct Result { string customer; double total; string order_date; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < orderCount; i++)
+            if (orders[i].order_date >= "2024-01-01" && orders[i].order_date <= "2024-03-31") {
+                result[resultCount].customer = orders[i].customer;
+                result[resultCount].total = orders[i].total;
+                result[resultCount].order_date = orders[i].order_date;
+                resultCount++;
+            }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].order_date > result[j].order_date)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'Complex nested conditions',
@@ -469,12 +592,21 @@ WHERE (department = 'Engineering' OR department = 'Product')
 ORDER BY salary DESC;`,
         explanation: 'Uses nested parentheses to combine OR conditions: active employees in Engineering or Product who either earn over $80k or are based in New York.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,double,string>> result;
-for (auto& e : employees)
-    if ((e.department == "Engineering" || e.department == "Product") && (e.salary > 80000 || e.city == "New York") && e.status == "active")
-        result.push_back({e.name, e.department, e.salary, e.city});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `struct Result { string name; string department; double salary; string city; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++)
+            if ((employees[i].department == "Engineering" || employees[i].department == "Product") && (employees[i].salary > 80000 || employees[i].city == "New York") && employees[i].status == "active") {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].department = employees[i].department;
+                result[resultCount].salary = employees[i].salary;
+                result[resultCount].city = employees[i].city;
+                resultCount++;
+            }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].salary < result[j].salary)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       },
       {
         title: 'LIKE with starts-with and ends-with',
@@ -485,11 +617,23 @@ WHERE name LIKE 'A%'
 ORDER BY name;`,
         explanation: 'Finds employees whose name starts with "A" or ends with "e". The % wildcard matches any sequence of characters at the start or end.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,string,string>> result;
-for (auto& e : employees)
-    if (e.name.starts_with("A") || e.name.ends_with("e"))
-        result.push_back({e.name, e.email, e.department});
-sort(result.begin(), result.end());`
+        cppRepresentation: `struct Result { string name; string email; string department; };
+        Result result[100];
+        int resultCount = 0;
+        for (int i = 0; i < employeeCount; i++) {
+            bool startsA = (employees[i].name.length() >= 1 && employees[i].name[0] == 'A');
+            bool endsE = (employees[i].name.length() >= 1 && employees[i].name[employees[i].name.length() - 1] == 'e');
+            if (startsA || endsE) {
+                result[resultCount].name = employees[i].name;
+                result[resultCount].email = employees[i].email;
+                result[resultCount].department = employees[i].department;
+                resultCount++;
+            }
+        }
+        for (int i = 0; i < resultCount; i++)
+            for (int j = i + 1; j < resultCount; j++)
+                if (result[i].name > result[j].name)
+                    { Result t = result[i]; result[i] = result[j]; result[j] = t; }`
       }
     ],
     commonMistakes: [
@@ -573,11 +717,26 @@ FROM employees
 ORDER BY salary;`,
         explanation: 'Sorts employees by salary from lowest to highest. ASC is the default order.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<pair<string,double>> result;
-for (auto& e : employees) result.push_back({e.name, e.salary});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.second < b.second; });
-for (auto& r : result) cout << r.first << " | " << r.second << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, salary FROM employees ORDER BY salary;
+struct Result { string name; double salary; };
+Result result[100];
+int resultCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    result[resultCount].name = employees[i].name;
+    result[resultCount].salary = employees[i].salary;
+    resultCount++;
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].salary < result[i].salary) {
+            Result temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++)
+    cout << result[i].name << " | " << result[i].salary << "\\n";`
       },
       {
         title: 'Descending sort',
@@ -586,12 +745,27 @@ FROM employees
 ORDER BY salary DESC;`,
         explanation: 'Sorts employees by salary from highest to lowest.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<tuple<string,double,string>> result;
-for (auto& e : employees) result.push_back({e.name, e.salary, e.department});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<1>(a) > get<1>(b); });
-for (auto& r : result)
-    cout << get<0>(r) << " | " << get<1>(r) << " | " << get<2>(r) << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, salary, department FROM employees ORDER BY salary DESC;
+struct Result { string name; double salary; string department; };
+Result result[100];
+int resultCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    result[resultCount].name = employees[i].name;
+    result[resultCount].salary = employees[i].salary;
+    result[resultCount].department = employees[i].department;
+    resultCount++;
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].salary > result[i].salary) {
+            Result temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++)
+    cout << result[i].name << " | " << result[i].salary << " | " << result[i].department << "\\n";`
       },
       {
         title: 'Multiple sort columns',
@@ -600,14 +774,28 @@ FROM employees
 ORDER BY department ASC, salary DESC;`,
         explanation: 'Sorts first by department alphabetically, then within each department by salary descending.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> sorted = employees;
-sort(sorted.begin(), sorted.end(),
-    [](auto& a, auto& b) {
-        if (a.department != b.department) return a.department < b.department;
-        return a.salary > b.salary;
-    });
-for (auto& e : sorted)
-    cout << e.department << " | " << e.name << " | " << e.salary << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, name, salary FROM employees ORDER BY department ASC, salary DESC;
+Employee sorted[100];
+int sortedCount = employeeCount;
+for (int i = 0; i < employeeCount; i++)
+    sorted[i] = employees[i];
+for (int i = 0; i < sortedCount; i++) {
+    for (int j = i + 1; j < sortedCount; j++) {
+        bool doSwap = false;
+        if (sorted[j].department != sorted[i].department) {
+            if (sorted[j].department < sorted[i].department) doSwap = true;
+        } else {
+            if (sorted[j].salary > sorted[i].salary) doSwap = true;
+        }
+        if (doSwap) {
+            Employee temp = sorted[i];
+            sorted[i] = sorted[j];
+            sorted[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < sortedCount; i++)
+    cout << sorted[i].department << " | " << sorted[i].name << " | " << sorted[i].salary << "\\n";`
       },
       {
         title: 'Sort by column position',
@@ -617,14 +805,27 @@ ORDER BY 3, 2 DESC;`,
         explanation: 'Uses numeric positions instead of names. Column 3 (department) ASC, then column 2 (salary) DESC.',
         sourceTables: ['employees'],
         cppRepresentation: `// Uses numeric positions: column 3 (department) ASC, column 2 (salary) DESC
-vector<Employee> sorted = employees;
-sort(sorted.begin(), sorted.end(),
-    [](auto& a, auto& b) {
-        if (a.department != b.department) return a.department < b.department;
-        return a.salary > b.salary;
-    });
-for (auto& e : sorted)
-    cout << e.name << " | " << e.salary << " | " << e.department << "\\n";`
+Employee sorted[100];
+int sortedCount = employeeCount;
+for (int i = 0; i < employeeCount; i++)
+    sorted[i] = employees[i];
+for (int i = 0; i < sortedCount; i++) {
+    for (int j = i + 1; j < sortedCount; j++) {
+        bool doSwap = false;
+        if (sorted[j].department != sorted[i].department) {
+            if (sorted[j].department < sorted[i].department) doSwap = true;
+        } else {
+            if (sorted[j].salary > sorted[i].salary) doSwap = true;
+        }
+        if (doSwap) {
+            Employee temp = sorted[i];
+            sorted[i] = sorted[j];
+            sorted[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < sortedCount; i++)
+    cout << sorted[i].name << " | " << sorted[i].salary << " | " << sorted[i].department << "\\n";`
       },
       {
         title: 'Sort by expression',
@@ -634,14 +835,28 @@ FROM products
 ORDER BY inventory_value DESC;`,
         explanation: 'Computes inventory value (price × stock) and sorts products by that computed value.',
         sourceTables: ['products'],
-        cppRepresentation: `struct Result { string name; double price; int stock; double inventory_value; };
-vector<Result> result;
-for (auto& p : products)
-    result.push_back({p.name, p.price, p.stock, p.price * p.stock});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.inventory_value > b.inventory_value; });
-for (auto& r : result)
-    cout << r.name << " | " << r.price << " | " << r.stock << " | " << r.inventory_value << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, price, stock, price * stock AS inventory_value FROM products ORDER BY inventory_value DESC;
+struct Result { string name; double price; int stock; double inventory_value; };
+Result result[100];
+int resultCount = 0;
+for (int i = 0; i < productCount; i++) {
+    result[resultCount].name = products[i].name;
+    result[resultCount].price = products[i].price;
+    result[resultCount].stock = products[i].stock;
+    result[resultCount].inventory_value = products[i].price * products[i].stock;
+    resultCount++;
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].inventory_value > result[i].inventory_value) {
+            Result temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++)
+    cout << result[i].name << " | " << result[i].price << " | " << result[i].stock << " | " << result[i].inventory_value << "\\n";`
       },
       {
         title: 'ORDER BY with WHERE and LIMIT',
@@ -652,15 +867,32 @@ ORDER BY salary DESC
 LIMIT 4;`,
         explanation: 'Combines WHERE filtering, ORDER BY sorting, and LIMIT truncation — the most common query pattern for "top N" reports.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> target = {"Engineering", "Product"};
-vector<Employee> filtered;
-for (auto& e : employees)
-    if (e.status == "active" && target.contains(e.department))
-        filtered.push_back(e);
-sort(filtered.begin(), filtered.end(),
-    [](auto& a, auto& b) { return a.salary > b.salary; });
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary FROM employees WHERE status = 'active' AND department IN ('Engineering', 'Product') ORDER BY salary DESC LIMIT 4;
+string target[2] = {"Engineering", "Product"};
+Employee filtered[100];
+int filteredCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status != "active") continue;
+    bool inTarget = false;
+    for (int t = 0; t < 2; t++)
+        if (employees[i].department == target[t]) { inTarget = true; break; }
+    if (inTarget) {
+        filtered[filteredCount] = employees[i];
+        filteredCount++;
+    }
+}
+for (int i = 0; i < filteredCount; i++) {
+    for (int j = i + 1; j < filteredCount; j++) {
+        if (filtered[j].salary > filtered[i].salary) {
+            Employee temp = filtered[i];
+            filtered[i] = filtered[j];
+            filtered[j] = temp;
+        }
+    }
+}
 int limit = 4;
-for (int i = 0; i < min(limit, (int)filtered.size()); i++)
+int printCount = limit < filteredCount ? limit : filteredCount;
+for (int i = 0; i < printCount; i++)
     cout << filtered[i].name << " | " << filtered[i].department << " | " << filtered[i].salary << "\\n";`
       },
       {
@@ -677,23 +909,39 @@ ORDER BY
   END, name;`,
         explanation: 'Uses CASE inside ORDER BY to define a custom sort order. New York comes first, then SF, Seattle, then all other cities alphabetically.',
         sourceTables: ['employees'],
-        cppRepresentation: `auto cityPriority = [](string c) {
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, city, salary FROM employees WHERE status = 'active' ORDER BY CASE city ... END, name;
+int cityPriority(string c) {
     if (c == "New York") return 1;
     if (c == "San Francisco") return 2;
     if (c == "Seattle") return 3;
     return 4;
-};
-vector<Employee> active;
-copy_if(employees.begin(), employees.end(), back_inserter(active),
-    [](auto& e) { return e.status == "active"; });
-sort(active.begin(), active.end(),
-    [&](auto& a, auto& b) {
-        int pa = cityPriority(a.city), pb = cityPriority(b.city);
-        if (pa != pb) return pa < pb;
-        return a.name < b.name;
-    });
-for (auto& e : active)
-    cout << e.name << " | " << e.city << " | " << e.salary << "\\n";`
+}
+Employee active[100];
+int activeCount = 0;
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].status == "active") {
+        active[activeCount] = employees[i];
+        activeCount++;
+    }
+for (int i = 0; i < activeCount; i++) {
+    for (int j = i + 1; j < activeCount; j++) {
+        bool doSwap = false;
+        int pa = cityPriority(active[j].city);
+        int pb = cityPriority(active[i].city);
+        if (pa != pb) {
+            if (pa < pb) doSwap = true;
+        } else {
+            if (active[j].name < active[i].name) doSwap = true;
+        }
+        if (doSwap) {
+            Employee temp = active[i];
+            active[i] = active[j];
+            active[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < activeCount; i++)
+    cout << active[i].name << " | " << active[i].city << " | " << active[i].salary << "\\n";`
       },
       {
         title: 'ORDER BY with WHERE and computed column',
@@ -704,16 +952,34 @@ WHERE department IN ('Engineering', 'Product')
 ORDER BY annual_salary DESC;`,
         explanation: 'Filters to Engineering and Product departments, computes annual salary in SELECT, then sorts by the computed alias. WHERE runs before ORDER BY.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> target = {"Engineering", "Product"};
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary, salary * 12 AS annual_salary FROM employees WHERE department IN ('Engineering', 'Product') ORDER BY annual_salary DESC;
+string target[2] = {"Engineering", "Product"};
 struct Result { string name; string department; double salary; double annual_salary; };
-vector<Result> result;
-for (auto& e : employees)
-    if (target.contains(e.department))
-        result.push_back({e.name, e.department, e.salary, e.salary * 12});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.annual_salary > b.annual_salary; });
-for (auto& r : result)
-    cout << r.name << " | " << r.department << " | " << r.salary << " | " << r.annual_salary << "\\n";`
+Result result[100];
+int resultCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    bool inTarget = false;
+    for (int t = 0; t < 2; t++)
+        if (employees[i].department == target[t]) { inTarget = true; break; }
+    if (inTarget) {
+        result[resultCount].name = employees[i].name;
+        result[resultCount].department = employees[i].department;
+        result[resultCount].salary = employees[i].salary;
+        result[resultCount].annual_salary = employees[i].salary * 12;
+        resultCount++;
+    }
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].annual_salary > result[i].annual_salary) {
+            Result temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++)
+    cout << result[i].name << " | " << result[i].department << " | " << result[i].salary << " | " << result[i].annual_salary << "\\n";`
       },
       {
         title: 'Multi-directional sorting',
@@ -723,16 +989,31 @@ WHERE status = 'active'
 ORDER BY department ASC, salary DESC;`,
         explanation: 'Sorts by department alphabetically (A to Z) and within each department by salary from highest to lowest — two columns with different directions.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> active;
-copy_if(employees.begin(), employees.end(), back_inserter(active),
-    [](auto& e) { return e.status == "active"; });
-sort(active.begin(), active.end(),
-    [](auto& a, auto& b) {
-        if (a.department != b.department) return a.department < b.department;
-        return a.salary > b.salary;
-    });
-for (auto& e : active)
-    cout << e.name << " | " << e.department << " | " << e.salary << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, department, salary FROM employees WHERE status = 'active' ORDER BY department ASC, salary DESC;
+Employee active[100];
+int activeCount = 0;
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].status == "active") {
+        active[activeCount] = employees[i];
+        activeCount++;
+    }
+for (int i = 0; i < activeCount; i++) {
+    for (int j = i + 1; j < activeCount; j++) {
+        bool doSwap = false;
+        if (active[j].department != active[i].department) {
+            if (active[j].department < active[i].department) doSwap = true;
+        } else {
+            if (active[j].salary > active[i].salary) doSwap = true;
+        }
+        if (doSwap) {
+            Employee temp = active[i];
+            active[i] = active[j];
+            active[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < activeCount; i++)
+    cout << active[i].name << " | " << active[i].department << " | " << active[i].salary << "\\n";`
       },
       {
         title: 'ORDER BY with text length',
@@ -741,14 +1022,28 @@ FROM employees
 ORDER BY LENGTH(name) DESC, name ASC;`,
         explanation: 'Sorts employees by the length of their name (longest first), then alphabetically for names of the same length. Uses the LENGTH() function in ORDER BY.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> sorted = employees;
-sort(sorted.begin(), sorted.end(),
-    [](auto& a, auto& b) {
-        if (a.name.length() != b.name.length()) return a.name.length() > b.name.length();
-        return a.name < b.name;
-    });
-for (auto& e : sorted)
-    cout << e.name << " | " << e.name.length() << " | " << e.department << "\\n";`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT name, LENGTH(name) AS name_length, department FROM employees ORDER BY LENGTH(name) DESC, name ASC;
+Employee sorted[100];
+int sortedCount = employeeCount;
+for (int i = 0; i < employeeCount; i++)
+    sorted[i] = employees[i];
+for (int i = 0; i < sortedCount; i++) {
+    for (int j = i + 1; j < sortedCount; j++) {
+        bool doSwap = false;
+        if (sorted[j].name.length() != sorted[i].name.length()) {
+            if (sorted[j].name.length() > sorted[i].name.length()) doSwap = true;
+        } else {
+            if (sorted[j].name < sorted[i].name) doSwap = true;
+        }
+        if (doSwap) {
+            Employee temp = sorted[i];
+            sorted[i] = sorted[j];
+            sorted[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < sortedCount; i++)
+    cout << sorted[i].name << " | " << sorted[i].name.length() << " | " << sorted[i].department << "\\n";`
       },
     ],
     commonMistakes: [
@@ -835,11 +1130,32 @@ GROUP BY department
 ORDER BY employee_count DESC;`,
         explanation: 'Counts employees in each department, sorted from largest to smallest team.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, int> group;
-for (auto& e : employees) group[e.department]++;
-vector<pair<string,int>> result(group.begin(), group.end());
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.second > b.second; });`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, COUNT(*) AS employee_count FROM employees GROUP BY department ORDER BY employee_count DESC;
+string deptKeys[100];
+int deptCounts[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        deptKeys[groupCount] = employees[i].department;
+        deptCounts[groupCount] = 0;
+        groupCount++;
+    }
+    deptCounts[idx]++;
+}
+for (int i = 0; i < groupCount; i++) {
+    for (int j = i + 1; j < groupCount; j++) {
+        if (deptCounts[j] > deptCounts[i]) {
+            string tempK = deptKeys[i]; deptKeys[i] = deptKeys[j]; deptKeys[j] = tempK;
+            int tempC = deptCounts[i]; deptCounts[i] = deptCounts[j]; deptCounts[j] = tempC;
+        }
+    }
+}
+for (int i = 0; i < groupCount; i++)
+    cout << deptKeys[i] << " | " << deptCounts[i] << "\\n";`
       },
       {
         title: 'Average per group',
@@ -851,16 +1167,38 @@ GROUP BY department
 ORDER BY avg_salary DESC;`,
         explanation: 'For each department, shows the headcount and average salary.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& e : employees) {
-    groups[e.department].first++;
-    groups[e.department].second += e.salary;
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, COUNT(*) AS headcount, ROUND(AVG(salary), 0) AS avg_salary FROM employees GROUP BY department ORDER BY avg_salary DESC;
+string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        deptKeys[groupCount] = employees[i].department;
+        deptCounts[groupCount] = 0;
+        deptSums[groupCount] = 0.0;
+        groupCount++;
+    }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
 }
-vector<tuple<string,int,double>> result;
-for (auto& [d, v] : groups)
-    result.push_back({d, v.first, round(v.second / v.first)});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+for (int i = 0; i < groupCount; i++) {
+    for (int j = i + 1; j < groupCount; j++) {
+        double avgA = deptSums[i] / deptCounts[i];
+        double avgB = deptSums[j] / deptCounts[j];
+        if (avgB > avgA) {
+            string tempK = deptKeys[i]; deptKeys[i] = deptKeys[j]; deptKeys[j] = tempK;
+            int tempC = deptCounts[i]; deptCounts[i] = deptCounts[j]; deptCounts[j] = tempC;
+            double tempS = deptSums[i]; deptSums[i] = deptSums[j]; deptSums[j] = tempS;
+        }
+    }
+}
+for (int i = 0; i < groupCount; i++)
+    cout << deptKeys[i] << " | " << deptCounts[i] << " | " << round(deptSums[i] / deptCounts[i]) << "\\n";`
       },
       {
         title: 'Multiple aggregates',
@@ -874,14 +1212,37 @@ FROM products
 GROUP BY category;`,
         explanation: 'Shows statistics per product category: count, average price, price range, and total stock.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string, vector<Product>> byCat;
-for (auto& p : products) byCat[p.category].push_back(p);
-for (auto& [cat, items] : byCat) {
-    double sum=0, lo=items[0].price, hi=items[0].price;
-    int totalStock=0;
-    for (auto& p : items) { sum+=p.price; lo=min(lo,p.price); hi=max(hi,p.price); totalStock+=p.stock; }
-    cout << cat << " | " << items.size() << " | avg=" << round(sum/items.size()*100)/100
-         << " | min=" << lo << " | max=" << hi << " | stock=" << totalStock << "\\n";
+        cppRepresentation: `// Intuitive C++ representation of: SELECT category, COUNT(*) AS num_products, ROUND(AVG(price), 2) AS avg_price, MIN(price) AS cheapest, MAX(price) AS most_expensive, SUM(stock) AS total_stock FROM products GROUP BY category;
+string catKeys[100];
+int catCounts[100];
+double catSums[100];
+double catMins[100];
+double catMaxs[100];
+int catStocks[100];
+int groupCount = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (catKeys[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        catKeys[groupCount] = products[i].category;
+        catCounts[groupCount] = 0;
+        catSums[groupCount] = 0.0;
+        catMins[groupCount] = products[i].price;
+        catMaxs[groupCount] = products[i].price;
+        catStocks[groupCount] = 0;
+        groupCount++;
+    }
+    catCounts[idx]++;
+    catSums[idx] += products[i].price;
+    catStocks[idx] += products[i].stock;
+    if (products[i].price < catMins[idx]) catMins[idx] = products[i].price;
+    if (products[i].price > catMaxs[idx]) catMaxs[idx] = products[i].price;
+}
+for (int i = 0; i < groupCount; i++) {
+    cout << catKeys[i] << " | " << catCounts[i] << " | avg=" << round(catSums[i] / catCounts[i] * 100) / 100
+         << " | min=" << catMins[i] << " | max=" << catMaxs[i] << " | stock=" << catStocks[i] << "\\n";
 }`
       },
       {
@@ -895,13 +1256,39 @@ GROUP BY department
 ORDER BY avg_active_salary DESC;`,
         explanation: 'First filters to active employees, then groups by department to find average salaries.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& e : employees)
-    if (e.status == "active") { groups[e.department].first++; groups[e.department].second += e.salary; }
-vector<tuple<string,int,double>> result;
-for (auto& [d, v] : groups) result.push_back({d, v.first, round(v.second / v.first)});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, COUNT(*) AS active_count, ROUND(AVG(salary), 0) AS avg_active_salary FROM employees WHERE status = 'active' GROUP BY department ORDER BY avg_active_salary DESC;
+string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status != "active") continue;
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        deptKeys[groupCount] = employees[i].department;
+        deptCounts[groupCount] = 0;
+        deptSums[groupCount] = 0.0;
+        groupCount++;
+    }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
+}
+for (int i = 0; i < groupCount; i++) {
+    for (int j = i + 1; j < groupCount; j++) {
+        double avgA = deptSums[i] / deptCounts[i];
+        double avgB = deptSums[j] / deptCounts[j];
+        if (avgB > avgA) {
+            string tempK = deptKeys[i]; deptKeys[i] = deptKeys[j]; deptKeys[j] = tempK;
+            int tempC = deptCounts[i]; deptCounts[i] = deptCounts[j]; deptCounts[j] = tempC;
+            double tempS = deptSums[i]; deptSums[i] = deptSums[j]; deptSums[j] = tempS;
+        }
+    }
+}
+for (int i = 0; i < groupCount; i++)
+    cout << deptKeys[i] << " | " << deptCounts[i] << " | " << round(deptSums[i] / deptCounts[i]) << "\\n";`
       },
       {
         title: 'GROUP BY multiple columns',
@@ -911,11 +1298,41 @@ GROUP BY department, status
 ORDER BY department, status;`,
         explanation: 'Groups by both department and status to see the breakdown of active vs inactive employees per department.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<pair<string,string>, int> group;
-for (auto& e : employees) group[{e.department, e.status}]++;
-vector<tuple<string,string,int>> result;
-for (auto& [k, c] : group) result.push_back({k.first, k.second, c});
-sort(result.begin(), result.end());`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, status, COUNT(*) AS count FROM employees GROUP BY department, status ORDER BY department, status;
+string groupDepts[100];
+string groupStatuses[100];
+int groupCounts[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (groupDepts[j] == employees[i].department && groupStatuses[j] == employees[i].status) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        groupDepts[groupCount] = employees[i].department;
+        groupStatuses[groupCount] = employees[i].status;
+        groupCounts[groupCount] = 0;
+        groupCount++;
+    }
+    groupCounts[idx]++;
+}
+for (int i = 0; i < groupCount; i++) {
+    for (int j = i + 1; j < groupCount; j++) {
+        bool doSwap = false;
+        if (groupDepts[j] != groupDepts[i]) {
+            if (groupDepts[j] < groupDepts[i]) doSwap = true;
+        } else {
+            if (groupStatuses[j] < groupStatuses[i]) doSwap = true;
+        }
+        if (doSwap) {
+            string tempD = groupDepts[i]; groupDepts[i] = groupDepts[j]; groupDepts[j] = tempD;
+            string tempS = groupStatuses[i]; groupStatuses[i] = groupStatuses[j]; groupStatuses[j] = tempS;
+            int tempC = groupCounts[i]; groupCounts[i] = groupCounts[j]; groupCounts[j] = tempC;
+        }
+    }
+}
+for (int i = 0; i < groupCount; i++)
+    cout << groupDepts[i] << " | " << groupStatuses[i] << " | " << groupCounts[i] << "\\n";`
       },
       {
         title: 'GROUP BY on calculated column',
@@ -932,18 +1349,36 @@ GROUP BY salary_band
 ORDER BY MIN(salary);`,
         explanation: 'Groups employees into custom salary bands using a CASE expression in GROUP BY. The ORDER BY uses MIN(salary) to keep bands in logical order.',
         sourceTables: ['employees'],
-        cppRepresentation: `auto salaryBand = [](double s) -> string {
+        cppRepresentation: `// Intuitive C++ representation of: SELECT CASE ... END AS salary_band, COUNT(*) AS employees, ROUND(AVG(salary), 0) AS avg_salary FROM employees GROUP BY salary_band ORDER BY MIN(salary);
+string salaryBand(double s) {
     if (s < 70000) return "Under 70k";
     if (s < 100000) return "70k-100k";
     return "Over 100k";
-};
-map<string, vector<double>> groups;
-for (auto& e : employees) groups[salaryBand(e.salary)].push_back(e.salary);
-for (auto& [band, sals] : groups) {
-    double sum=0, lo=sals[0];
-    for (double s : sals) { sum+=s; lo=min(lo,s); }
-    cout << band << " | count=" << sals.size() << " | avg=" << round(sum/sals.size()) << "\\n";
-}`
+}
+string bandKeys[100];
+int bandCounts[100];
+double bandSums[100];
+double bandMins[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    string band = salaryBand(employees[i].salary);
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (bandKeys[j] == band) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        bandKeys[groupCount] = band;
+        bandCounts[groupCount] = 0;
+        bandSums[groupCount] = 0.0;
+        bandMins[groupCount] = employees[i].salary;
+        groupCount++;
+    }
+    bandCounts[idx]++;
+    bandSums[idx] += employees[i].salary;
+    if (employees[i].salary < bandMins[idx]) bandMins[idx] = employees[i].salary;
+}
+for (int i = 0; i < groupCount; i++)
+    cout << bandKeys[i] << " | count=" << bandCounts[i] << " | avg=" << round(bandSums[i] / bandCounts[i]) << "\\n";`
       },
       {
         title: 'MIN and MAX price per category',
@@ -957,17 +1392,33 @@ GROUP BY category
 ORDER BY price_range DESC;`,
         explanation: 'Shows the price spread within each category — the difference between the cheapest and most expensive product.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string, pair<double,double>> range;
-map<string, int> counts;
-for (auto& p : products) {
-    if (!range.count(p.category)) range[p.category] = {p.price, p.price};
-    auto& [lo, hi] = range[p.category];
-    lo = min(lo, p.price); hi = max(hi, p.price);
-    counts[p.category]++;
+        cppRepresentation: `// Intuitive C++ representation of: SELECT category, COUNT(*) AS products, MIN(price) AS cheapest, MAX(price) AS most_expensive, ROUND(MAX(price) - MIN(price), 2) AS price_range FROM products GROUP BY category ORDER BY price_range DESC;
+string catKeys[100];
+int catCounts[100];
+double catMins[100];
+double catMaxs[100];
+int groupCount = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (catKeys[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        catKeys[groupCount] = products[i].category;
+        catCounts[groupCount] = 0;
+        catMins[groupCount] = products[i].price;
+        catMaxs[groupCount] = products[i].price;
+        groupCount++;
+    }
+    catCounts[idx]++;
+    if (products[i].price < catMins[idx]) catMins[idx] = products[i].price;
+    if (products[i].price > catMaxs[idx]) catMaxs[idx] = products[i].price;
 }
-for (auto& [cat, r] : range)
-    cout << cat << " | " << counts[cat] << " | $" << r.first << " - $" << r.second
-         << " | range=$" << round((r.second-r.first)*100)/100 << "\\n";`
+for (int i = 0; i < groupCount; i++) {
+    double range = catMaxs[i] - catMins[i];
+    cout << catKeys[i] << " | " << catCounts[i] << " | $" << catMins[i] << " - $" << catMaxs[i]
+         << " | range=$" << round(range * 100) / 100 << "\\n";
+}`
       },
       {
         title: 'Total orders per customer with SUM',
@@ -980,14 +1431,28 @@ GROUP BY customer
 ORDER BY total_spent DESC;`,
         explanation: 'A classic customer summary: how many orders, total spent, and average order value per customer.',
         sourceTables: ['orders'],
-        cppRepresentation: `map<string, vector<double>> custOrders;
-for (auto& o : orders) custOrders[o.customer].push_back(o.total);
-for (auto& [c, totals] : custOrders) {
-    double sum = 0;
-    for (double t : totals) sum += t;
-    cout << c << " | orders=" << totals.size() << " | spent=$" << round(sum*100)/100
-         << " | avg=$" << round(sum/totals.size()*100)/100 << "\\n";
-}`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT customer, COUNT(*) AS orders_count, ROUND(SUM(total), 2) AS total_spent, ROUND(AVG(total), 2) AS avg_order_value FROM orders GROUP BY customer ORDER BY total_spent DESC;
+string custKeys[100];
+int custCounts[100];
+double custSums[100];
+int groupCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (custKeys[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        custKeys[groupCount] = orders[i].customer;
+        custCounts[groupCount] = 0;
+        custSums[groupCount] = 0.0;
+        groupCount++;
+    }
+    custCounts[idx]++;
+    custSums[idx] += orders[i].total;
+}
+for (int i = 0; i < groupCount; i++)
+    cout << custKeys[i] << " | orders=" << custCounts[i] << " | spent=$" << round(custSums[i] * 100) / 100
+         << " | avg=$" << round(custSums[i] / custCounts[i] * 100) / 100 << "\\n";`
       },
       {
         title: 'Group by calculated column',
@@ -1005,19 +1470,37 @@ GROUP BY order_size
 ORDER BY MIN(total);`,
         explanation: 'Groups orders into size bands using a CASE expression. The ORDER BY uses MIN(total) to keep bands in logical order from smallest to largest.',
         sourceTables: ['orders'],
-        cppRepresentation: `auto sizeBand = [](double t) -> string {
+        cppRepresentation: `// Intuitive C++ representation of: SELECT CASE ... END AS order_size, COUNT(*) AS orders, ROUND(SUM(total), 2) AS total_revenue, ROUND(AVG(total), 2) AS avg_order_value FROM orders GROUP BY order_size ORDER BY MIN(total);
+string sizeBand(double t) {
     if (t < 50) return "Small";
     if (t < 200) return "Medium";
     return "Large";
-};
-map<string, vector<double>> bands;
-for (auto& o : orders) bands[sizeBand(o.total)].push_back(o.total);
-for (auto& [l, totals] : bands) {
-    double sum=0, lo=totals[0];
-    for (double t : totals) { sum+=t; lo=min(lo,t); }
-    cout << l << " | " << totals.size() << " | $" << round(sum*100)/100
-         << " | avg=$" << round(sum/totals.size()*100)/100 << "\\n";
-}`
+}
+string bandKeys[100];
+int bandCounts[100];
+double bandSums[100];
+double bandMins[100];
+int groupCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    string band = sizeBand(orders[i].total);
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (bandKeys[j] == band) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        bandKeys[groupCount] = band;
+        bandCounts[groupCount] = 0;
+        bandSums[groupCount] = 0.0;
+        bandMins[groupCount] = orders[i].total;
+        groupCount++;
+    }
+    bandCounts[idx]++;
+    bandSums[idx] += orders[i].total;
+    if (orders[i].total < bandMins[idx]) bandMins[idx] = orders[i].total;
+}
+for (int i = 0; i < groupCount; i++)
+    cout << bandKeys[i] << " | " << bandCounts[i] << " | $" << round(bandSums[i] * 100) / 100
+         << " | avg=$" << round(bandSums[i] / bandCounts[i] * 100) / 100 << "\\n";`
       },
       {
         title: 'Multiple aggregate functions',
@@ -1032,14 +1515,34 @@ GROUP BY customer
 ORDER BY total_spent DESC;`,
         explanation: 'Demonstrates five aggregate functions in one query per customer: count of orders, total spent, average order value, smallest and largest order.',
         sourceTables: ['orders'],
-        cppRepresentation: `map<string, vector<double>> custOrders;
-for (auto& o : orders) custOrders[o.customer].push_back(o.total);
-for (auto& [c, totals] : custOrders) {
-    double sum=0, lo=totals[0], hi=totals[0];
-    for (double t : totals) { sum+=t; lo=min(lo,t); hi=max(hi,t); }
-    cout << c << " | orders=" << totals.size() << " | total=$" << sum
-         << " | avg=$" << sum/totals.size() << " | min=$" << lo << " | max=$" << hi << "\\n";
-}`
+        cppRepresentation: `// Intuitive C++ representation of: SELECT customer, COUNT(*) AS order_count, ROUND(SUM(total), 2) AS total_spent, ROUND(AVG(total), 2) AS avg_order, MIN(total) AS smallest_order, MAX(total) AS largest_order FROM orders GROUP BY customer ORDER BY total_spent DESC;
+string custKeys[100];
+int custCounts[100];
+double custSums[100];
+double custMins[100];
+double custMaxs[100];
+int groupCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (custKeys[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        custKeys[groupCount] = orders[i].customer;
+        custCounts[groupCount] = 0;
+        custSums[groupCount] = 0.0;
+        custMins[groupCount] = orders[i].total;
+        custMaxs[groupCount] = orders[i].total;
+        groupCount++;
+    }
+    custCounts[idx]++;
+    custSums[idx] += orders[i].total;
+    if (orders[i].total < custMins[idx]) custMins[idx] = orders[i].total;
+    if (orders[i].total > custMaxs[idx]) custMaxs[idx] = orders[i].total;
+}
+for (int i = 0; i < groupCount; i++)
+    cout << custKeys[i] << " | orders=" << custCounts[i] << " | total=$" << custSums[i]
+         << " | avg=$" << custSums[i] / custCounts[i] << " | min=$" << custMins[i] << " | max=$" << custMaxs[i] << "\\n";`
       },
       {
         title: 'Group by with HAVING preview',
@@ -1052,13 +1555,28 @@ HAVING COUNT(*) >= 2
 ORDER BY headcount DESC;`,
         explanation: 'Groups employees by department then uses HAVING to keep only departments with 2 or more employees — a preview of filtering groups after aggregation.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, vector<double>> groups;
-for (auto& e : employees) groups[e.department].push_back(e.salary);
-for (auto& [d, sals] : groups) {
-    if (sals.size() >= 2) {
-        double sum = 0;
-        for (double s : sals) sum += s;
-        cout << d << " | " << sals.size() << " | $" << round(sum/sals.size()) << "\\n";
+        cppRepresentation: `// Intuitive C++ representation of: SELECT department, COUNT(*) AS headcount, ROUND(AVG(salary), 0) AS avg_salary FROM employees GROUP BY department HAVING COUNT(*) >= 2 ORDER BY headcount DESC;
+string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int groupCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupCount; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupCount;
+        deptKeys[groupCount] = employees[i].department;
+        deptCounts[groupCount] = 0;
+        deptSums[groupCount] = 0.0;
+        groupCount++;
+    }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
+}
+for (int i = 0; i < groupCount; i++) {
+    if (deptCounts[i] >= 2) {
+        cout << deptKeys[i] << " | " << deptCounts[i] << " | $" << round(deptSums[i] / deptCounts[i]) << "\\n";
     }
 }`
       }
@@ -1160,14 +1678,29 @@ HAVING COUNT(*) >= 2
 ORDER BY headcount DESC;`,
         explanation: 'Shows departments with 2 or more active employees. WHERE filters rows first, GROUP BY creates groups, HAVING filters the groups.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, int> deptCount;
-for (auto& e : employees)
-    if (e.status == "active") deptCount[e.department]++;
-vector<pair<string,int>> result;
-for (auto& [dept, cnt] : deptCount)
-    if (cnt >= 2) result.push_back({dept, cnt});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return a.second > b.second; });`
+        cppRepresentation: `string depts[100];
+int deptCounts[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status == "active") {
+        int idx = -1;
+        for (int j = 0; j < deptSize; j++)
+            if (depts[j] == employees[i].department) { idx = j; break; }
+        if (idx == -1) { idx = deptSize++; depts[idx] = employees[i].department; deptCounts[idx] = 0; }
+        deptCounts[idx]++;
+    }
+}
+string resultDepts[100];
+int resultCounts[100];
+int resultSize = 0;
+for (int i = 0; i < deptSize; i++)
+    if (deptCounts[i] >= 2) { resultDepts[resultSize] = depts[i]; resultCounts[resultSize] = deptCounts[i]; resultSize++; }
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resultCounts[j] < resultCounts[j + 1]) {
+            int tmpC = resultCounts[j]; resultCounts[j] = resultCounts[j + 1]; resultCounts[j + 1] = tmpC;
+            string tmpD = resultDepts[j]; resultDepts[j] = resultDepts[j + 1]; resultDepts[j + 1] = tmpD;
+        }`
       },
       {
         title: 'Filter by aggregate value',
@@ -1179,11 +1712,23 @@ GROUP BY category
 HAVING AVG(price) > 50;`,
         explanation: 'Finds categories where the average product price exceeds $50.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& p : products) { groups[p.category].first++; groups[p.category].second += p.price; }
-for (auto& [cat, v] : groups)
-    if (v.second / v.first > 50)
-        cout << cat << " | avg=$" << round(v.second/v.first*100)/100 << " | count=" << v.first << "\\n";`
+        cppRepresentation: `string cats[100];
+int counts[100];
+double sums[100];
+int groupSize = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (cats[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; cats[idx] = products[i].category; counts[idx] = 0; sums[idx] = 0; }
+    counts[idx]++;
+    sums[idx] += products[i].price;
+}
+for (int i = 0; i < groupSize; i++) {
+    double avg = sums[i] / counts[i];
+    if (avg > 50)
+        cout << cats[i] << " | avg=$" << round(avg * 100) / 100 << " | count=" << counts[i] << "\\n";
+}`
       },
       {
         title: 'Customer spending threshold',
@@ -1196,13 +1741,31 @@ HAVING SUM(total) > 200
 ORDER BY total_spent DESC;`,
         explanation: 'Shows customers who have spent over $200 total, sorted by total spent.',
         sourceTables: ['orders'],
-        cppRepresentation: `map<string, pair<int,double>> custGroups;
-for (auto& o : orders) { custGroups[o.customer].first++; custGroups[o.customer].second += o.total; }
-vector<tuple<string,int,double>> result;
-for (auto& [c, v] : custGroups)
-    if (v.second > 200) result.push_back({c, v.first, v.second});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `string custs[100];
+int orderCounts[100];
+double totals[100];
+int groupSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (custs[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; custs[idx] = orders[i].customer; orderCounts[idx] = 0; totals[idx] = 0; }
+    orderCounts[idx]++;
+    totals[idx] += orders[i].total;
+}
+string resCusts[100];
+int resCounts[100];
+double resTotals[100];
+int resSize = 0;
+for (int i = 0; i < groupSize; i++)
+    if (totals[i] > 200) { resCusts[resSize] = custs[i]; resCounts[resSize] = orderCounts[i]; resTotals[resSize] = totals[i]; resSize++; }
+for (int i = 0; i < resSize - 1; i++)
+    for (int j = 0; j < resSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpC = resCounts[j]; resCounts[j] = resCounts[j + 1]; resCounts[j + 1] = tmpC;
+            string tmpN = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpN;
+        }`
       },
       {
         title: 'Multiple HAVING conditions',
@@ -1216,13 +1779,23 @@ HAVING COUNT(*) >= 2 AND AVG(salary) > 70000
 ORDER BY total_budget DESC;`,
         explanation: 'Finds departments with at least 2 employees and an average salary above $70,000. Both conditions must be true for the group to appear.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& e : employees) { groups[e.department].first++; groups[e.department].second += e.salary; }
-for (auto& [dept, v] : groups) {
-    double avg = v.second / v.first;
-    if (v.first >= 2 && avg > 70000)
-        cout << dept << " | cnt=" << v.first << " | avg=$" << round(avg)
-             << " | total=$" << v.second << "\\n";
+        cppRepresentation: `string depts[100];
+int counts[100];
+double sums[100];
+int groupSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (depts[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; depts[idx] = employees[i].department; counts[idx] = 0; sums[idx] = 0; }
+    counts[idx]++;
+    sums[idx] += employees[i].salary;
+}
+for (int i = 0; i < groupSize; i++) {
+    double avg = sums[i] / counts[i];
+    if (counts[i] >= 2 && avg > 70000)
+        cout << depts[i] << " | cnt=" << counts[i] << " | avg=$" << round(avg)
+             << " | total=$" << sums[i] << "\\n";
 }`
       },
       {
@@ -1237,15 +1810,27 @@ HAVING MAX(price) > MIN(price) * 10
 ORDER BY category;`,
         explanation: 'Finds categories where the most expensive product is at least 10× the cheapest — categories with extreme price variation.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string, pair<double,double>> range;
-for (auto& p : products) {
-    if (!range.count(p.category)) range[p.category] = {p.price, p.price};
-    auto& [lo, hi] = range[p.category];
-    lo = min(lo, p.price); hi = max(hi, p.price);
+        cppRepresentation: `string cats[100];
+double lo[100];
+double hi[100];
+int groupSize = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (cats[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupSize++;
+        cats[idx] = products[i].category;
+        lo[idx] = products[i].price;
+        hi[idx] = products[i].price;
+    } else {
+        if (products[i].price < lo[idx]) lo[idx] = products[i].price;
+        if (products[i].price > hi[idx]) hi[idx] = products[i].price;
+    }
 }
-for (auto& [cat, r] : range)
-    if (r.second > r.first * 10)
-        cout << cat << " | min=$" << r.first << " | max=$" << r.second << "\\n";`
+for (int i = 0; i < groupSize; i++)
+    if (hi[i] > lo[i] * 10)
+        cout << cats[i] << " | min=$" << lo[i] << " | max=$" << hi[i] << "\\n";`
       },
       {
         title: 'HAVING with SUM comparison',
@@ -1259,15 +1844,41 @@ HAVING COUNT(*) >= 2 AND AVG(total) > 100
 ORDER BY total DESC;`,
         explanation: 'Finds repeat customers (2+ orders) whose average order value exceeds $100. Combines two aggregate conditions in HAVING.',
         sourceTables: ['orders'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& o : orders) { groups[o.customer].first++; groups[o.customer].second += o.total; }
-vector<tuple<string,int,double,double>> result;
-for (auto& [c, v] : groups) {
-    double avg = v.second / v.first;
-    if (v.first >= 2 && avg > 100) result.push_back({c, v.first, v.second, avg});
+        cppRepresentation: `string custs[100];
+int counts[100];
+double sums[100];
+int groupSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (custs[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; custs[idx] = orders[i].customer; counts[idx] = 0; sums[idx] = 0; }
+    counts[idx]++;
+    sums[idx] += orders[i].total;
 }
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+string resCusts[100];
+int resCounts[100];
+double resSums[100];
+double resAvgs[100];
+int resSize = 0;
+for (int i = 0; i < groupSize; i++) {
+    double avg = sums[i] / counts[i];
+    if (counts[i] >= 2 && avg > 100) {
+        resCusts[resSize] = custs[i];
+        resCounts[resSize] = counts[i];
+        resSums[resSize] = sums[i];
+        resAvgs[resSize] = avg;
+        resSize++;
+    }
+}
+for (int i = 0; i < resSize - 1; i++)
+    for (int j = 0; j < resSize - 1 - i; j++)
+        if (resSums[j] < resSums[j + 1]) {
+            double tmpS = resSums[j]; resSums[j] = resSums[j + 1]; resSums[j + 1] = tmpS;
+            int tmpC = resCounts[j]; resCounts[j] = resCounts[j + 1]; resCounts[j + 1] = tmpC;
+            string tmpN = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpN;
+            double tmpA = resAvgs[j]; resAvgs[j] = resAvgs[j + 1]; resAvgs[j + 1] = tmpA;
+        }`
       },
       {
         title: 'Filter by total and count',
@@ -1280,13 +1891,36 @@ HAVING SUM(total) > 100 AND COUNT(*) >= 2
 ORDER BY total_spent DESC;`,
         explanation: 'Finds repeat customers who have spent over $100 total using two aggregate conditions in HAVING — both SUM and COUNT must pass for the group to appear.',
         sourceTables: ['orders'],
-        cppRepresentation: `map<string, pair<int,double>> groups;
-for (auto& o : orders) { groups[o.customer].first++; groups[o.customer].second += o.total; }
-vector<tuple<string,int,double>> result;
-for (auto& [c, v] : groups)
-    if (v.second > 100 && v.first >= 2) result.push_back({c, v.first, v.second});
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });`
+        cppRepresentation: `string custs[100];
+int counts[100];
+double sums[100];
+int groupSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (custs[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; custs[idx] = orders[i].customer; counts[idx] = 0; sums[idx] = 0; }
+    counts[idx]++;
+    sums[idx] += orders[i].total;
+}
+string resCusts[100];
+int resCounts[100];
+double resSums[100];
+int resSize = 0;
+for (int i = 0; i < groupSize; i++)
+    if (sums[i] > 100 && counts[i] >= 2) {
+        resCusts[resSize] = custs[i];
+        resCounts[resSize] = counts[i];
+        resSums[resSize] = sums[i];
+        resSize++;
+    }
+for (int i = 0; i < resSize - 1; i++)
+    for (int j = 0; j < resSize - 1 - i; j++)
+        if (resSums[j] < resSums[j + 1]) {
+            double tmpS = resSums[j]; resSums[j] = resSums[j + 1]; resSums[j + 1] = tmpS;
+            int tmpC = resCounts[j]; resCounts[j] = resCounts[j + 1]; resCounts[j + 1] = tmpC;
+            string tmpN = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpN;
+        }`
       },
       {
         title: 'HAVING with AVG comparison',
@@ -1300,20 +1934,42 @@ ORDER BY avg_salary DESC;`,
         explanation: 'Finds departments where the average salary exceeds the company-wide average. The subquery in HAVING computes the overall average for comparison against each group.',
         sourceTables: ['employees'],
         cppRepresentation: `double totalSalary = 0;
-for (auto& e : employees) totalSalary += e.salary;
-double companyAvg = totalSalary / employees.size();
-map<string, pair<int,double>> groups;
-for (auto& e : employees) { groups[e.department].first++; groups[e.department].second += e.salary; }
-vector<tuple<string,int,double>> result;
-for (auto& [dept, v] : groups) {
-    double avg = v.second / v.first;
-    if (avg > companyAvg)
-        result.push_back({dept, v.first, round(avg)});
+for (int i = 0; i < employeeCount; i++) totalSalary += employees[i].salary;
+double companyAvg = totalSalary / employeeCount;
+string depts[100];
+int counts[100];
+double sums[100];
+int groupSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (depts[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = groupSize++; depts[idx] = employees[i].department; counts[idx] = 0; sums[idx] = 0; }
+    counts[idx]++;
+    sums[idx] += employees[i].salary;
 }
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<2>(a) > get<2>(b); });
-for (auto& [dept, cnt, avg] : result)
-    cout << dept << " | cnt=" << cnt << " | avg=$" << avg << "\\n";`
+string resDepts[100];
+int resCounts[100];
+double resAvgs[100];
+int resSize = 0;
+for (int i = 0; i < groupSize; i++) {
+    double avg = sums[i] / counts[i];
+    if (avg > companyAvg) {
+        resDepts[resSize] = depts[i];
+        resCounts[resSize] = counts[i];
+        resAvgs[resSize] = round(avg);
+        resSize++;
+    }
+}
+for (int i = 0; i < resSize - 1; i++)
+    for (int j = 0; j < resSize - 1 - i; j++)
+        if (resAvgs[j] < resAvgs[j + 1]) {
+            double tmpA = resAvgs[j]; resAvgs[j] = resAvgs[j + 1]; resAvgs[j + 1] = tmpA;
+            int tmpC = resCounts[j]; resCounts[j] = resCounts[j + 1]; resCounts[j + 1] = tmpC;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+        }
+for (int i = 0; i < resSize; i++)
+    cout << resDepts[i] << " | cnt=" << resCounts[i] << " | avg=$" << resAvgs[i] << "\\n";`
       },
       {
         title: 'HAVING with MAX-MIN range',
@@ -1328,16 +1984,28 @@ HAVING MAX(price) - MIN(price) > 100
 ORDER BY price_range DESC;`,
         explanation: 'Filters categories where the price range (max minus min) exceeds $100, revealing categories with significant price spread.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string, pair<double,double>> range;
-for (auto& p : products) {
-    if (!range.count(p.category)) range[p.category] = {p.price, p.price};
-    auto& [lo, hi] = range[p.category];
-    lo = min(lo, p.price); hi = max(hi, p.price);
+        cppRepresentation: `string cats[100];
+double lo[100];
+double hi[100];
+int groupSize = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < groupSize; j++)
+        if (cats[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) {
+        idx = groupSize++;
+        cats[idx] = products[i].category;
+        lo[idx] = products[i].price;
+        hi[idx] = products[i].price;
+    } else {
+        if (products[i].price < lo[idx]) lo[idx] = products[i].price;
+        if (products[i].price > hi[idx]) hi[idx] = products[i].price;
+    }
 }
-for (auto& [cat, r] : range) {
-    double spread = r.second - r.first;
+for (int i = 0; i < groupSize; i++) {
+    double spread = hi[i] - lo[i];
     if (spread > 100)
-        cout << cat << " | $" << r.first << " - $" << r.second << " | spread=$" << round(spread*100)/100 << "\\n";
+        cout << cats[i] << " | $" << lo[i] << " - $" << hi[i] << " | spread=$" << round(spread * 100) / 100 << "\\n";
 }`
       }
     ],
@@ -1523,15 +2191,32 @@ ORDER BY o.total DESC;`,
         sourceTables: ['orders', 'products'],
         cppRepresentation: `struct Order { int id; string customer; int product_id; int quantity; double total; };
 struct Product { int id; string name; double price; };
-vector<tuple<int,string,string,int,double>> result;
-for (auto& o : orders)
-    for (auto& p : products)
-        if (o.product_id == p.id) {
-            result.push_back({o.id, o.customer, p.name, o.quantity, o.total});
+int resIds[100];
+string resCusts[100];
+string resProds[100];
+int resQtys[100];
+double resTotals[100];
+int resultSize = 0;
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < productCount; j++)
+        if (orders[i].product_id == products[j].id) {
+            resIds[resultSize] = orders[i].id;
+            resCusts[resultSize] = orders[i].customer;
+            resProds[resultSize] = products[j].name;
+            resQtys[resultSize] = orders[i].quantity;
+            resTotals[resultSize] = orders[i].total;
+            resultSize++;
             break;
         }
-sort(result.begin(), result.end(),
-    [](auto& a, auto& b) { return get<4>(a) > get<4>(b); });`
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
+            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
+        }`
       },
       {
         title: 'LEFT JOIN — include all from left',
@@ -1543,12 +2228,32 @@ FROM products p
 LEFT JOIN orders o ON p.id = o.product_id;`,
         explanation: 'Shows all products, even ones never ordered. Products without orders get NULL for order_id and customer. INNER JOIN would exclude them.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `vector<tuple<string,double,optional<int>,optional<string>>> result;
-for (auto& p : products) {
+        cppRepresentation: `string names[100];
+double prices[100];
+int orderIds[100];
+string custs[100];
+bool hasOrder[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
     bool matched = false;
-    for (auto& o : orders)
-        if (p.id == o.product_id) { result.push_back({p.name, p.price, o.id, o.customer}); matched = true; }
-    if (!matched) result.push_back({p.name, p.price, nullopt, nullopt});
+    for (int j = 0; j < orderCount; j++)
+        if (products[i].id == orders[j].product_id) {
+            names[resultSize] = products[i].name;
+            prices[resultSize] = products[i].price;
+            orderIds[resultSize] = orders[j].id;
+            custs[resultSize] = orders[j].customer;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+        }
+    if (!matched) {
+        names[resultSize] = products[i].name;
+        prices[resultSize] = products[i].price;
+        orderIds[resultSize] = -1;
+        custs[resultSize] = "";
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
 }`
       },
       {
@@ -1559,11 +2264,14 @@ LEFT JOIN orders o ON p.id = o.product_id
 WHERE o.id IS NULL;`,
         explanation: 'Finds products that have never been ordered. The LEFT JOIN adds NULLs where no match exists; WHERE o.id IS NULL keeps only those.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `vector<pair<string,string>> result;
-for (auto& p : products) {
+        cppRepresentation: `string resultNames[100];
+string resultCats[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
     bool found = false;
-    for (auto& o : orders) if (p.id == o.product_id) { found = true; break; }
-    if (!found) result.push_back({p.name, p.category});
+    for (int j = 0; j < orderCount; j++)
+        if (products[i].id == orders[j].product_id) { found = true; break; }
+    if (!found) { resultNames[resultSize] = products[i].name; resultCats[resultSize] = products[i].category; resultSize++; }
 }`
       },
       {
@@ -1577,14 +2285,42 @@ RIGHT JOIN products p ON o.product_id = p.id
 ORDER BY p.name;`,
         explanation: 'RIGHT JOIN keeps all rows from the RIGHT table (products), matching orders where they exist. Products without orders get NULL for order_id and customer. This is the mirror of LEFT JOIN — swap table order to convert between them.',
         sourceTables: ['orders', 'products'],
-        cppRepresentation: `vector<tuple<optional<int>,optional<string>,string,optional<double>>> result;
-for (auto& p : products) {
+        cppRepresentation: `int orderIds[100];
+string custs[100];
+string prods[100];
+double totals[100];
+bool hasOrder[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
     bool matched = false;
-    for (auto& o : orders)
-        if (o.product_id == p.id) { result.push_back({o.id, o.customer, p.name, o.total}); matched = true; }
-    if (!matched) result.push_back({nullopt, nullopt, p.name, nullopt});
+    for (int j = 0; j < orderCount; j++)
+        if (orders[j].product_id == products[i].id) {
+            orderIds[resultSize] = orders[j].id;
+            custs[resultSize] = orders[j].customer;
+            prods[resultSize] = products[i].name;
+            totals[resultSize] = orders[j].total;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+        }
+    if (!matched) {
+        orderIds[resultSize] = -1;
+        custs[resultSize] = "";
+        prods[resultSize] = products[i].name;
+        totals[resultSize] = 0.0;
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
 }
-sort(result.begin(), result.end(), [](auto& a, auto& b) { return get<2>(a) < get<2>(b); });`
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (prods[j] > prods[j + 1]) {
+            string tmpP = prods[j]; prods[j] = prods[j + 1]; prods[j + 1] = tmpP;
+            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
+            string tmpC = custs[j]; custs[j] = custs[j + 1]; custs[j + 1] = tmpC;
+            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
+            bool tmpH = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpH;
+        }`
       },
       {
         title: 'FULL JOIN — all rows from both tables',
@@ -1597,19 +2333,71 @@ FULL JOIN orders o ON e.name = o.customer
 ORDER BY e.name, o.id;`,
         explanation: 'FULL JOIN keeps all rows from BOTH tables. Employees without orders show NULL for order columns. Orders that don\'t match any employee (if any) would also appear. FULL JOIN = LEFT JOIN + RIGHT JOIN + INNER JOIN combined.',
         sourceTables: ['employees', 'orders'],
-        cppRepresentation: `struct Row { optional<string> name; optional<string> dept; optional<int> oid; optional<double> total; };
-set<string> matchedCustomers;
-vector<Row> result;
-for (auto& e : employees) {
+        cppRepresentation: `string names[100];
+string depts[100];
+int orderIds[100];
+double totals[100];
+bool hasName[100];
+bool hasOrder[100];
+int resultSize = 0;
+string matchedNames[100];
+int matchedSize = 0;
+for (int i = 0; i < employeeCount; i++) {
     bool matched = false;
-    for (auto& o : orders)
-        if (e.name == o.customer) { result.push_back({e.name, e.department, o.id, o.total}); matched=true; matchedCustomers.insert(e.name); }
-    if (!matched) result.push_back({e.name, e.department, nullopt, nullopt});
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer) {
+            names[resultSize] = employees[i].name;
+            depts[resultSize] = employees[i].department;
+            orderIds[resultSize] = orders[j].id;
+            totals[resultSize] = orders[j].total;
+            hasName[resultSize] = true;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+            matchedNames[matchedSize++] = employees[i].name;
+        }
+    if (!matched) {
+        names[resultSize] = employees[i].name;
+        depts[resultSize] = employees[i].department;
+        orderIds[resultSize] = -1;
+        totals[resultSize] = 0.0;
+        hasName[resultSize] = true;
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
 }
-for (auto& o : orders)
-    if (!matchedCustomers.contains(o.customer))
-        result.push_back({nullopt, nullopt, o.id, o.total});
-sort(result.begin(), result.end(), [](auto& a, auto& b) { return tie(a.name, a.oid) < tie(b.name, b.oid); });`
+for (int i = 0; i < orderCount; i++) {
+    bool found = false;
+    for (int j = 0; j < matchedSize; j++)
+        if (matchedNames[j] == orders[i].customer) { found = true; break; }
+    if (!found) {
+        names[resultSize] = "";
+        depts[resultSize] = "";
+        orderIds[resultSize] = orders[i].id;
+        totals[resultSize] = orders[i].total;
+        hasName[resultSize] = false;
+        hasOrder[resultSize] = true;
+        resultSize++;
+    }
+}
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++) {
+        string na = hasName[j] ? names[j] : "";
+        string nb = hasName[j + 1] ? names[j + 1] : "";
+        int oa = hasOrder[j] ? orderIds[j] : -1;
+        int ob = hasOrder[j + 1] ? orderIds[j + 1] : -1;
+        bool doSwap = false;
+        if (na > nb) doSwap = true;
+        else if (na == nb && oa > ob) doSwap = true;
+        if (doSwap) {
+            string tmpNa = names[j]; names[j] = names[j + 1]; names[j + 1] = tmpNa;
+            string tmpD = depts[j]; depts[j] = depts[j + 1]; depts[j + 1] = tmpD;
+            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
+            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
+            bool tmpHN = hasName[j]; hasName[j] = hasName[j + 1]; hasName[j + 1] = tmpHN;
+            bool tmpHO = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpHO;
+        }
+    }`
       },
       {
         title: 'Joining a table to itself',
@@ -1623,11 +2411,11 @@ WHERE e1.department = 'Engineering'
 ORDER BY e1.name, e2.salary;`,
         explanation: 'A self-join finds Engineering employees and all colleagues who earn more than them. The table appears twice with different aliases.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e1 : employees) {
-    if (e1.department != "Engineering") continue;
-    for (auto& e2 : employees)
-        if (e1.salary < e2.salary)
-            cout << e1.name << " ($" << e1.salary << ") | " << e2.name << " ($" << e2.salary << ")\\n";
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department != "Engineering") continue;
+    for (int j = 0; j < employeeCount; j++)
+        if (employees[i].salary < employees[j].salary)
+            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";
 }`
       },
       {
@@ -1642,13 +2430,30 @@ ORDER BY e.name, p.name
 LIMIT 15;`,
         explanation: 'CROSS JOIN produces every combination of rows (cartesian product). Engineering employees matched with every product. Use cautiously — results grow exponentially.',
         sourceTables: ['employees', 'products'],
-        cppRepresentation: `vector<tuple<string,string,string>> result;
-for (auto& e : employees)
-    if (e.department == "Engineering")
-        for (auto& p : products)
-            result.push_back({e.name, e.department, p.name});
-sort(result.begin(), result.end());
-if (result.size() > 15) result.resize(15);`
+        cppRepresentation: `string resNames[100];
+string resDepts[100];
+string resProds[100];
+int resultSize = 0;
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].department == "Engineering")
+        for (int j = 0; j < productCount; j++) {
+            resNames[resultSize] = employees[i].name;
+            resDepts[resultSize] = employees[i].department;
+            resProds[resultSize] = products[j].name;
+            resultSize++;
+        }
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++) {
+        bool doSwap = false;
+        if (resNames[j] > resNames[j + 1]) doSwap = true;
+        else if (resNames[j] == resNames[j + 1] && resProds[j] > resProds[j + 1]) doSwap = true;
+        if (doSwap) {
+            string tmpN = resNames[j]; resNames[j] = resNames[j + 1]; resNames[j + 1] = tmpN;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+        }
+    }
+if (resultSize > 15) resultSize = 15;`
       },
       {
         title: 'JOIN with WHERE filtering',
@@ -1664,13 +2469,32 @@ WHERE p.category = 'Electronics'
 ORDER BY o.total DESC;`,
         explanation: 'After joining orders to products, WHERE filters the combined results to only Electronics orders over $100.',
         sourceTables: ['orders', 'products'],
-        cppRepresentation: `vector<tuple<int,string,string,int,double>> result;
-for (auto& o : orders)
-    for (auto& p : products)
-        if (o.product_id == p.id && p.category == "Electronics" && o.total > 100) {
-            result.push_back({o.id, o.customer, p.name, o.quantity, o.total}); break;
+        cppRepresentation: `int resIds[100];
+string resCusts[100];
+string resProds[100];
+int resQtys[100];
+double resTotals[100];
+int resultSize = 0;
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < productCount; j++)
+        if (orders[i].product_id == products[j].id && products[j].category == "Electronics" && orders[i].total > 100) {
+            resIds[resultSize] = orders[i].id;
+            resCusts[resultSize] = orders[i].customer;
+            resProds[resultSize] = products[j].name;
+            resQtys[resultSize] = orders[i].quantity;
+            resTotals[resultSize] = orders[i].total;
+            resultSize++;
+            break;
         }
-sort(result.begin(), result.end(), [](auto& a, auto& b) { return get<4>(a) > get<4>(b); });`
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
+            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
+        }`
       },
       {
         title: 'LEFT JOIN — all employees and any orders',
@@ -1683,14 +2507,42 @@ LEFT JOIN orders o ON e.name = o.customer
 ORDER BY e.name;`,
         explanation: 'Shows each employee alongside any orders they placed (matched by name). Employees without orders get NULL for order columns. This is using name matching since employees and orders share customer names.',
         sourceTables: ['employees', 'orders'],
-        cppRepresentation: `vector<tuple<string,string,optional<int>,optional<double>>> result;
-for (auto& e : employees) {
+        cppRepresentation: `string resNames[100];
+string resDepts[100];
+int resOrderIds[100];
+double resTotals[100];
+bool resHasOrder[100];
+int resultSize = 0;
+for (int i = 0; i < employeeCount; i++) {
     bool matched = false;
-    for (auto& o : orders)
-        if (e.name == o.customer) { result.push_back({e.name, e.department, o.id, o.total}); matched = true; }
-    if (!matched) result.push_back({e.name, e.department, nullopt, nullopt});
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer) {
+            resNames[resultSize] = employees[i].name;
+            resDepts[resultSize] = employees[i].department;
+            resOrderIds[resultSize] = orders[j].id;
+            resTotals[resultSize] = orders[j].total;
+            resHasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+        }
+    if (!matched) {
+        resNames[resultSize] = employees[i].name;
+        resDepts[resultSize] = employees[i].department;
+        resOrderIds[resultSize] = -1;
+        resTotals[resultSize] = 0.0;
+        resHasOrder[resultSize] = false;
+        resultSize++;
+    }
 }
-sort(result.begin(), result.end());`
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resNames[j] > resNames[j + 1]) {
+            string tmpN = resNames[j]; resNames[j] = resNames[j + 1]; resNames[j + 1] = tmpN;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+            int tmpId = resOrderIds[j]; resOrderIds[j] = resOrderIds[j + 1]; resOrderIds[j + 1] = tmpId;
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            bool tmpH = resHasOrder[j]; resHasOrder[j] = resHasOrder[j + 1]; resHasOrder[j + 1] = tmpH;
+        }`
       },
       {
         title: 'Multiple JOINs',
@@ -1707,14 +2559,45 @@ JOIN employees e ON o.customer = e.name
 ORDER BY o.total DESC;`,
         explanation: 'Joins all three tables: orders to products by product_id, and orders to employees by customer name. Shows order details enriched with product info and the purchasing employee department.',
         sourceTables: ['orders', 'products', 'employees'],
-        cppRepresentation: `vector<tuple<int,string,string,string,int,double,string>> result;
-for (auto& o : orders) {
-    Product* mp = nullptr; Employee* me = nullptr;
-    for (auto& p : products) if (o.product_id == p.id) mp = &p;
-    for (auto& e : employees) if (o.customer == e.name) me = &e;
-    if (mp && me) result.push_back({o.id, o.customer, mp->name, mp->category, o.quantity, o.total, me->department});
+        cppRepresentation: `struct Product { int id; string name; string category; double price; int stock; };
+struct Employee { int id; string name; string department; double salary; string status; };
+int resIds[100];
+string resCusts[100];
+string resProds[100];
+string resCats[100];
+int resQtys[100];
+double resTotals[100];
+string resDepts[100];
+int resultSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int mpIdx = -1;
+    int meIdx = -1;
+    for (int j = 0; j < productCount; j++)
+        if (orders[i].product_id == products[j].id) { mpIdx = j; break; }
+    for (int k = 0; k < employeeCount; k++)
+        if (orders[i].customer == employees[k].name) { meIdx = k; break; }
+    if (mpIdx != -1 && meIdx != -1) {
+        resIds[resultSize] = orders[i].id;
+        resCusts[resultSize] = orders[i].customer;
+        resProds[resultSize] = products[mpIdx].name;
+        resCats[resultSize] = products[mpIdx].category;
+        resQtys[resultSize] = orders[i].quantity;
+        resTotals[resultSize] = orders[i].total;
+        resDepts[resultSize] = employees[meIdx].department;
+        resultSize++;
+    }
 }
-sort(result.begin(), result.end(), [](auto& a, auto& b) { return get<5>(a) > get<5>(b); });`
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
+            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+            string tmpCa = resCats[j]; resCats[j] = resCats[j + 1]; resCats[j + 1] = tmpCa;
+            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+        }`
       },
       {
         title: 'JOIN with GROUP BY',
@@ -1728,22 +2611,38 @@ GROUP BY p.category
 ORDER BY total_revenue DESC;`,
         explanation: 'Joins products to orders then groups by product category. LEFT JOIN ensures categories with no orders still appear with zero counts.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `set<string> allCats;
-for (auto& p : products) allCats.insert(p.category);
-map<string, vector<double>> rev;
-map<string, set<int>> catOids;
-for (auto& p : products)
-    for (auto& o : orders)
-        if (p.id == o.product_id) {
-            rev[p.category].push_back(o.total);
-            catOids[p.category].insert(o.id);
-        }
-for (auto& cat : allCats) {
-    auto& totals = rev[cat];
-    double sum = accumulate(totals.begin(), totals.end(), 0.0);
-    int cnt = catOids[cat].size();
-    cout << cat << " | orders=" << cnt << " | rev=$" << round(sum*100)/100
-         << " | avg=$" << (totals.empty() ? 0.0 : round(sum/totals.size()*100)/100) << "\\n";
+        cppRepresentation: `string cats[100];
+double revSums[100];
+int revCounts[100];
+int distinctCounts[100];
+int catSize = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < catSize; j++)
+        if (cats[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) { idx = catSize++; cats[idx] = products[i].category; revSums[idx] = 0; revCounts[idx] = 0; distinctCounts[idx] = 0; }
+}
+int seenIds[100];
+int seenSize;
+for (int i = 0; i < catSize; i++) {
+    seenSize = 0;
+    for (int j = 0; j < productCount; j++)
+        if (products[j].category == cats[i])
+            for (int k = 0; k < orderCount; k++)
+                if (products[j].id == orders[k].product_id) {
+                    revSums[i] += orders[k].total;
+                    revCounts[i]++;
+                    bool dup = false;
+                    for (int l = 0; l < seenSize; l++)
+                        if (seenIds[l] == orders[k].id) { dup = true; break; }
+                    if (!dup) { seenIds[seenSize++] = orders[k].id; distinctCounts[i]++; }
+                }
+}
+for (int i = 0; i < catSize; i++) {
+    double sum = revSums[i];
+    int cnt = distinctCounts[i];
+    cout << cats[i] << " | orders=" << cnt << " | rev=$" << round(sum * 100) / 100
+         << " | avg=$" << (revCounts[i] == 0 ? 0.0 : round(sum / revCounts[i] * 100) / 100) << "\\n";
 }`
       },
       {
@@ -1759,10 +2658,10 @@ JOIN employees e2 ON e1.department = e2.department
 ORDER BY e1.department, e1.name;`,
         explanation: 'A self-join finds same-department pairs with different salaries. The e1.name < e2.name condition prevents duplicate pairs and self-matches.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e1 : employees)
-    for (auto& e2 : employees)
-        if (e1.department == e2.department && e1.name < e2.name && e1.salary != e2.salary)
-            cout << e1.name << " ($" << e1.salary << ") | " << e2.name << " ($" << e2.salary << ")\\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++)
+    for (int j = 0; j < employeeCount; j++)
+        if (employees[i].department == employees[j].department && employees[i].name < employees[j].name && employees[i].salary != employees[j].salary)
+            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";`
       }
     ],
     commonMistakes: [
@@ -1877,10 +2776,10 @@ FROM employees
 WHERE salary > (SELECT AVG(salary) FROM employees);`,
         explanation: 'The subquery in parentheses runs first to find the average salary. The outer query then uses that value to filter and compare.',
         sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (auto& e:employees) total+=e.salary; double companyAvg=total/employees.size();
-for (auto& e:employees)
-    if (e.salary>companyAvg)
-        cout<<e.name<<" | "<<e.salary<<" | "<<round(companyAvg)<<" | "<<round(100.0*e.salary/companyAvg*10)/10<<"%\\n";`
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
+for (int i=0;i<employeeCount;i++)
+    if (employees[i].salary>companyAvg)
+        cout<<employees[i].name<<" | "<<employees[i].salary<<" | "<<round(companyAvg)<<" | "<<round(100.0*employees[i].salary/companyAvg*10)/10<<"%\\n";`
       },
       {
         title: 'Subquery with IN',
@@ -1893,10 +2792,15 @@ WHERE department IN (
 );`,
         explanation: 'The inner query finds departments with high earners. The outer query returns all employees in those departments.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> highDepts;
-for (auto& e:employees) if (e.salary>90000) highDepts.insert(e.department);
-for (auto& e:employees) if (highDepts.count(e.department))
-    cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<"\\n";`
+        cppRepresentation: `string highDepts[100]; int highCnt=0;
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>90000) {
+    bool dup=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) dup=true;
+    if (!dup) highDepts[highCnt++]=employees[i].department;
+}
+for (int i=0;i<employeeCount;i++) {
+    bool found=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) found=true;
+    if (found) cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";
+}`
       },
       {
         title: 'EXISTS — correlated subquery',
@@ -1909,11 +2813,10 @@ WHERE EXISTS (
 );`,
         explanation: 'For each product, the EXISTS check runs the subquery. If that product has an order over $500, the product is included.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `vector<Product> products={/*...*/}; vector<Order> orders={/*...*/};
-for (auto& p:products) {
+        cppRepresentation: `for (int i=0;i<productCount;i++) {
     bool found=false;
-    for (auto& o:orders) if (o.product_id==p.id && o.total>500) { found=true; break; }
-    if (found) cout<<p.name<<" | "<<p.price<<" | "<<p.category<<"\\n";
+    for (int j=0;j<orderCount;j++) if (orders[j].product_id==products[i].id && orders[j].total>500) { found=true; break; }
+    if (found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
 }`
       },
       {
@@ -1931,15 +2834,24 @@ FROM (
 WHERE employee_count >= 5
 ORDER BY avg_salary DESC;`,
         explanation: 'First computes department statistics in a subquery, then filters and sorts the results.',
-        cppRepresentation: `map<string,pair<double,int>> acc;
-for (auto& e:employees) { acc[e.department].first+=e.salary; acc[e.department].second++; }
-vector<tuple<string,double,int>> deptStats;
-for (auto& [dept,a]:acc) {
-    double avg=a.first/a.second;
-    if (a.second>=5) deptStats.emplace_back(dept,avg,a.second);
+        cppRepresentation: `string depts[100]; double sums[100]; int counts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; counts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; counts[idx]++;
 }
-sort(deptStats.begin(),deptStats.end(),[](auto& x,auto& y){return get<1>(x)>get<1>(y);});
-for (auto& [dept,avg,cnt]:deptStats) cout<<dept<<" | "<<cnt<<"\\n";`
+string outDepts[100]; double outAvgs[100]; int outCnts[100]; int outCount=0;
+for (int i=0;i<deptCount;i++) {
+    double avg=sums[i]/counts[i];
+    if (counts[i]>=5) { outDepts[outCount]=depts[i]; outAvgs[outCount]=avg; outCnts[outCount]=counts[i]; outCount++; }
+}
+for (int i=0;i<outCount;i++) for (int j=i+1;j<outCount;j++) if (outAvgs[j]>outAvgs[i]) {
+    string td=outDepts[i]; outDepts[i]=outDepts[j]; outDepts[j]=td;
+    double ta=outAvgs[i]; outAvgs[i]=outAvgs[j]; outAvgs[j]=ta;
+    int tc=outCnts[i]; outCnts[i]=outCnts[j]; outCnts[j]=tc;
+}
+for (int i=0;i<outCount;i++) cout<<outDepts[i]<<" | "<<outCnts[i]<<"\\n";`
       },
       {
         title: 'NOT EXISTS — finding missing records',
@@ -1951,10 +2863,15 @@ WHERE NOT EXISTS (
 );`,
         explanation: 'NOT EXISTS finds products that have no matching orders. For each product, the subquery checks if any order references it.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `set<int> orderedIds;
-for (auto& o:orders) orderedIds.insert(o.product_id);
-for (auto& p:products) if (!orderedIds.count(p.id))
-    cout<<p.name<<" | "<<p.price<<" | "<<p.category<<"\\n";`
+        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
+for (int i=0;i<orderCount;i++) {
+    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
+    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
+}
+for (int i=0;i<productCount;i++) {
+    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
+    if (!found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
+}`
       },
       {
         title: 'Subquery with comparison operator',
@@ -1966,11 +2883,13 @@ WHERE salary > (
 ORDER BY salary DESC;`,
         explanation: 'The subquery computes the company-wide average salary once. The outer query finds all employees earning above that average.',
         sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (auto& e:employees) total+=e.salary; double avgSal=total/employees.size();
-vector<Employee> above;
-for (auto& e:employees) if (e.salary>avgSal) above.push_back(e);
-sort(above.begin(),above.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-for (auto& e:above) cout<<e.name<<" | "<<e.salary<<" | "<<e.department<<"\\n";`
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double avgSal=total/employeeCount;
+Employee above[1000]; int aboveCount=0;
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>avgSal) above[aboveCount++]=employees[i];
+for (int i=0;i<aboveCount;i++) for (int j=i+1;j<aboveCount;j++) if (above[j].salary>above[i].salary) {
+    Employee t=above[i]; above[i]=above[j]; above[j]=t;
+}
+for (int i=0;i<aboveCount;i++) cout<<above[i].name<<" | "<<above[i].salary<<" | "<<above[i].department<<"\\n";`
       },
       {
         title: 'Nested subqueries',
@@ -1989,14 +2908,21 @@ WHERE salary > (
 ORDER BY salary DESC;`,
         explanation: 'The innermost subquery finds departments with avg salary > $70k. The middle subquery computes the average of those departments. The outer query finds employees above that average.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,pair<double,int>> acc;
-for (auto& e:employees) { acc[e.department].first+=e.salary; acc[e.department].second++; }
-set<string> highDepts; double subsetTotal=0, subsetCount=0;
-for (auto& [dept,a]:acc) { double avg=a.first/a.second;
-    if (avg>70000) { highDepts.insert(dept); subsetTotal+=a.first; subsetCount+=a.second; } }
+        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; cnts[idx]++;
+}
+double subsetTotal=0; int subsetCount=0;
+for (int i=0;i<deptCount;i++) {
+    double avg=sums[i]/cnts[i];
+    if (avg>70000) { subsetTotal+=sums[i]; subsetCount+=cnts[i]; }
+}
 double threshold=subsetTotal/subsetCount;
-for (auto& e:employees) if (e.salary>threshold)
-    cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<"\\n";`
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>threshold)
+    cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";`
       },
       {
         title: 'Subquery in SELECT for comparison',
@@ -2007,14 +2933,27 @@ FROM employees
 ORDER BY department, salary DESC;`,
         explanation: 'Shows each employee\'s salary versus their department\'s average using a correlated scalar subquery in SELECT. The dept_avg_salary and difference are computed per row.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,pair<double,int>> acc;
-for (auto& e:employees) { acc[e.department].first+=e.salary; acc[e.department].second++; }
-map<string,double> deptAvg;
-for (auto& [dept,a]:acc) deptAvg[dept]=a.first/a.second;
-auto sorted=employees;
-sort(sorted.begin(),sorted.end(),[](auto& a,auto& b){
-    if (a.department!=b.department) return a.department<b.department; return a.salary>b.salary;});
-for (auto& e:sorted) cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<round(deptAvg[e.department])<<" | "<<round(e.salary-deptAvg[e.department])<<"\\n";`
+        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; cnts[idx]++;
+}
+double deptAvg[100];
+for (int i=0;i<deptCount;i++) deptAvg[i]=sums[i]/cnts[i];
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) {
+    bool swp=false;
+    if (sorted[j].department!=sorted[i].department) { if (sorted[j].department<sorted[i].department) swp=true; }
+    else if (sorted[j].salary>sorted[i].salary) swp=true;
+    if (swp) { Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t; }
+}
+for (int i=0;i<sortedCount;i++) {
+    int di=-1; for (int j=0;j<deptCount;j++) if (depts[j]==sorted[i].department) { di=j; break; }
+    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(deptAvg[di])<<" | "<<round(sorted[i].salary-deptAvg[di])<<"\\n";
+}`
       },
       {
         title: 'Multiple subqueries in one query',
@@ -2028,12 +2967,23 @@ FROM employees
 ORDER BY salary DESC;`,
         explanation: 'Two different scalar subqueries in SELECT compute the company-wide average and the department maximum salary side by side with each employee\'s data.',
         sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (auto& e:employees) total+=e.salary; double companyAvg=total/employees.size();
-map<string,double> deptMax;
-for (auto& e:employees) if (e.salary>deptMax[e.department]) deptMax[e.department]=e.salary;
-auto sorted=employees;
-sort(sorted.begin(),sorted.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-for (auto& e:sorted) cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<round(companyAvg)<<" | "<<deptMax[e.department]<<" | "<<round(100.0*e.salary/companyAvg*10)/10<<"%\\n";`
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
+string deptMaxDepts[100]; double deptMaxVals[100]; int deptMaxCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptMaxCount; deptMaxDepts[deptMaxCount]=d; deptMaxVals[deptMaxCount]=0; deptMaxCount++; }
+    if (employees[i].salary>deptMaxVals[idx]) deptMaxVals[idx]=employees[i].salary;
+}
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) if (sorted[j].salary>sorted[i].salary) {
+    Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t;
+}
+for (int i=0;i<sortedCount;i++) {
+    int di=-1; for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==sorted[i].department) { di=j; break; }
+    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(companyAvg)<<" | "<<deptMaxVals[di]<<" | "<<round(100.0*sorted[i].salary/companyAvg*10)/10<<"%\\n";
+}`
       },
       {
         title: 'NOT IN with subquery',
@@ -2047,12 +2997,20 @@ WHERE id NOT IN (
 ORDER BY price DESC;`,
         explanation: 'Finds products that have never been ordered. The subquery returns all product_ids that appear in orders; NOT IN excludes them from the result.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `set<int> orderedIds;
-for (auto& o:orders) orderedIds.insert(o.product_id);
-vector<Product> neverOrdered;
-for (auto& p:products) if (!orderedIds.count(p.id)) neverOrdered.push_back(p);
-sort(neverOrdered.begin(),neverOrdered.end(),[](auto& a,auto& b){return a.price>b.price;});
-for (auto& p:neverOrdered) cout<<p.name<<" | "<<p.category<<" | "<<p.price<<"\\n";`
+        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
+for (int i=0;i<orderCount;i++) {
+    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
+    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
+}
+Product neverOrdered[1000]; int neverCount=0;
+for (int i=0;i<productCount;i++) {
+    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
+    if (!found) neverOrdered[neverCount++]=products[i];
+}
+for (int i=0;i<neverCount;i++) for (int j=i+1;j<neverCount;j++) if (neverOrdered[j].price>neverOrdered[i].price) {
+    Product t=neverOrdered[i]; neverOrdered[i]=neverOrdered[j]; neverOrdered[j]=t;
+}
+for (int i=0;i<neverCount;i++) cout<<neverOrdered[i].name<<" | "<<neverOrdered[i].category<<" | "<<neverOrdered[i].price<<"\\n";`
       },
     ],
     commonMistakes: [
@@ -2168,12 +3126,14 @@ FROM employees
 ORDER BY salary;`,
         explanation: 'Assigns each employee a level based on their salary. Conditions are checked top to bottom — first match wins.',
         sourceTables: ['employees'],
-        cppRepresentation: `struct Employee{string name;int salary;};
-auto level=[](int s)->string{
-    if(s<70000)return"Junior";if(s<90000)return"Mid";if(s<110000)return"Senior";return"Executive";};
-vector<Employee> sorted=employees;
-sort(sorted.begin(),sorted.end(),[](auto& a,auto& b){return a.salary<b.salary;});
-for(auto& e:sorted)cout<<e.name<<" | "<<e.salary<<" | "<<level(e.salary)<<"\\n";`
+        cppRepresentation: `string level(int s){
+    if(s<70000)return"Junior";if(s<90000)return"Mid";if(s<110000)return"Senior";return"Executive";}
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) if (sorted[j].salary<sorted[i].salary) {
+    Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t;
+}
+for (int i=0;i<sortedCount;i++) cout<<sorted[i].name<<" | "<<sorted[i].salary<<" | "<<level(sorted[i].salary)<<"\\n";`
       },
       {
         title: 'Simple CASE expression',
@@ -2188,9 +3148,9 @@ for(auto& e:sorted)cout<<e.name<<" | "<<e.salary<<" | "<<level(e.salary)<<"\\n";
 FROM employees;`,
         explanation: 'Maps department names to broader team categories using the simple CASE form (one expression compared to multiple values).',
         sourceTables: ['employees'],
-        cppRepresentation: `auto teamType=[](string d)->string{
-    if(d=="Engineering")return"Tech";if(d=="Product")return"Tech";if(d=="Marketing")return"Business";return"Other";};
-for(auto& e:employees)cout<<e.name<<" | "<<e.department<<" | "<<teamType(e.department)<<" | "<<e.salary<<"\\n";`
+        cppRepresentation: `string teamType(string d){
+    if(d=="Engineering")return"Tech";if(d=="Product")return"Tech";if(d=="Marketing")return"Business";return"Other";}
+for (int i=0;i<employeeCount;i++) cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<teamType(employees[i].department)<<" | "<<employees[i].salary<<"\\n";`
       },
       {
         title: 'Custom sort order with CASE',
@@ -2205,10 +3165,16 @@ ORDER BY
   END, name;`,
         explanation: 'Sorts employees by a custom city priority (New York first, then SF, then Chicago, then others). CASE in ORDER BY overrides alphabetical sorting.',
         sourceTables: ['employees'],
-        cppRepresentation: `auto cityPri=[](string c){if(c=="New York")return 1;if(c=="San Francisco")return 2;if(c=="Chicago")return 3;return 4;};
-sort(employees.begin(),employees.end(),[&](auto& a,auto& b){
-    int pa=cityPri(a.city),pb=cityPri(b.city);if(pa!=pb)return pa<pb;return a.name<b.name;});
-for(auto& e:employees)cout<<e.name<<" | "<<e.city<<" | "<<e.salary<<"\\n";`
+        cppRepresentation: `int cityPri(string c){if(c=="New York")return 1;if(c=="San Francisco")return 2;if(c=="Chicago")return 3;return 4;}
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) {
+    int pa=cityPri(sorted[i].city),pb=cityPri(sorted[j].city);
+    bool swp=false;
+    if (pa!=pb) { if (pb<pa) swp=true; } else if (sorted[j].name<sorted[i].name) swp=true;
+    if (swp) { Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t; }
+}
+for (int i=0;i<sortedCount;i++) cout<<sorted[i].name<<" | "<<sorted[i].city<<" | "<<sorted[i].salary<<"\\n";`
       },
       {
         title: 'Conditional aggregation',
@@ -2220,12 +3186,18 @@ FROM employees
 GROUP BY department;`,
         explanation: 'Uses CASE inside aggregate functions to compute conditional counts and averages per department.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,vector<Employee>> byDept;
-for(auto& e:employees)byDept[e.department].push_back(e);
-for(auto& [dept,emps]:byDept) {
-    int high=0,sumAct=0,cntAct=0;
-    for(auto& e:emps){if(e.salary>=100000)high++;if(e.status=="active"){sumAct+=e.salary;cntAct++;}}
-    cout<<dept<<" | total="<<emps.size()<<" | high="<<high<<" | avgAct="<<(cntAct?sumAct/cntAct:0)<<"\\n";
+        cppRepresentation: `string depts[100]; double sums[100]; int totalCnt[100]; int actSum[100]; int actCnt[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; totalCnt[deptCount]=0; actSum[deptCount]=0; actCnt[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; totalCnt[idx]++;
+    if (employees[i].status=="active") { actSum[idx]+=employees[i].salary; actCnt[idx]++; }
+}
+for (int i=0;i<deptCount;i++) {
+    int high=0;
+    for (int j=0;j<employeeCount;j++) if (employees[j].department==depts[i] && employees[j].salary>=100000) high++;
+    cout<<depts[i]<<" | total="<<totalCnt[i]<<" | high="<<high<<" | avgAct="<<(actCnt[i]?actSum[i]/actCnt[i]:0)<<"\\n";
 }`
       },
       {
@@ -2244,14 +3216,14 @@ WHERE
   END;`,
         explanation: 'CASE in WHERE applies different salary thresholds per department. Engineers must earn $80k+, Marketing $60k+, others $70k+.',
         sourceTables: ['employees'],
-        cppRepresentation: `auto passes=[](Employee& e){
+        cppRepresentation: `bool passes(Employee& e){
     if(e.department=="Engineering")return e.salary>=80000;
     if(e.department=="Marketing")return e.salary>=60000;
-    return e.salary>=70000;};
-for(auto& e:employees) {
-    if(!passes(e))continue;
-    string col=(e.city=="New York"||e.city=="San Francisco")?"High COL":"Standard COL";
-    cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<col<<"\\n";
+    return e.salary>=70000;}
+for (int i=0;i<employeeCount;i++) {
+    if(!passes(employees[i]))continue;
+    string col=(employees[i].city=="New York"||employees[i].city=="San Francisco")?"High COL":"Standard COL";
+    cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<" | "<<col<<"\\n";
 }`
       },
       {
@@ -2264,12 +3236,19 @@ FROM employees
 ORDER BY is_high_earner DESC, salary DESC;`,
         explanation: 'CASE can create 0/1 boolean flags for each condition. These flags are useful for counting, filtering, or feeding into other systems.',
         sourceTables: ['employees'],
-        cppRepresentation: `struct Result{string name,dept;int salary,isHigh,isInactive,inNyc;};
-vector<Result> results;
-for(auto& e:employees)results.push_back({e.name,e.department,e.salary,
-    e.salary>=100000?1:0,e.status=="inactive"?1:0,e.city=="New York"?1:0});
-sort(results.begin(),results.end(),[](auto& a,auto& b){
-    if(a.isHigh!=b.isHigh)return a.isHigh>b.isHigh;return a.salary>b.salary;});`
+        cppRepresentation: `int idxs[1000]; for (int i=0;i<employeeCount;i++) idxs[i]=i;
+for (int i=0;i<employeeCount;i++) for (int j=i+1;j<employeeCount;j++) {
+    int isHighA=employees[idxs[i]].salary>=100000?1:0;
+    int isHighB=employees[idxs[j]].salary>=100000?1:0;
+    bool swp=false;
+    if (isHighA!=isHighB) { if (isHighB>isHighA) swp=true; } else if (employees[idxs[j]].salary>employees[idxs[i]].salary) swp=true;
+    if (swp) { int t=idxs[i]; idxs[i]=idxs[j]; idxs[j]=t; }
+}
+for (int i=0;i<employeeCount;i++) {
+    int idx=idxs[i];
+    cout<<employees[idx].name<<" | "<<employees[idx].department<<" | "<<employees[idx].salary<<" | "
+        <<(employees[idx].salary>=100000?1:0)<<" | "<<(employees[idx].status=="inactive"?1:0)<<" | "<<(employees[idx].city=="New York"?1:0)<<"\\n";
+}`
       },
       {
         title: 'CASE with date-based logic',
@@ -2290,7 +3269,8 @@ ORDER BY order_date;`,
         explanation: 'Categorizes orders into quarters and year groups based on order_date using CASE with date range conditions.',
         sourceTables: ['orders'],
         cppRepresentation: `struct Order{int id;string customer,order_date;double total;};
-for(auto& o:orders) {
+for (int i=0;i<orderCount;i++) {
+    Order& o=orders[i];
     string q;
     if(o.order_date>="2024-10-01"&&o.order_date<"2025-01-01")q="Q4 2024";
     else if(o.order_date>="2024-07-01"&&o.order_date<"2024-10-01")q="Q3 2024";
@@ -2331,7 +3311,7 @@ ORDER BY department, salary DESC;`,
     if(e.department=="Marketing"){if(e.salary>=90000)return"Senior Marketer";return"Marketer";}
     if(e.salary>=100000)return"Senior Staff";return"Staff";
 }
-for(auto& e:employees)cout<<e.name<<" | "<<e.department<<" | "<<roleTitle(e)<<" | "<<e.salary<<"\\n";`
+for (int i=0;i<employeeCount;i++) cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<roleTitle(employees[i])<<" | "<<employees[i].salary<<"\\n";`
       },
       {
         title: 'CASE in ORDER BY for custom priority',
@@ -2348,13 +3328,19 @@ ORDER BY
   END, name;`,
         explanation: 'CASE in ORDER BY defines a custom sort priority: high-paid Engineers first, then all Engineers, then high earners, then NYC employees, then everyone else.',
         sourceTables: ['employees'],
-        cppRepresentation: `auto pri=[](Employee& e){
+        cppRepresentation: `int pri(Employee& e){
     if(e.department=="Engineering"&&e.salary>=100000)return 1;
     if(e.department=="Engineering")return 2;if(e.salary>=90000)return 3;
-    if(e.city=="New York")return 4;return 5;};
-vector<Employee> active;
-copy_if(employees.begin(),employees.end(),back_inserter(active),[](auto& e){return e.status=="active";});
-sort(active.begin(),active.end(),[&](auto& a,auto& b){int pa=pri(a),pb=pri(b);if(pa!=pb)return pa<pb;return a.name<b.name;});`
+    if(e.city=="New York")return 4;return 5;}
+Employee active[1000]; int activeCount=0;
+for (int i=0;i<employeeCount;i++) if (employees[i].status=="active") active[activeCount++]=employees[i];
+for (int i=0;i<activeCount;i++) for (int j=i+1;j<activeCount;j++) {
+    int pa=pri(active[i]),pb=pri(active[j]);
+    bool swp=false;
+    if (pa!=pb) { if (pb<pa) swp=true; } else if (active[j].name<active[i].name) swp=true;
+    if (swp) { Employee t=active[i]; active[i]=active[j]; active[j]=t; }
+}
+for (int i=0;i<activeCount;i++) cout<<active[i].name<<" | "<<active[i].department<<" | "<<active[i].salary<<" | "<<active[i].city<<" | "<<active[i].status<<"\\n";`
       },
     ],
     commonMistakes: [
@@ -2480,13 +3466,38 @@ WHERE headcount >= 2
 ORDER BY avg_salary DESC;`,
         explanation: 'The CTE computes department statistics once. The main query then filters and sorts the pre-computed results, making the logic easy to follow.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,pair<int,double>> groups;
-for(auto& e:employees){groups[e.department].first++;groups[e.department].second+=e.salary;}
-vector<tuple<string,int,double>> deptStats;
-for(auto& [d,v]:groups)deptStats.emplace_back(d,v.first,v.second/v.first);
-vector<tuple<string,int,double>> filtered;
-for(auto& [d,c,a]:deptStats)if(c>=2)filtered.emplace_back(d,c,round(a));
-sort(filtered.begin(),filtered.end(),[](auto& x,auto& y){return get<2>(x)>get<2>(y);});`
+        cppRepresentation: `string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptCounts[idx] = 0; deptSums[idx] = 0; }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
+}
+string outDepts[100];
+int outCounts[100];
+double outAvgs[100];
+int outSize = 0;
+for (int i = 0; i < deptSize; i++)
+    if (deptCounts[i] >= 2) {
+        outDepts[outSize] = deptKeys[i];
+        outCounts[outSize] = deptCounts[i];
+        outAvgs[outSize] = deptSums[i] / deptCounts[i];
+        outSize++;
+    }
+for (int i = 0; i < outSize; i++)
+    for (int j = i + 1; j < outSize; j++)
+        if (outAvgs[i] < outAvgs[j]) {
+            string td = outDepts[i]; outDepts[i] = outDepts[j]; outDepts[j] = td;
+            int tc = outCounts[i]; outCounts[i] = outCounts[j]; outCounts[j] = tc;
+            double ta = outAvgs[i]; outAvgs[i] = outAvgs[j]; outAvgs[j] = ta;
+        }
+for (int i = 0; i < outSize; i++)
+    cout << outDepts[i] << " | headcount=" << outCounts[i] << " | avg_salary=" << round(outAvgs[i]) << "\\n";`
       },
       {
         title: 'Multiple CTEs',
@@ -2508,14 +3519,44 @@ FROM electronics_revenue
 ORDER BY total_revenue DESC;`,
         explanation: 'Two CTEs work together: first filters to Electronics, then computes revenue per product. Each CTE builds on the previous one.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `vector<Product> electronics;
-for(auto& p:products)if(p.category=="Electronics")electronics.push_back(p);
-map<int,double> rev;
-for(auto& e:electronics)rev[e.id]=0.0;
-for(auto& o:orders)if(rev.count(o.product_id))rev[o.product_id]+=o.total;
-vector<tuple<string,double,double>> result;
-for(auto& e:electronics)result.emplace_back(e.name,e.price,rev[e.id]);
-sort(result.begin(),result.end(),[](auto& a,auto& b){return get<2>(a)>get<2>(b);});`
+        cppRepresentation: `int elecIds[100];
+string elecNames[100];
+double elecPrices[100];
+int elecCount = 0;
+for (int i = 0; i < productCount; i++)
+    if (products[i].category == "Electronics") {
+        elecIds[elecCount] = products[i].id;
+        elecNames[elecCount] = products[i].name;
+        elecPrices[elecCount] = products[i].price;
+        elecCount++;
+    }
+double revenues[100];
+for (int i = 0; i < elecCount; i++) revenues[i] = 0.0;
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < elecCount; j++)
+        if (orders[i].product_id == elecIds[j]) {
+            revenues[j] += orders[i].total;
+            break;
+        }
+string resNames[100];
+double resPrices[100];
+double resRevs[100];
+int resSize = 0;
+for (int i = 0; i < elecCount; i++) {
+    resNames[resSize] = elecNames[i];
+    resPrices[resSize] = elecPrices[i];
+    resRevs[resSize] = revenues[i];
+    resSize++;
+}
+for (int i = 0; i < resSize; i++)
+    for (int j = i + 1; j < resSize; j++)
+        if (resRevs[i] < resRevs[j]) {
+            string tn = resNames[i]; resNames[i] = resNames[j]; resNames[j] = tn;
+            double tp = resPrices[i]; resPrices[i] = resPrices[j]; resPrices[j] = tp;
+            double tr = resRevs[i]; resRevs[i] = resRevs[j]; resRevs[j] = tr;
+        }
+for (int i = 0; i < resSize; i++)
+    cout << resNames[i] << " | $" << resPrices[i] << " | total_revenue=$" << resRevs[i] << "\\n";`
       },
       {
         title: 'Recursive CTE — number series',
@@ -2527,9 +3568,8 @@ sort(result.begin(),result.end(),[](auto& a,auto& b){return get<2>(a)>get<2>(b);
 SELECT n FROM numbers;`,
         explanation: 'A recursive CTE starts with a base case (n=1) and repeatedly adds rows (n+1) until the condition fails (n < 10).',
         sourceTables: [],
-        cppRepresentation: `vector<int> numbers;
-for(int n=1;n<=10;++n)numbers.push_back(n);
-for(int n:numbers)cout<<n<<"\\n";`
+        cppRepresentation: `for (int n = 1; n <= 10; n++)
+    cout << n << "\\n";`
       },
       {
         title: 'CTE with JOIN',
@@ -2548,12 +3588,25 @@ LEFT JOIN order_stats os ON e.name = os.customer
 ORDER BY os.total_spent DESC NULLS LAST;`,
         explanation: 'The CTE pre-computes customer order stats. Then a LEFT JOIN enriches employee data with their purchasing activity.',
         sourceTables: ['employees', 'orders'],
-        cppRepresentation: `map<string,pair<int,double>> orderStats;
-for(auto& o:orders){orderStats[o.customer].first++;orderStats[o.customer].second+=o.total;}
-for(auto& e:employees){
-    auto it=orderStats.find(e.name);
-    cout<<e.name<<" | "<<e.department<<" | "<<(it!=orderStats.end()?it->second.first:0)
-        <<" orders | $"<<(it!=orderStats.end()?round(it->second.second*100)/100:0.0)<<"\\n";
+        cppRepresentation: `string custKeys[100];
+int custCounts[100];
+double custSums[100];
+int custSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < custSize; j++)
+        if (custKeys[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = custSize++; custKeys[idx] = orders[i].customer; custCounts[idx] = 0; custSums[idx] = 0; }
+    custCounts[idx]++;
+    custSums[idx] += orders[i].total;
+}
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < custSize; j++)
+        if (custKeys[j] == employees[i].name) { idx = j; break; }
+    int numOrders = (idx == -1) ? 0 : custCounts[idx];
+    double totalSpent = (idx == -1) ? 0.0 : round(custSums[idx] * 100) / 100;
+    cout << employees[i].name << " | " << employees[i].department << " | " << numOrders << " orders | $" << totalSpent << "\\n";
 }`
       },
       {
@@ -2574,14 +3627,31 @@ WHERE e.salary > (
 ORDER BY diff DESC;`,
         explanation: 'The same CTE (dept_avg) is referenced twice — once in the main JOIN and conceptualized as reusable. CTEs are defined once but can be used multiple times.',
         sourceTables: ['employees'],
-        cppRepresentation: `double companyAvg=0;for(auto& e:employees)companyAvg+=e.salary;companyAvg/=employees.size();
-map<string,pair<int,double>> groups;
-for(auto& e:employees){groups[e.department].first++;groups[e.department].second+=e.salary;}
-map<string,double> deptAvg;
-for(auto& [d,v]:groups)deptAvg[d]=v.second/v.first;
-for(auto& e:employees)
-    if(e.salary>companyAvg)
-        cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<round(deptAvg[e.department])<<" | "<<round(e.salary-deptAvg[e.department])<<"\\n";`
+        cppRepresentation: `double companyAvg = 0;
+for (int i = 0; i < employeeCount; i++) companyAvg += employees[i].salary;
+companyAvg /= employeeCount;
+string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptCounts[idx] = 0; deptSums[idx] = 0; }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
+}
+double deptAvgs[100];
+for (int i = 0; i < deptSize; i++)
+    deptAvgs[i] = deptSums[i] / deptCounts[i];
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (employees[i].salary > companyAvg)
+        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << " | " << round(deptAvgs[idx]) << " | " << round(employees[i].salary - deptAvgs[idx]) << "\\n";
+}`
       },
       {
         title: 'Recursive CTE — factorial',
@@ -2594,10 +3664,11 @@ for(auto& e:employees)
 )
 SELECT n, fact FROM factorial;`,
         explanation: 'A recursive CTE computing factorials 1! through 10!. The base case is 1! = 1. Each step multiplies (n+1) × n! to compute the next factorial.',
-        cppRepresentation: `vector<pair<int,long long>> factorial;
-long long fact=1;
-for(int n=1;n<=10;++n){fact*=n;factorial.push_back({n,fact});}
-for(auto& [n,f]:factorial)cout<<n<<"! = "<<f<<"\\n";`
+        cppRepresentation: `long long fact = 1;
+for (int n = 1; n <= 10; n++) {
+    fact *= n;
+    cout << n << "! = " << fact << "\\n";
+}`
       },
       {
         title: 'CTE with aggregation and JOIN',
@@ -2619,12 +3690,23 @@ JOIN dept_stats ds ON e.department = ds.department
 ORDER BY ds.avg_salary DESC, e.salary DESC;`,
         explanation: 'The CTE computes per-department statistics (headcount, avg/max/min salary). The main query JOINs employee data with those stats to compare each employee to their department.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,pair<int,double>> groups;
-for(auto& e:employees){groups[e.department].first++;groups[e.department].second+=e.salary;}
-for(auto& e:employees) {
-    auto& d=groups[e.department];
-    cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<d.first
-        <<" emp | avg=$"<<round(d.second/d.first)<<" | diff=$"<<round(e.salary-d.second/d.first)<<"\\n";
+        cppRepresentation: `string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptCounts[idx] = 0; deptSums[idx] = 0; }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
+}
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << " | " << deptCounts[idx] << " emp | avg=$" << round(deptSums[idx] / deptCounts[idx]) << " | diff=$" << round(employees[i].salary - deptSums[idx] / deptCounts[idx]) << "\\n";
 }`
       },
       {
@@ -2647,18 +3729,56 @@ WHERE e.salary <= da.avg_salary
 ORDER BY department, category, salary DESC;`,
         explanation: 'The same CTE `dept_avg` is referenced twice — once in each branch of a UNION ALL — to categorize employees as above or below their department average salary.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,pair<int,double>> groups;
-for(auto& e:employees){groups[e.department].first++;groups[e.department].second+=e.salary;}
-map<string,double> deptAvg;
-for(auto& [d,v]:groups)deptAvg[d]=v.second/v.first;
-vector<tuple<string,string,string,double>> result;
-for(auto& e:employees){
-    string cat=e.salary>deptAvg[e.department]?"Above dept avg":"Below dept avg";
-    result.emplace_back(cat,e.name,e.department,e.salary);
+        cppRepresentation: `string deptKeys[100];
+int deptCounts[100];
+double deptSums[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptCounts[idx] = 0; deptSums[idx] = 0; }
+    deptCounts[idx]++;
+    deptSums[idx] += employees[i].salary;
 }
-sort(result.begin(),result.end(),[](auto& a,auto& b){
-    if(get<2>(a)!=get<2>(b))return get<2>(a)<get<2>(b);
-    if(get<0>(a)!=get<0>(b))return get<0>(a)<get<0>(b);return get<3>(a)>get<3>(b);});`
+double deptAvgs[100];
+for (int i = 0; i < deptSize; i++)
+    deptAvgs[i] = deptSums[i] / deptCounts[i];
+string resCats[100];
+string resNames[100];
+string resDepts[100];
+double resSalaries[100];
+int resSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    string cat = (employees[i].salary > deptAvgs[idx]) ? "Above dept avg" : "Below dept avg";
+    resCats[resSize] = cat;
+    resNames[resSize] = employees[i].name;
+    resDepts[resSize] = employees[i].department;
+    resSalaries[resSize] = employees[i].salary;
+    resSize++;
+}
+for (int i = 0; i < resSize; i++)
+    for (int j = i + 1; j < resSize; j++) {
+        bool doSwap = false;
+        if (resDepts[i] != resDepts[j]) {
+            if (resDepts[i] > resDepts[j]) doSwap = true;
+        } else if (resCats[i] != resCats[j]) {
+            if (resCats[i] > resCats[j]) doSwap = true;
+        } else if (resSalaries[i] < resSalaries[j]) {
+            doSwap = true;
+        }
+        if (doSwap) {
+            string tc = resCats[i]; resCats[i] = resCats[j]; resCats[j] = tc;
+            string tn = resNames[i]; resNames[i] = resNames[j]; resNames[j] = tn;
+            string td = resDepts[i]; resDepts[i] = resDepts[j]; resDepts[j] = td;
+            double ts = resSalaries[i]; resSalaries[i] = resSalaries[j]; resSalaries[j] = ts;
+        }
+    }
+for (int i = 0; i < resSize; i++)
+    cout << resCats[i] << " | " << resNames[i] << " | " << resDepts[i] << " | " << resSalaries[i] << "\\n";`
       },
       {
         title: 'CTE with window functions',
@@ -2678,16 +3798,37 @@ FROM ranked_products
 ORDER BY category, rn;`,
         explanation: 'The CTE uses ROW_NUMBER() to rank products by price within each category. The main query then labels the top 3 per category using a CASE expression.',
         sourceTables: ['products'],
-        cppRepresentation: `map<string,vector<pair<string,double>>> byCat;
-for(auto& p:products)byCat[p.category].push_back({p.name,p.price});
-for(auto& [cat,items]:byCat)
-    sort(items.begin(),items.end(),[](auto& a,auto& b){return a.second>b.second;});
-for(auto& [cat,items]:byCat)
-    for(int rn=0;rn<(int)items.size();++rn) {
+        cppRepresentation: `string catKeys[100];
+string catNames[100][100];
+double catPrices[100][100];
+int catSizes[100];
+int catCount = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < catCount; j++)
+        if (catKeys[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) { idx = catCount++; catKeys[idx] = products[i].category; catSizes[idx] = 0; }
+    catNames[idx][catSizes[idx]] = products[i].name;
+    catPrices[idx][catSizes[idx]] = products[i].price;
+    catSizes[idx]++;
+}
+for (int c = 0; c < catCount; c++) {
+    int n = catSizes[c];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++)
+            if (catPrices[c][i] < catPrices[c][j]) {
+                string tn = catNames[c][i]; catNames[c][i] = catNames[c][j]; catNames[c][j] = tn;
+                double tp = catPrices[c][i]; catPrices[c][i] = catPrices[c][j]; catPrices[c][j] = tp;
+            }
+}
+for (int c = 0; c < catCount; c++)
+    for (int rn = 0; rn < catSizes[c]; rn++) {
         string lbl;
-        if(rn==0)lbl="Most Expensive";else if(rn==1)lbl="2nd Most Expensive";
-        else if(rn==2)lbl="3rd Most Expensive";else lbl="Other";
-        cout<<items[rn].first<<" | "<<cat<<" | "<<items[rn].second<<" | "<<lbl<<"\\n";
+        if (rn == 0) lbl = "Most Expensive";
+        else if (rn == 1) lbl = "2nd Most Expensive";
+        else if (rn == 2) lbl = "3rd Most Expensive";
+        else lbl = "Other";
+        cout << catNames[c][rn] << " | " << catKeys[c] << " | " << catPrices[c][rn] << " | " << lbl << "\\n";
     }`
       },
     ],
@@ -2817,9 +3958,21 @@ WHERE order_date >= '2024-01-01'
 ORDER BY order_date;`,
         explanation: 'Computes a running total of order amounts over time. Each row shows the cumulative sum up to that date.',
         sourceTables: ['orders'],
-        cppRepresentation: `sort(orders.begin(), orders.end(), [](auto& a, auto& b) { return a.order_date < b.order_date; });
+        cppRepresentation: `string sortedDates[100];
+double sortedTotals[100];
+int sortedCount = orderCount;
+for (int i = 0; i < sortedCount; i++) { sortedDates[i] = orders[i].order_date; sortedTotals[i] = orders[i].total; }
+for (int i = 0; i < sortedCount; i++)
+    for (int j = i + 1; j < sortedCount; j++)
+        if (sortedDates[i] > sortedDates[j]) {
+            string td = sortedDates[i]; sortedDates[i] = sortedDates[j]; sortedDates[j] = td;
+            double tt = sortedTotals[i]; sortedTotals[i] = sortedTotals[j]; sortedTotals[j] = tt;
+        }
 double running = 0;
-for (auto& o : orders) { running += o.total; cout << o.order_date << " | " << o.total << " | running=" << running << "\n"; }`
+for (int i = 0; i < sortedCount; i++) {
+    running += sortedTotals[i];
+    cout << sortedDates[i] << " | " << sortedTotals[i] << " | running=" << running << "\\n";
+}`
       },
       {
         title: 'Rolling Average',
@@ -2835,12 +3988,23 @@ FROM orders
 ORDER BY order_date;`,
         explanation: 'Calculates a 3-order rolling average. Each row\'s value is the average of its total, the previous order\'s total, and the next order\'s total.',
         sourceTables: ['orders'],
-        cppRepresentation: `sort(orders.begin(), orders.end(), [](auto& a, auto& b) { return a.order_date < b.order_date; });
-for (int i = 0; i < (int)orders.size(); i++) {
-    double sum = orders[i].total; int cnt = 1;
-    if (i > 0) { sum += orders[i-1].total; cnt++; }
-    if (i+1 < (int)orders.size()) { sum += orders[i+1].total; cnt++; }
-    cout << orders[i].id << " | " << orders[i].order_date << " | " << orders[i].total << " | rolling_avg=" << round(sum/cnt*100)/100 << "\n";
+        cppRepresentation: `string sd[100];
+int si[100];
+double st[100];
+int sc = orderCount;
+for (int i = 0; i < sc; i++) { sd[i] = orders[i].order_date; si[i] = orders[i].id; st[i] = orders[i].total; }
+for (int i = 0; i < sc; i++)
+    for (int j = i + 1; j < sc; j++)
+        if (sd[i] > sd[j]) {
+            string t = sd[i]; sd[i] = sd[j]; sd[j] = t;
+            int ti = si[i]; si[i] = si[j]; si[j] = ti;
+            double td = st[i]; st[i] = st[j]; st[j] = td;
+        }
+for (int i = 0; i < sc; i++) {
+    double sum = st[i]; int cnt = 1;
+    if (i > 0) { sum += st[i - 1]; cnt++; }
+    if (i + 1 < sc) { sum += st[i + 1]; cnt++; }
+    cout << si[i] << " | " << sd[i] << " | " << st[i] << " | rolling_avg=" << round(sum / cnt * 100) / 100 << "\\n";
 }`
       },
       {
@@ -2860,13 +4024,27 @@ FROM employees
 ORDER BY department, salary DESC;`,
         explanation: 'Shows how each employee\'s salary compares to their department average, with a label.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, pair<double, int>> deptAgg;
-for (auto& e : employees) { deptAgg[e.department].first += e.salary; deptAgg[e.department].second++; }
-map<string, double> deptAvg;
-for (auto& [d, v] : deptAgg) deptAvg[d] = round(v.first / v.second);
-for (auto& e : employees) {
-    double diff = e.salary - deptAvg[e.department];
-    cout << e.name << " | " << e.department << " | " << e.salary << " | dept_avg=" << deptAvg[e.department] << " | diff=" << round(diff) << " | " << (diff > 0 ? "Above Avg" : "Below Avg") << "\n";
+        cppRepresentation: `string deptKeys[100];
+double deptSums[100];
+int deptCounts[100];
+int deptSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptSums[idx] = 0; deptCounts[idx] = 0; }
+    deptSums[idx] += employees[i].salary;
+    deptCounts[idx]++;
+}
+double deptAvgs[100];
+for (int i = 0; i < deptSize; i++)
+    deptAvgs[i] = round(deptSums[i] / deptCounts[i]);
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    double diff = employees[i].salary - deptAvgs[idx];
+    cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << " | dept_avg=" << deptAvgs[idx] << " | diff=" << round(diff) << " | " << (diff > 0 ? "Above Avg" : "Below Avg") << "\\n";
 }`
       },
       {
@@ -2881,10 +4059,20 @@ FROM orders
 ORDER BY order_date;`,
         explanation: 'LAG accesses the previous row\'s value, LEAD accesses the next row\'s. The difference column shows how each order compares to the one before.',
         sourceTables: ['orders'],
-        cppRepresentation: `sort(orders.begin(), orders.end(), [](auto& a, auto& b) { return a.order_date < b.order_date; });
-for (int i = 0; i < (int)orders.size(); i++) {
-    double prev = i > 0 ? orders[i-1].total : 0, next = i+1 < (int)orders.size() ? orders[i+1].total : 0;
-    cout << orders[i].order_date << " | " << orders[i].total << " | prev=" << prev << " | next=" << next << " | diff=" << round((orders[i].total - prev)*100)/100 << "\n";
+        cppRepresentation: `string sd[100];
+double st[100];
+int sc = orderCount;
+for (int i = 0; i < sc; i++) { sd[i] = orders[i].order_date; st[i] = orders[i].total; }
+for (int i = 0; i < sc; i++)
+    for (int j = i + 1; j < sc; j++)
+        if (sd[i] > sd[j]) {
+            string t = sd[i]; sd[i] = sd[j]; sd[j] = t;
+            double td = st[i]; st[i] = st[j]; st[j] = td;
+        }
+for (int i = 0; i < sc; i++) {
+    double prev = (i > 0) ? st[i - 1] : 0;
+    double next = (i + 1 < sc) ? st[i + 1] : 0;
+    cout << sd[i] << " | " << st[i] << " | prev=" << prev << " | next=" << next << " | diff=" << round((st[i] - prev) * 100) / 100 << "\\n";
 }`
       },
       {
@@ -2903,12 +4091,40 @@ FROM employees
 ORDER BY department, salary DESC;`,
         explanation: 'FIRST_VALUE gets the first row in the window (highest salary per dept). LAST_VALUE needs a frame clause to get the last row. Shows each employee\'s gap from the top earner.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, vector<Employee>> byDept;
-for (auto& e : employees) byDept[e.department].push_back(e);
-for (auto& [dept, emps] : byDept) {
-    sort(emps.begin(), emps.end(), [](auto& a, auto& b) { return a.salary > b.salary; });
-    double highest = emps[0].salary, lowest = emps.back().salary;
-    for (auto& e : emps) cout << e.name << " | " << dept << " | " << e.salary << " | highest=" << highest << " | lowest=" << lowest << " | gap=" << highest - e.salary << "\n";
+        cppRepresentation: `string deptKeys[100];
+int deptEmpCounts[100];
+int deptSize = 0;
+int empDeptIdxs[100];
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptEmpCounts[idx] = 0; }
+    empDeptIdxs[i] = idx;
+    deptEmpCounts[idx]++;
+}
+string deptEmpNames[100][100];
+double deptEmpSalaries[100][100];
+int deptPos[100];
+for (int i = 0; i < deptSize; i++) deptPos[i] = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int d = empDeptIdxs[i];
+    deptEmpNames[d][deptPos[d]] = employees[i].name;
+    deptEmpSalaries[d][deptPos[d]] = employees[i].salary;
+    deptPos[d]++;
+}
+for (int d = 0; d < deptSize; d++) {
+    int n = deptEmpCounts[d];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++)
+            if (deptEmpSalaries[d][i] < deptEmpSalaries[d][j]) {
+                string tn = deptEmpNames[d][i]; deptEmpNames[d][i] = deptEmpNames[d][j]; deptEmpNames[d][j] = tn;
+                double ts = deptEmpSalaries[d][i]; deptEmpSalaries[d][i] = deptEmpSalaries[d][j]; deptEmpSalaries[d][j] = ts;
+            }
+    double highest = deptEmpSalaries[d][0];
+    double lowest = deptEmpSalaries[d][n - 1];
+    for (int i = 0; i < n; i++)
+        cout << deptEmpNames[d][i] << " | " << deptKeys[d] << " | " << deptEmpSalaries[d][i] << " | highest=" << highest << " | lowest=" << lowest << " | gap=" << highest - deptEmpSalaries[d][i] << "\\n";
 }`
       },
       {
@@ -2922,12 +4138,41 @@ FROM employees
 ORDER BY department, salary DESC;`,
         explanation: 'SUM with PARTITION BY and ORDER BY computes a cumulative (running) total within each department. Each row shows the sum of salaries from the top earner down to that row.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, vector<Employee>> byDept;
-for (auto& e : employees) byDept[e.department].push_back(e);
-for (auto& [dept, emps] : byDept) {
-    sort(emps.begin(), emps.end(), [](auto& a, auto& b) { return a.salary > b.salary; });
+        cppRepresentation: `string deptKeys[100];
+int deptEmpCounts[100];
+int deptSize = 0;
+int empDeptIdxs[100];
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptEmpCounts[idx] = 0; }
+    empDeptIdxs[i] = idx;
+    deptEmpCounts[idx]++;
+}
+string deptEmpNames[100][100];
+double deptEmpSalaries[100][100];
+int deptPos[100];
+for (int i = 0; i < deptSize; i++) deptPos[i] = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int d = empDeptIdxs[i];
+    deptEmpNames[d][deptPos[d]] = employees[i].name;
+    deptEmpSalaries[d][deptPos[d]] = employees[i].salary;
+    deptPos[d]++;
+}
+for (int d = 0; d < deptSize; d++) {
+    int n = deptEmpCounts[d];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++)
+            if (deptEmpSalaries[d][i] < deptEmpSalaries[d][j]) {
+                string tn = deptEmpNames[d][i]; deptEmpNames[d][i] = deptEmpNames[d][j]; deptEmpNames[d][j] = tn;
+                double ts = deptEmpSalaries[d][i]; deptEmpSalaries[d][i] = deptEmpSalaries[d][j]; deptEmpSalaries[d][j] = ts;
+            }
     double running = 0;
-    for (auto& e : emps) { running += e.salary; cout << e.name << " | " << dept << " | " << e.salary << " | running=" << running << "\n"; }
+    for (int i = 0; i < n; i++) {
+        running += deptEmpSalaries[d][i];
+        cout << deptEmpNames[d][i] << " | " << deptKeys[d] << " | " << deptEmpSalaries[d][i] << " | running=" << running << "\\n";
+    }
 }`
       },
       {
@@ -2940,13 +4185,41 @@ FROM employees
 ORDER BY department, salary DESC`,
         explanation: 'Uses three different window functions in one query: ROW_NUMBER for per-department ranking, SUM for department total, and AVG for department average.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string, vector<Employee>> byDept;
-for (auto& e : employees) byDept[e.department].push_back(e);
-for (auto& [dept, emps] : byDept) {
-    sort(emps.begin(), emps.end(), [](auto& a, auto& b) { return a.salary > b.salary; });
-    double total = 0; for (auto& e : emps) total += e.salary;
-    double avg = total / emps.size();
-    for (int i = 0; i < (int)emps.size(); i++) cout << emps[i].name << " | " << dept << " | " << emps[i].salary << " | rank=" << (i+1) << " | dept_total=" << total << " | dept_avg=" << round(avg) << "\n";
+        cppRepresentation: `string deptKeys[100];
+int deptEmpCounts[100];
+int deptSize = 0;
+int empDeptIdxs[100];
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == employees[i].department) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = employees[i].department; deptEmpCounts[idx] = 0; }
+    empDeptIdxs[i] = idx;
+    deptEmpCounts[idx]++;
+}
+string deptEmpNames[100][100];
+double deptEmpSalaries[100][100];
+int deptPos[100];
+for (int i = 0; i < deptSize; i++) deptPos[i] = 0;
+for (int i = 0; i < employeeCount; i++) {
+    int d = empDeptIdxs[i];
+    deptEmpNames[d][deptPos[d]] = employees[i].name;
+    deptEmpSalaries[d][deptPos[d]] = employees[i].salary;
+    deptPos[d]++;
+}
+for (int d = 0; d < deptSize; d++) {
+    int n = deptEmpCounts[d];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++)
+            if (deptEmpSalaries[d][i] < deptEmpSalaries[d][j]) {
+                string tn = deptEmpNames[d][i]; deptEmpNames[d][i] = deptEmpNames[d][j]; deptEmpNames[d][j] = tn;
+                double ts = deptEmpSalaries[d][i]; deptEmpSalaries[d][i] = deptEmpSalaries[d][j]; deptEmpSalaries[d][j] = ts;
+            }
+    double total = 0;
+    for (int i = 0; i < n; i++) total += deptEmpSalaries[d][i];
+    double avg = total / n;
+    for (int i = 0; i < n; i++)
+        cout << deptEmpNames[d][i] << " | " << deptKeys[d] << " | " << deptEmpSalaries[d][i] << " | rank=" << (i + 1) << " | dept_total=" << total << " | dept_avg=" << round(avg) << "\\n";
 }`
       },
       {
@@ -2962,13 +4235,49 @@ FROM dept_data
 ORDER BY department, rank`,
         explanation: 'Filters active employees in a CTE first, then applies a window function to the filtered result. CTEs cleanly separate filtering from window logic.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> active;
-copy_if(employees.begin(), employees.end(), back_inserter(active), [](auto& e) { return e.status == "active"; });
-map<string, vector<Employee>> byDept;
-for (auto& e : active) byDept[e.department].push_back(e);
-for (auto& [dept, emps] : byDept) {
-    sort(emps.begin(), emps.end(), [](auto& a, auto& b) { return a.salary > b.salary; });
-    for (int i = 0; i < (int)emps.size(); i++) cout << dept << " | " << emps[i].name << " | " << emps[i].salary << " | rank=" << (i+1) << "\n";
+        cppRepresentation: `string actNames[100];
+string actDepts[100];
+double actSalaries[100];
+int actCount = 0;
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].status == "active") {
+        actNames[actCount] = employees[i].name;
+        actDepts[actCount] = employees[i].department;
+        actSalaries[actCount] = employees[i].salary;
+        actCount++;
+    }
+string deptKeys[100];
+int deptEmpCounts[100];
+int deptSize = 0;
+int empDeptIdxs[100];
+for (int i = 0; i < actCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < deptSize; j++)
+        if (deptKeys[j] == actDepts[i]) { idx = j; break; }
+    if (idx == -1) { idx = deptSize++; deptKeys[idx] = actDepts[i]; deptEmpCounts[idx] = 0; }
+    empDeptIdxs[i] = idx;
+    deptEmpCounts[idx]++;
+}
+string deptEmpNames[100][100];
+double deptEmpSalaries[100][100];
+int deptPos[100];
+for (int i = 0; i < deptSize; i++) deptPos[i] = 0;
+for (int i = 0; i < actCount; i++) {
+    int d = empDeptIdxs[i];
+    deptEmpNames[d][deptPos[d]] = actNames[i];
+    deptEmpSalaries[d][deptPos[d]] = actSalaries[i];
+    deptPos[d]++;
+}
+for (int d = 0; d < deptSize; d++) {
+    int n = deptEmpCounts[d];
+    for (int i = 0; i < n; i++)
+        for (int j = i + 1; j < n; j++)
+            if (deptEmpSalaries[d][i] < deptEmpSalaries[d][j]) {
+                string tn = deptEmpNames[d][i]; deptEmpNames[d][i] = deptEmpNames[d][j]; deptEmpNames[d][j] = tn;
+                double ts = deptEmpSalaries[d][i]; deptEmpSalaries[d][i] = deptEmpSalaries[d][j]; deptEmpSalaries[d][j] = ts;
+            }
+    for (int i = 0; i < n; i++)
+        cout << deptKeys[d] << " | " << deptEmpNames[d][i] << " | " << deptEmpSalaries[d][i] << " | rank=" << (i + 1) << "\\n";
 }`
       },
       {
@@ -2980,12 +4289,27 @@ FROM employees
 ORDER BY department, status, salary DESC`,
         explanation: 'PARTITION BY with two columns creates groups for each unique department-status combination, computing average salary and count per group.',
         sourceTables: ['employees'],
-        cppRepresentation: `map<pair<string, string>, vector<Employee>> groups;
-for (auto& e : employees) groups[{e.department, e.status}].push_back(e);
-for (auto& [key, emps] : groups) {
-    double total = 0; for (auto& e : emps) total += e.salary;
-    double avg = total / emps.size();
-    for (auto& e : emps) cout << e.name << " | " << key.first << " | " << key.second << " | " << e.salary << " | group_avg=" << round(avg) << " | group_count=" << emps.size() << "\n";
+        cppRepresentation: `string gpDepts[100];
+string gpStatuses[100];
+int gpCounts[100];
+double gpSums[100];
+int gpSize = 0;
+int empGroupIdxs[100];
+for (int i = 0; i < employeeCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < gpSize; j++)
+        if (gpDepts[j] == employees[i].department && gpStatuses[j] == employees[i].status) { idx = j; break; }
+    if (idx == -1) { idx = gpSize++; gpDepts[idx] = employees[i].department; gpStatuses[idx] = employees[i].status; gpCounts[idx] = 0; gpSums[idx] = 0; }
+    empGroupIdxs[i] = idx;
+    gpCounts[idx]++;
+    gpSums[idx] += employees[i].salary;
+}
+double gpAvgs[100];
+for (int i = 0; i < gpSize; i++)
+    gpAvgs[i] = round(gpSums[i] / gpCounts[i]);
+for (int i = 0; i < employeeCount; i++) {
+    int g = empGroupIdxs[i];
+    cout << employees[i].name << " | " << gpDepts[g] << " | " << gpStatuses[g] << " | " << employees[i].salary << " | group_avg=" << gpAvgs[g] << " | group_count=" << gpCounts[g] << "\\n";
 }`
       },
     ],
@@ -3100,12 +4424,22 @@ WHERE rank <= 3
 ORDER BY department, rank;`,
         explanation: 'Finds the top 3 highest-paid employees in each department. ROW_NUMBER ensures exactly 3 per department (no ties).',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,vector<Employee>> byDept;
-for(auto& e:employees)byDept[e.department].push_back(e);
-for(auto& [dept,emps]:byDept){
-    sort(emps.begin(),emps.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-    for(int i=0;i<min(3,(int)emps.size());i++)
-        cout<<emps[i].name<<" | "<<dept<<" | "<<emps[i].salary<<"\\n";
+        cppRepresentation: `string depts[100];int deptCount=0;
+int deptIdxs[100][1000];int deptSizes[100]={0};
+for(int i=0;i<employeeCount;i++){
+    string d=employees[i].department;int idx=-1;
+    for(int j=0;j<deptCount;j++)if(depts[j]==d){idx=j;break;}
+    if(idx==-1){idx=deptCount;depts[deptCount]=d;deptCount++;}
+    deptIdxs[idx][deptSizes[idx]++]=i;
+}
+for(int i=0;i<deptCount;i++){
+    int n=deptSizes[i];
+    for(int a=0;a<n;a++)for(int b=a+1;b<n;b++)
+        if(employees[deptIdxs[i][b]].salary>employees[deptIdxs[i][a]].salary){
+            int t=deptIdxs[i][a];deptIdxs[i][a]=deptIdxs[i][b];deptIdxs[i][b]=t;
+        }
+    int lim=n<3?n:3;
+    for(int j=0;j<lim;j++)cout<<employees[deptIdxs[i][j]].name<<" | "<<depts[i]<<" | "<<employees[deptIdxs[i][j]].salary<<"\\n";
 }`
       },
       {
@@ -3121,12 +4455,14 @@ FROM employees
 ORDER BY salary DESC;`,
         explanation: 'Shows the difference: RANK skips numbers after ties, DENSE_RANK does not, ROW_NUMBER is always unique and consecutive.',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-int rowNum=0,rank=0,denseRank=0,prev=-1;
-for(auto& e:employees){
-    rowNum++;
-    if(e.salary!=prev){rank=rowNum;denseRank++;prev=e.salary;}
-    cout<<e.name<<" | "<<e.salary<<" | rn="<<rowNum<<" | rank="<<rank<<" | dense="<<denseRank<<"\\n";
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
+int rn=0,rank=0,denseRank=0,prev=-1;
+for(int i=0;i<employeeCount;i++){
+    rn++;int s=employees[idxs[i]].salary;
+    if(s!=prev){rank=rn;denseRank++;prev=s;}
+    cout<<employees[idxs[i]].name<<" | "<<s<<" | rn="<<rn<<" | rank="<<rank<<" | dense="<<denseRank<<"\\n";
 }`
       },
       {
@@ -3145,12 +4481,14 @@ FROM employees
 ORDER BY salary DESC;`,
         explanation: 'Divides employees into 4 quartiles based on salary. Each quartile has an equal number of employees (or as close as possible).',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-int n=employees.size(),qSize=(n+3)/4;
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
+int n=employeeCount,qSize=(n+3)/4;
 for(int i=0;i<n;i++){
     int q=(i/qSize)+1;if(q>4)q=4;
     string b=q==1?"Top 25%":q==2?"25-50%":q==3?"50-75%":"Bottom 25%";
-    cout<<employees[i].name<<" | "<<employees[i].salary<<" | "<<b<<"\\n";
+    cout<<employees[idxs[i]].name<<" | "<<employees[idxs[i]].salary<<" | "<<b<<"\\n";
 }`
       },
       {
@@ -3166,13 +4504,29 @@ WHERE department IN ('Engineering', 'Marketing')
 ORDER BY department, dept_rank;`,
         explanation: 'Shows ranking within departments. RANK skips numbers after ties, DENSE_RANK does not. Marketing has ties at the top (58k appears twice in Marketing — wait, Grace and Jack have different salaries).',
         sourceTables: ['employees'],
-        cppRepresentation: `map<string,vector<Employee>> byDept;
-for(auto& e:employees)if(e.department=="Engineering"||e.department=="Marketing")byDept[e.department].push_back(e);
-for(auto& [dept,emps]:byDept){
-    sort(emps.begin(),emps.end(),[](auto& a,auto& b){return a.salary>b.salary;});
+        cppRepresentation: `string depts[100];int deptCount=0;
+int deptIdxs[100][1000];int deptSizes[100]={0};
+for(int i=0;i<employeeCount;i++){
+    string d=employees[i].department;
+    if(d=="Engineering"||d=="Marketing"){
+        int idx=-1;
+        for(int j=0;j<deptCount;j++)if(depts[j]==d){idx=j;break;}
+        if(idx==-1){idx=deptCount;depts[deptCount]=d;deptCount++;}
+        deptIdxs[idx][deptSizes[idx]++]=i;
+    }
+}
+for(int i=0;i<deptCount;i++){
+    int n=deptSizes[i];
+    for(int a=0;a<n;a++)for(int b=a+1;b<n;b++)
+        if(employees[deptIdxs[i][b]].salary>employees[deptIdxs[i][a]].salary){
+            int t=deptIdxs[i][a];deptIdxs[i][a]=deptIdxs[i][b];deptIdxs[i][b]=t;
+        }
     int rn=0,rank=0,dense=0,prev=-1;
-    for(auto& e:emps){rn++;if(e.salary!=prev){rank=rn;dense++;prev=e.salary;}
-    cout<<dept<<" | "<<e.name<<" | "<<e.salary<<" | rank="<<rank<<" | dense="<<dense<<"\\n";}
+    for(int j=0;j<n;j++){
+        rn++;int s=employees[deptIdxs[i][j]].salary;
+        if(s!=prev){rank=rn;dense++;prev=s;}
+        cout<<depts[i]<<" | "<<employees[deptIdxs[i][j]].name<<" | "<<s<<" | rank="<<rank<<" | dense="<<dense<<"\\n";
+    }
 }`
       },
       {
@@ -3185,10 +4539,12 @@ ORDER BY salary DESC
 LIMIT 5 OFFSET 5;`,
         explanation: 'ROW_NUMBER assigns a unique sequential number. OFFSET 5 combined with LIMIT 5 implements pagination — getting "page 2" of results (rows 6-10).',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
 int offset=5,limit=5;
-for(int i=offset;i<offset+limit&&i<(int)employees.size();i++)
-    cout<<(i+1)<<" | "<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";`
+for(int i=offset;i<offset+limit&&i<employeeCount;i++)
+    cout<<(i+1)<<" | "<<employees[idxs[i]].name<<" | "<<employees[idxs[i]].department<<" | "<<employees[idxs[i]].salary<<"\\n";`
       },
       {
         title: 'ROW_NUMBER with ties handling',
@@ -3199,10 +4555,15 @@ FROM employees
 ORDER BY salary DESC`,
         explanation: 'Shows how ROW_NUMBER and RANK differ when salaries are tied. ROW_NUMBER always increments, RANK assigns the same number to ties and skips the next.',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
 int rn=0,rank=0,prev=-1;
-for(auto& e:employees){rn++;if(e.salary!=prev){rank=rn;prev=e.salary;}
-    cout<<e.name<<" | "<<e.salary<<" | rn="<<rn<<" | rank="<<rank<<"\\n";}`
+for(int i=0;i<employeeCount;i++){
+    rn++;int s=employees[idxs[i]].salary;
+    if(s!=prev){rank=rn;prev=s;}
+    cout<<employees[idxs[i]].name<<" | "<<s<<" | rn="<<rn<<" | rank="<<rank<<"\\n";
+}`
       },
       {
         title: 'NTILE for salary buckets',
@@ -3218,12 +4579,14 @@ FROM employees
 ORDER BY salary DESC`,
         explanation: 'Divides employees into 4 salary buckets using NTILE, with descriptive labels for each quartile.',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
-int n=employees.size(),bs=(n+3)/4;
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
+int n=employeeCount,bs=(n+3)/4;
 for(int i=0;i<n;i++){
     int b=(i/bs)+1;if(b>4)b=4;
     string l=b==1?"Top Tier":b==2?"Upper Mid":b==3?"Lower Mid":"Bottom";
-    cout<<employees[i].name<<" | "<<employees[i].salary<<" | "<<b<<" ("<<l<<")\\n";
+    cout<<employees[idxs[i]].name<<" | "<<employees[idxs[i]].salary<<" | "<<b<<" ("<<l<<")\\n";
 }`
       },
       {
@@ -3238,12 +4601,15 @@ FROM employees
 ORDER BY salary DESC`,
         explanation: 'DENSE_RANK assigns sequential group numbers without gaps. Used here to create compact salary tiers — if there are ties at rank 1, the next distinct salary gets rank 2.',
         sourceTables: ['employees'],
-        cppRepresentation: `sort(employees.begin(),employees.end(),[](auto& a,auto& b){return a.salary>b.salary;});
+        cppRepresentation: `int idxs[1000];for(int i=0;i<employeeCount;i++)idxs[i]=i;
+for(int i=0;i<employeeCount;i++)for(int j=i+1;j<employeeCount;j++)
+    if(employees[idxs[j]].salary>employees[idxs[i]].salary){int t=idxs[i];idxs[i]=idxs[j];idxs[j]=t;}
 int dense=0,prev=-1;
-for(auto& e:employees){
-    if(e.salary!=prev){dense++;prev=e.salary;}
+for(int i=0;i<employeeCount;i++){
+    int s=employees[idxs[i]].salary;
+    if(s!=prev){dense++;prev=s;}
     string l=dense==1?"Top Earner":"Level "+to_string(dense);
-    cout<<e.name<<" | "<<e.salary<<" | group="<<dense<<" ("<<l<<")\\n";
+    cout<<employees[idxs[i]].name<<" | "<<s<<" | group="<<dense<<" ("<<l<<")\\n";
 }`
       },
     ],
@@ -3448,11 +4814,10 @@ SELECT RPAD('SQL', 6, '*'); -- 'SQL***'`,
 FROM employees;`,
         explanation: 'Demonstrates UPPER, LOWER, and LENGTH on text columns.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees){
-    string upper,lower;
-    for(char c:e.name)upper+=toupper(c);
-    for(char c:e.department)lower+=tolower(c);
-    cout<<e.name<<" | upper="<<upper<<" | lower="<<lower<<" | name_len="<<e.name.length()<<" | dept_len="<<e.department.length()<<"\\n";
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    string upper;for(int j=0;j<(int)employees[i].name.length();j++)upper+=char(toupper(employees[i].name[j]));
+    string lower;for(int j=0;j<(int)employees[i].department.length();j++)lower+=char(tolower(employees[i].department[j]));
+    cout<<employees[i].name<<" | upper="<<upper<<" | lower="<<lower<<" | name_len="<<employees[i].name.length()<<" | dept_len="<<employees[i].department.length()<<"\\n";
 }`
       },
       {
@@ -3462,7 +4827,7 @@ FROM employees;`,
 FROM employees;`,
         explanation: 'Uses the || operator to concatenate strings, building a combined department and location column.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees)cout<<e.name<<" | "<<e.department+" ("+e.city+")"<<"\\n";`
+        cppRepresentation: `for(int i=0;i<employeeCount;i++)cout<<employees[i].name<<" | "<<employees[i].department+" ("+employees[i].city+")"<<"\\n";`
       },
       {
         title: 'SUBSTRING extraction',
@@ -3472,9 +4837,9 @@ FROM employees;`,
 FROM employees;`,
         explanation: 'Splits the full name into first and last name using SUBSTR and INSTR to find the space position.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees){
-    size_t p=e.name.find(' ');
-    cout<<e.name<<" | first="<<e.name.substr(0,p)<<" | last="<<e.name.substr(p+1)<<"\\n";
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    int p=employees[i].name.find(' ');
+    cout<<employees[i].name<<" | first="<<employees[i].name.substr(0,p)<<" | last="<<employees[i].name.substr(p+1)<<"\\n";
 }`
       },
       {
@@ -3488,12 +4853,12 @@ FROM employees
 LIMIT 3;`,
         explanation: 'REPLACE swaps characters, TRIM removes leading/trailing whitespace. Shows length before and after trimming.',
         sourceTables: ['employees'],
-        cppRepresentation: `string trim(string s){size_t f=s.find_first_not_of(' '),l=s.find_last_not_of(' ');return f==string::npos?"":s.substr(f,l-f+1);}
+        cppRepresentation: `string trim(string s){int f=-1,l=-1;for(int i=0;i<(int)s.length();i++)if(s[i]!=' '){f=i;break;}if(f==-1)return"";for(int i=(int)s.length()-1;i>=0;i--)if(s[i]!=' '){l=i;break;}return s.substr(f,l-f+1);}
 int c=0;
-for(auto& e:employees){if(c++>=3)break;
-    string p="  "+e.name+"  ";
-    string r=e.name;for(char& c:r)if(c=='e')c='3';
-    cout<<e.name<<" | leet="<<r<<" | before="<<p.length()<<" | after="<<trim(p).length()<<"\\n";
+for(int i=0;i<employeeCount;i++){if(c++>=3)break;
+    string p="  "+employees[i].name+"  ";
+    string r=employees[i].name;for(int j=0;j<(int)r.length();j++)if(r[j]=='e')r[j]='3';
+    cout<<employees[i].name<<" | leet="<<r<<" | before="<<p.length()<<" | after="<<trim(p).length()<<"\\n";
 }`
       },
       {
@@ -3505,11 +4870,12 @@ FROM employees
 LIMIT 5;`,
         explanation: 'LPAD pads the string on the left to reach the target length. RPAD pads on the right. Useful for formatting output or creating fixed-width text.',
         sourceTables: ['employees'],
-        cppRepresentation: `string lpad(string s,size_t w,char p){return s.length()>=w?s:string(w-s.length(),p)+s;}
-string rpad(string s,size_t w,char p){return s.length()>=w?s:s+string(w-s.length(),p);}
+        cppRepresentation: `string lpad(string s,int w,char p){return (int)s.length()>=w?s:string(w-s.length(),p)+s;}
+string rpad(string s,int w,char p){return (int)s.length()>=w?s:s+string(w-s.length(),p);}
 int c=0;
-for(auto& e:employees){if(c++>=5)break;
-    cout<<e.name<<" | "<<lpad(to_string(e.salary),10,'.')<<" | "<<rpad(e.department,15,'-')<<"\\n";
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    string sal=to_string(employees[i].salary);
+    cout<<employees[i].name<<" | "<<lpad(sal,10,'.')<<" | "<<rpad(employees[i].department,15,'-')<<"\\n";
 }`
       },
       {
@@ -3522,8 +4888,8 @@ LIMIT 5;`,
         explanation: 'PRINTF formats values using a template string. %s inserts text, %.2f formats a number with 2 decimal places.',
         sourceTables: ['employees'],
         cppRepresentation: `int c=0;
-for(auto& e:employees){if(c++>=5)break;
-    cout<<e.name<<" | $"<<fixed<<setprecision(2)<<e.salary<<" | Dept: "<<e.department<<" ("<<e.city<<")\\n";
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    cout<<employees[i].name<<" | $"<<fixed<<setprecision(2)<<employees[i].salary<<" | Dept: "<<employees[i].department<<" ("<<employees[i].city<<")\\n";
 }`
       },
       {
@@ -3533,11 +4899,11 @@ for(auto& e:employees){if(c++>=5)break;
 FROM employees`,
         explanation: 'Chains three functions: extracts the last name via SUBSTR/INSTR, trims whitespace, then uppercases it.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees){
-    size_t p=e.name.find(' ');
-    string last=e.name.substr(p+1);
-    string upper;for(char c:last)upper+=toupper(c);
-    cout<<e.name<<" | "<<upper<<"\\n";
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    int p=employees[i].name.find(' ');
+    string last=employees[i].name.substr(p+1);
+    string upper;for(int j=0;j<(int)last.length();j++)upper+=char(toupper(last[j]));
+    cout<<employees[i].name<<" | "<<upper<<"\\n";
 }`
       },
       {
@@ -3549,8 +4915,8 @@ LIMIT 5`,
         explanation: 'Uses PRINTF to create a single readable formatted string from multiple columns with labels and proper formatting.',
         sourceTables: ['employees'],
         cppRepresentation: `int c=0;
-for(auto& e:employees){if(c++>=5)break;
-    cout<<"Name: "<<e.name<<" | Dept: "<<e.department<<" | Salary: $"<<fixed<<setprecision(2)<<e.salary<<"\\n";
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    cout<<"Name: "<<employees[i].name<<" | Dept: "<<employees[i].department<<" | Salary: $"<<fixed<<setprecision(2)<<employees[i].salary<<"\\n";
 }`
       },
       {
@@ -3561,10 +4927,10 @@ for(auto& e:employees){if(c++>=5)break;
 FROM employees`,
         explanation: 'Combines INSTR positioning concept with SUBSTR, UPPER, and LOWER to split a name into its capitalized first letter and lowercased remainder.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees){
-    string init={char(toupper(e.name[0]))};
-    string rest;for(size_t i=1;i<e.name.length();i++)rest+=char(tolower(e.name[i]));
-    cout<<e.name<<" | initial="<<init<<" | rest="<<rest<<"\\n";
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    string init="";init+=char(toupper(employees[i].name[0]));
+    string rest;for(int j=1;j<(int)employees[i].name.length();j++)rest+=char(tolower(employees[i].name[j]));
+    cout<<employees[i].name<<" | initial="<<init<<" | rest="<<rest<<"\\n";
 }`
       },
     ],
@@ -3659,9 +5025,11 @@ WHERE email LIKE '%@company.com'
 ORDER BY name;`,
         explanation: 'LIKE with % matches any sequence. This finds all employees with company.com email addresses.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees)
-    if (e.email.size() >= 12 && e.email.substr(e.email.size() - 12) == "@company.com")
-        cout << e.name << " | " << e.email << "\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string email = employees[i].email;
+    int len = email.length();
+    if (len >= 12 && email.substr(len - 12) == "@company.com")
+        cout << employees[i].name << " | " << email << "\n";}`
       },
       {
         title: 'LIKE — contains and starts with',
@@ -3672,9 +5040,9 @@ WHERE name LIKE '%e%'
 ORDER BY name;`,
         explanation: 'First condition finds names containing "e". Second finds emails starting with "c". Both must be true. Only Charlie matches.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees)
-    if (e.name.find('e') != string::npos && !e.email.empty() && e.email[0] == 'c')
-        cout << e.name << " | " << e.department << " | " << e.email << "\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.find('e') != -1 && employees[i].email.length() > 0 && employees[i].email[0] == 'c')
+        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].email << "\n";}`
       },
       {
         title: 'LIKE with _ single-character wildcard',
@@ -3684,9 +5052,11 @@ WHERE name LIKE '%a_e'
 ORDER BY name;`,
         explanation: 'The _ matches exactly one character. This pattern finds names ending with "a" followed by any character then "e" — like "Charlie" and "Grace".',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees)
-    if (e.name.size() >= 3 && e.name[e.name.size()-3] == 'a' && e.name[e.name.size()-1] == 'e')
-        cout << e.name << " | " << e.department << "\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string name = employees[i].name;
+    int len = name.length();
+    if (len >= 3 && name[len-3] == 'a' && name[len-1] == 'e')
+        cout << name << " | " << employees[i].department << "\n";}`
       },
       {
         title: 'Extracting parts with INSTR and SUBSTR',
@@ -3697,10 +5067,12 @@ FROM employees
 WHERE email IS NOT NULL;`,
         explanation: 'INSTR finds the position of "@". SUBSTR then extracts the username (before @) and domain (after @). This works in any SQL database.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees) if (!e.email.empty()) {
-    size_t p = e.email.find('@');
-    cout << e.name << " | " << e.email << " | user=" << e.email.substr(0, p) << " | domain=" << e.email.substr(p+1) << "\n";
-}`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string email = employees[i].email;
+    if (email.length() > 0) {
+        int p = email.find('@');
+        cout << employees[i].name << " | " << email << " | user=" << email.substr(0, p) << " | domain=" << email.substr(p+1) << "\n";
+    }}`
       },
       {
         title: 'NOT LIKE to exclude patterns',
@@ -3709,9 +5081,9 @@ WHERE name NOT LIKE '%a%'
 ORDER BY name`,
         explanation: 'Finds names that do NOT contain the letter "a" using NOT LIKE.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees)
-    if (e.name.find('a') == string::npos)
-        cout << e.name << " | " << e.department << "\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.find('a') == -1)
+        cout << employees[i].name << " | " << employees[i].department << "\n";}`
       },
       {
         title: 'LIKE with _ single char',
@@ -3720,9 +5092,9 @@ WHERE name LIKE '_a%'
 ORDER BY name`,
         explanation: 'The _ wildcard matches exactly one character. This finds names with "a" as the second letter.',
         sourceTables: ['employees'],
-        cppRepresentation: `for (auto& e : employees)
-    if (e.name.size() >= 2 && e.name[1] == 'a')
-        cout << e.name << " | " << e.department << "\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.length() >= 2 && employees[i].name[1] == 'a')
+        cout << employees[i].name << " | " << employees[i].department << "\n";}`
       },
       {
         title: 'Pattern matching on numbers',
@@ -3731,11 +5103,10 @@ WHERE CAST(price AS TEXT) LIKE '1%'
 ORDER BY price`,
         explanation: 'Casts the numeric price to text and uses LIKE to find products where the price text starts with "1".',
         sourceTables: ['products'],
-        cppRepresentation: `for (auto& p : products) {
-    string s = to_string(p.price);
+        cppRepresentation: `for (int i = 0; i < productCount; i++) {
+    string s = to_string(products[i].price);
     if (s[0] == '1')
-        cout << p.name << " | " << p.price << " | " << p.category << "\n";
-}`
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\n";}`
       },
     ],
     commonMistakes: [
@@ -3829,11 +5200,25 @@ WHERE status = 'inactive'
 ORDER BY name;`,
         explanation: 'UNION ALL stacks results from two queries. Active employees get one label, inactive another. UNION (without ALL) would deduplicate, but here every row is unique.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> result;
-for(auto& e:employees)if(e.status=="active")result.push_back(e);
-for(auto& e:employees)if(e.status=="inactive")result.push_back(e);
-sort(result.begin(),result.end(),[](auto& a,auto& b){return a.name<b.name;});
-for(auto& e:result)cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<" | "<<e.status<<"\\n";`
+        cppRepresentation: `Employee result[1000];
+int resultCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status == "active" || employees[i].status == "inactive") {
+        result[resultCount] = employees[i];
+        resultCount++;
+    }
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].name < result[i].name) {
+            Employee temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++) {
+    cout << result[i].name << " | " << result[i].department << " | " << result[i].salary << " | " << result[i].status << "\\n";}`
       },
       {
         title: 'INTERSECT — common cities across departments',
@@ -3845,9 +5230,34 @@ WHERE department = 'Marketing'
 ORDER BY city;`,
         explanation: 'INTERSECT finds cities that appear in BOTH result sets — cities that have both Engineering and Marketing employees. New York is returned because it has employees from both departments.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> engCities,mktCities;
-for(auto& e:employees){if(e.department=="Engineering")engCities.insert(e.city);if(e.department=="Marketing")mktCities.insert(e.city);}
-set_intersection(engCities.begin(),engCities.end(),mktCities.begin(),mktCities.end(),ostream_iterator<string>(cout,"\\n"));`
+        cppRepresentation: `string engCities[100];
+int engCount = 0;
+string mktCities[100];
+int mktCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering") {
+        bool dup = false;
+        for (int j = 0; j < engCount; j++) {
+            if (engCities[j] == employees[i].city) { dup = true; break; }
+        }
+        if (!dup) { engCities[engCount] = employees[i].city; engCount++; }
+    }
+    if (employees[i].department == "Marketing") {
+        bool dup = false;
+        for (int j = 0; j < mktCount; j++) {
+            if (mktCities[j] == employees[i].city) { dup = true; break; }
+        }
+        if (!dup) { mktCities[mktCount] = employees[i].city; mktCount++; }
+    }
+}
+for (int i = 0; i < engCount; i++) {
+    for (int j = 0; j < mktCount; j++) {
+        if (engCities[i] == mktCities[j]) {
+            cout << engCities[i] << "\\n";
+            break;
+        }
+    }
+}`
       },
       {
         title: 'EXCEPT — products never ordered',
@@ -3860,9 +5270,24 @@ JOIN orders o ON p.id = o.product_id
 ORDER BY id;`,
         explanation: 'EXCEPT returns products that exist in the first query but NOT in the second — products that have never been ordered. The second query finds ordered products, and EXCEPT removes them.',
         sourceTables: ['products', 'orders'],
-        cppRepresentation: `set<int> orderedIds;
-for(auto& o:orders)orderedIds.insert(o.product_id);
-for(auto& p:products)if(!orderedIds.count(p.id))cout<<p.id<<" | "<<p.name<<" | "<<p.category<<" | "<<p.price<<"\\n";`
+        cppRepresentation: `int orderedIds[1000];
+int orderedCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < orderedCount; j++) {
+        if (orderedIds[j] == orders[i].product_id) { dup = true; break; }
+    }
+    if (!dup) { orderedIds[orderedCount] = orders[i].product_id; orderedCount++; }
+}
+for (int i = 0; i < productCount; i++) {
+    bool found = false;
+    for (int j = 0; j < orderedCount; j++) {
+        if (orderedIds[j] == products[i].id) { found = true; break; }
+    }
+    if (!found) {
+        cout << products[i].id << " | " << products[i].name << " | " << products[i].category << " | " << products[i].price << "\\n";
+    }
+}`
       },
       {
         title: 'UNION vs UNION ALL comparison',
@@ -3874,9 +5299,19 @@ WHERE salary <= 80000
 ORDER BY department;`,
         explanation: 'UNION removes duplicates, so each department appears only once. UNION ALL would show every matching row — try replacing UNION with UNION ALL to see the difference.',
         sourceTables: ['employees'],
-        cppRepresentation: `set<string> unionSet;
-for(auto& e:employees){if(e.salary>80000)unionSet.insert(e.department);if(e.salary<=80000)unionSet.insert(e.department);}
-for(auto& d:unionSet)cout<<d<<"\\n";`
+        cppRepresentation: `string depts[100];
+int deptCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    string d = employees[i].department;
+    bool dup = false;
+    for (int j = 0; j < deptCount; j++) {
+        if (depts[j] == d) { dup = true; break; }
+    }
+    if (!dup) { depts[deptCount] = d; deptCount++; }
+}
+for (int i = 0; i < deptCount; i++) {
+    cout << depts[i] << "\\n";
+}`
       },
       {
         title: 'Mixing UNION and EXCEPT',
@@ -3894,11 +5329,34 @@ WHERE salary < 75000
 ORDER BY salary DESC;`,
         explanation: 'First combines Engineering and Product employees via UNION, then removes anyone earning under $75k via EXCEPT. The result: mid-to-high earners in tech departments.',
         sourceTables: ['employees'],
-        cppRepresentation: `vector<Employee> combined;
-for(auto& e:employees)if(e.department=="Engineering"||e.department=="Product")combined.push_back(e);
-set<string> lowSal;
-for(auto& e:employees)if(e.salary<75000)lowSal.insert(e.name);
-for(auto& e:combined)if(!lowSal.count(e.name))cout<<e.name<<" | "<<e.department<<" | "<<e.salary<<"\\n";`
+        cppRepresentation: `Employee combined[1000];
+int combinedCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering" || employees[i].department == "Product") {
+        combined[combinedCount] = employees[i];
+        combinedCount++;
+    }
+}
+string lowSal[1000];
+int lowCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].salary < 75000) {
+        bool dup = false;
+        for (int j = 0; j < lowCount; j++) {
+            if (lowSal[j] == employees[i].name) { dup = true; break; }
+        }
+        if (!dup) { lowSal[lowCount] = employees[i].name; lowCount++; }
+    }
+}
+for (int i = 0; i < combinedCount; i++) {
+    bool excluded = false;
+    for (int j = 0; j < lowCount; j++) {
+        if (lowSal[j] == combined[i].name) { excluded = true; break; }
+    }
+    if (!excluded) {
+        cout << combined[i].name << " | " << combined[i].department << " | " << combined[i].salary << "\\n";
+    }
+}`
       },
       {
         title: 'UNION with different tables',
@@ -3907,9 +5365,30 @@ UNION
 SELECT name, 'Product' AS source FROM products`,
         explanation: 'Combines employee names with product names into a single list, with a label column identifying the source table.',
         sourceTables: ['employees', 'products'],
-        cppRepresentation: `set<string> seen;
-for(auto& e:employees)if(seen.insert(e.name).second)cout<<e.name<<" | Employee\\n";
-for(auto& p:products)if(seen.insert(p.name).second)cout<<p.name<<" | Product\\n";`
+        cppRepresentation: `string seen[1000];
+int seenCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < seenCount; j++) {
+        if (seen[j] == employees[i].name) { dup = true; break; }
+    }
+    if (!dup) {
+        seen[seenCount] = employees[i].name;
+        seenCount++;
+        cout << employees[i].name << " | Employee\\n";
+    }
+}
+for (int i = 0; i < productCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < seenCount; j++) {
+        if (seen[j] == products[i].name) { dup = true; break; }
+    }
+    if (!dup) {
+        seen[seenCount] = products[i].name;
+        seenCount++;
+        cout << products[i].name << " | Product\\n";
+    }
+}`
       },
       {
         title: 'UNION ALL with constants',
@@ -3920,9 +5399,12 @@ UNION ALL
 SELECT '=== END ===' AS footer`,
         explanation: 'Uses UNION ALL with constant values to add header and footer rows around query results for better readability.',
         sourceTables: ['employees'],
-        cppRepresentation: `cout<<"=== DEPARTMENT LIST ===\\n";
-for(auto& e:employees)if(e.department=="Engineering")cout<<e.name<<"\\n";
-cout<<"=== END ===\\n";`
+        cppRepresentation: `cout << "=== DEPARTMENT LIST ===\\n";
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering")
+        cout << employees[i].name << "\\n";
+}
+cout << "=== END ===\\n";`
       },
       {
         title: 'EXCEPT with WHERE',
@@ -3932,9 +5414,9 @@ SELECT name, department FROM employees WHERE salary < 60000
 ORDER BY name`,
         explanation: 'Finds active employees who earn at least $60,000 by excluding lower-paid employees from the active employee list.',
         sourceTables: ['employees'],
-        cppRepresentation: `for(auto& e:employees)
-    if(e.status=="active"&&!(e.salary<60000))
-        cout<<e.name<<" | "<<e.department<<"\\n";`
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status == "active" && !(employees[i].salary < 60000))
+        cout << employees[i].name << " | " << employees[i].department << "\\n";}`
       },
     ],
     commonMistakes: [
