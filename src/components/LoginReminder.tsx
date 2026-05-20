@@ -1,133 +1,143 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { X, LogIn, BookOpen } from 'lucide-react'
+import { LogIn, UserPlus, BookOpen, X, CheckCircle } from 'lucide-react'
 
-const LS_DISMISSED = 'sql_reminder_dismissed'
-const LS_STATE = 'sql_reminder_state'
-const INITIAL_DELAY = 25000
-const RE_SHOW_DELAY = 45000
+type Trigger = 'solved' | 'pageviews' | 'engagement'
 
-function lsGet(key: string): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(key)
+interface ReminderMessage {
+  title: string
+  body: string
+  action: 'signin' | 'signup'
+  actionLabel: string
+  actionHref: string
+  icon: typeof BookOpen
 }
 
-function lsSet(key: string, val: string) {
-  if (typeof window !== 'undefined') localStorage.setItem(key, val)
+const MESSAGES: Record<Trigger, ReminderMessage> = {
+  solved: {
+    title: 'Save Your Progress',
+    body: "You just solved a question! Sign up to keep your progress synced across all your devices — it only takes a minute.",
+    action: 'signup',
+    actionLabel: 'Create Free Account',
+    actionHref: '/signup',
+    icon: CheckCircle,
+  },
+  pageviews: {
+    title: 'Track Your Learning',
+    body: 'You\'ve been exploring the lessons. Create an account to save your solved questions and pick up where you left off.',
+    action: 'signup',
+    actionLabel: 'Create Free Account',
+    actionHref: '/signup',
+    icon: BookOpen,
+  },
+  engagement: {
+    title: 'Already Learning?',
+    body: "You've spent some time on the lessons. Sign in to track your progress and keep it forever.",
+    action: 'signin',
+    actionLabel: 'Sign In',
+    actionHref: '/login',
+    icon: LogIn,
+  },
 }
 
-interface ReminderState {
-  lastShown: number
-  pageViews: number
-}
-
-function readState(): ReminderState {
-  try {
-    return JSON.parse(lsGet(LS_STATE) || 'null') || { lastShown: 0, pageViews: 0 }
-  } catch {
-    return { lastShown: 0, pageViews: 0 }
+export function fireSolvedReminder() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('sql-reminder-solved'))
   }
-}
-
-function writeState(s: ReminderState) {
-  lsSet(LS_STATE, JSON.stringify(s))
 }
 
 export default function LoginReminder() {
   const { user } = useAuth()
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const prevPathRef = useRef(pathname)
+  const [visible, setVisible] = useState(false)
+  const [trigger, setTrigger] = useState<Trigger>('pageviews')
+  const dismissedThisSession = useRef(false)
+  const pageViewCount = useRef(0)
+  const lastPath = useRef(pathname)
+  const engagementTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const show = useCallback((t: Trigger) => {
+    if (dismissedThisSession.current) return
+    setTrigger(t)
+    setVisible(true)
+  }, [])
 
   useEffect(() => {
-    if (user || lsGet(LS_DISMISSED) === '1') return
+    if (user) return
 
-    const state = readState()
+    const onSolved = () => show('solved')
+    window.addEventListener('sql-reminder-solved', onSolved)
+    return () => window.removeEventListener('sql-reminder-solved', onSolved)
+  }, [user, show])
 
-    if (pathname !== prevPathRef.current) {
-      state.pageViews++
-      prevPathRef.current = pathname
-      writeState(state)
-    }
+  useEffect(() => {
+    if (user || dismissedThisSession.current) return
 
-    const now = Date.now()
-    const elapsed = now - state.lastShown
+    if (pathname.startsWith('/lessons') && pathname !== lastPath.current) {
+      pageViewCount.current++
+      lastPath.current = pathname
 
-    const show = () => {
-      setOpen(true)
-      state.lastShown = now
-      state.pageViews = 0
-      writeState(state)
-    }
-
-    if (state.lastShown === 0) {
-      if (state.pageViews >= 2) {
-        show()
-      } else if (!timerRef.current) {
-        timerRef.current = setTimeout(show, INITIAL_DELAY)
+      if (pageViewCount.current >= 2) {
+        show('pageviews')
       }
-    } else if (elapsed >= RE_SHOW_DELAY && state.pageViews >= 2) {
-      show()
     }
 
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [user, pathname])
+    if (pathname.startsWith('/lessons') && !engagementTimer.current) {
+      engagementTimer.current = setTimeout(() => {
+        if (!dismissedThisSession.current) show('engagement')
+      }, 90000)
+    }
+
+    return () => {
+      if (engagementTimer.current) clearTimeout(engagementTimer.current)
+    }
+  }, [user, pathname, show])
 
   const dismiss = () => {
-    setOpen(false)
-    const state = readState()
-    state.lastShown = Date.now()
-    state.pageViews = 0
-    writeState(state)
+    setVisible(false)
+    dismissedThisSession.current = true
   }
 
-  const dontRemind = () => {
-    lsSet(LS_DISMISSED, '1')
-    setOpen(false)
-  }
+  if (!visible || user) return null
 
-  if (!open) return null
+  const msg = MESSAGES[trigger]
+  const Icon = msg.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={dismiss} />
-      <div className="relative bg-card border-2 border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-slide-up">
-        <button
-          onClick={dismiss}
-          className="absolute top-3 right-3 p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-cream-dark transition-colors"
-        >
-          <X size={16} />
-        </button>
-        <div className="flex flex-col items-center text-center">
-          <div className="w-13 h-13 rounded-xl bg-accent-light flex items-center justify-center mb-4 p-3">
-            <BookOpen size={26} className="text-accent" />
-          </div>
-          <h3 className="text-lg font-bold text-text mb-1">Track Your Progress</h3>
-          <p className="text-sm text-text-secondary mb-6 leading-relaxed">
-            Sign in to save your solved questions, track your learning streak, and pick up where you left off across sessions.
-          </p>
-          <div className="flex flex-col gap-2 w-full">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md animate-slide-up">
+      <div className="bg-card border-2 border-border rounded-2xl p-4 shadow-2xl flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center shrink-0">
+          <Icon size={18} className="text-accent" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-bold text-text mb-0.5">{msg.title}</h4>
+          <p className="text-xs text-text-secondary leading-relaxed">{msg.body}</p>
+          <div className="flex items-center gap-2 mt-3">
             <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl bg-accent text-white font-semibold text-sm border-2 border-accent hover:bg-accent-hover transition-all"
+              href={msg.actionHref}
+              onClick={() => setVisible(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:opacity-90 transition-opacity"
             >
-              <LogIn size={15} />
-              Sign In
+              {msg.actionLabel}
             </Link>
             <button
-              onClick={dontRemind}
-              className="w-full px-4 py-2.5 rounded-xl text-xs font-medium text-text-muted hover:text-text hover:bg-cream-dark transition-colors"
+              onClick={dismiss}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-text-muted hover:text-text hover:bg-cream-dark transition-colors"
             >
-              Don&apos;t remind me again
+              Not now
             </button>
           </div>
         </div>
+        <button
+          onClick={dismiss}
+          className="p-1 rounded-lg text-text-muted hover:text-text hover:bg-cream-dark transition-colors shrink-0"
+        >
+          <X size={14} />
+        </button>
       </div>
     </div>
   )

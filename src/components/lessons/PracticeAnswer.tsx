@@ -5,6 +5,8 @@ import type { Database as SqlJsDatabase, SqlJsStatic } from 'sql.js'
 import { formatSQL } from '@/lib/sql-format'
 import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
 import { saveSolved, isSolved } from '@/lib/progress'
+import { useAuth } from '@/context/AuthContext'
+import { fireSolvedReminder } from '@/components/LoginReminder'
 import { Check, X, Wand2, Eye, EyeOff, HelpCircle, Database } from 'lucide-react'
 
 const SCHEMA_INFO: { table: string; columns: string[] }[] = [
@@ -63,6 +65,7 @@ function resultsEqual(user: { columns: string[]; values: string[][] }, solution:
 }
 
 export default function PracticeAnswer({ lessonId, question, hint, solution, index }: PracticeAnswerProps) {
+  const { user } = useAuth()
   const [userSql, setUserSql] = useState('')
   const [status, setStatus] = useState<CheckStatus>('idle')
   const [loadingSolved, setLoadingSolved] = useState(true)
@@ -150,7 +153,10 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
 
       const correct = resultsEqual(userRes, solRes)
       setStatus(correct ? 'correct' : 'wrong')
-      if (correct) await saveSolved(lessonId, index)
+      if (correct) {
+        await saveSolved(lessonId, index)
+        if (!user) fireSolvedReminder()
+      }
 
       db.close()
     } catch (err) {
