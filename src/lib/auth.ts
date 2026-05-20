@@ -21,11 +21,11 @@ export async function signUp(email: string, password: string): Promise<{
 
 export async function signIn(email: string, password: string): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
-    return { success: false, error: 'Invalid email or password.' }
+    return { success: false, error: error.message }
   }
-  return { success: true }
+  return { success: true, error: undefined }
 }
 
 export async function signOut(): Promise<void> {
