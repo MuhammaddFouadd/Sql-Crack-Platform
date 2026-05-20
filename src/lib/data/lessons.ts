@@ -40,7 +40,20 @@ export const lessons: Lesson[] = [
 
 The basic structure: SELECT columns FROM table.
 
-You can select specific columns by name, use * for all columns, create aliases with AS, remove duplicates with DISTINCT, and limit results with LIMIT.`,
+You can select specific columns by name, use * for all columns, create aliases with AS, remove duplicates with DISTINCT, and limit results with LIMIT.
+
+── Full SELECT Clause Order (MUST be in this exact order!) ──
+| Clause       | Purpose                  | Example                           |
+|--------------|--------------------------|-----------------------------------|
+| SELECT       | What to show             | SELECT name, salary * 12 AS annual|
+| FROM         | Where data comes from    | FROM employees                    |
+| WHERE        | Filter ROWS (before grp) | WHERE status = 'active'           |
+| GROUP BY     | Group rows               | GROUP BY department               |
+| HAVING       | Filter GROUPS (after grp)| HAVING COUNT(*) > 3               |
+| ORDER BY     | Sort result              | ORDER BY salary DESC              |
+| LIMIT/OFFSET | Limit rows / Pagination  | LIMIT 10 OFFSET 5                 |
+
+You CANNOT change this order — the database will throw a syntax error!`,
     syntax: `SELECT column1, column2, ...
 FROM table_name;
 
@@ -317,13 +330,39 @@ LIMIT 5;`
     topics: ['WHERE', 'AND', 'OR', 'IN', 'BETWEEN', 'LIKE', 'IS NULL'],
     explanation: `The WHERE clause filters rows based on specified conditions. Only rows that satisfy the condition are returned.
 
-Key operators:
-- Comparison: =, <>, <, >, <=, >=
-- Logical: AND, OR, NOT
-- Range: BETWEEN x AND y
-- Set: IN (value1, value2, ...)
-- Pattern: LIKE (with % and _ wildcards)
-- NULL: IS NULL, IS NOT NULL`,
+── All WHERE Operators ──
+| Operator           | Meaning                  | Example                           |
+|--------------------|--------------------------|-----------------------------------|
+| =                  | Equal to                 | WHERE City = 'Cairo'              |
+| <> or !=           | Not equal to             | WHERE JobTitle <> 'Manager'       |
+| <, >, <=, >=       | Comparison               | WHERE Age >= 18                   |
+| BETWEEN a AND b    | Inclusive range (a≤x≤b)  | WHERE Year BETWEEN 2009 AND 2011  |
+| IN (list)          | Matches any in list      | WHERE City IN ('Cairo','Giza')    |
+| NOT IN (list)      | Matches none in list     | WHERE City NOT IN ('Cairo')       |
+| LIKE 'pattern'     | Pattern matching         | WHERE Name LIKE 'A%'              |
+| IS NULL            | Value is missing         | WHERE City IS NULL                |
+| IS NOT NULL        | Value exists             | WHERE City IS NOT NULL            |
+| AND                | Both must be true        | WHERE City='Cairo' AND Age>18     |
+| OR                 | Either must be true      | WHERE City='Cairo' OR City='Giza' |
+| NOT                | Negate condition         | WHERE NOT City = 'Cairo'          |
+
+── LIKE Patterns Quick Reference ──
+| Pattern    | Meaning             | Matches                        |
+|------------|---------------------|--------------------------------|
+| '%son'     | Ends with "son"     | Johnson, Stevenson              |
+| 'Data%'    | Starts with "Data"  | Database, Data Mining           |
+| '%Data%'   | Contains "Data"     | Intro to Databases              |
+| '_r%'      | 2nd char is 'r'     | Oracle, Arabic                  |
+| 'IS%'      | Starts with IS      | IS221, IS312                    |
+
+── Operator Precedence ──
+1. Parentheses ()
+2. Comparison operators (=, <>, <, >)
+3. NOT
+4. AND
+5. OR
+
+Use parentheses to make precedence explicit!`,
     syntax: `SELECT column1, column2
 FROM table_name
 WHERE condition;
@@ -690,7 +729,13 @@ WHERE (name LIKE 'A%' OR name LIKE 'B%' OR name LIKE 'C%' OR name LIKE 'D%' OR n
 
 Sorting applies after filtering (WHERE) but before limiting (LIMIT).
 
-NULL values sort last by default in PostgreSQL (NULLS LAST), first in some other databases.`,
+NULL values sort last by default in PostgreSQL (NULLS LAST), first in some other databases.
+
+── ORDER BY Rules ──
+- Can sort by column name, alias, or numeric position (e.g., ORDER BY 3, 2 DESC)
+- Multiple sort keys: ORDER BY col1 ASC, col2 DESC (col1 primary, col2 secondary)
+- In UNION: only ONE ORDER BY at the very end
+- ORDER BY can use expressions and CASE for custom sort logic`,
     syntax: `SELECT column1, column2
 FROM table_name
 ORDER BY column1 ASC, column2 DESC;
@@ -1101,7 +1146,24 @@ LIMIT 10;`
 
 It is used with aggregate functions (COUNT, SUM, AVG, MIN, MAX) to produce summary statistics for each group.
 
-Every column in SELECT must either be in GROUP BY or be wrapped in an aggregate function.`,
+Every column in SELECT must either be in GROUP BY or be wrapped in an aggregate function.
+
+── Aggregate Functions Reference ──
+| Function               | Purpose                  | Numeric Only? | NULLs count? | Example                    |
+|------------------------|--------------------------|---------------|--------------|----------------------------|
+| COUNT(*)               | Count ALL rows           | No            | Yes          | COUNT(*) → total rows      |
+| COUNT(col)             | Count non-NULL values    | No            | No           | COUNT(City)                |
+| COUNT(DISTINCT col)    | Count unique non-NULL    | No            | No           | COUNT(DISTINCT City)       |
+| SUM(col)               | Total of column values   | **YES**       | No           | SUM(Salary)                |
+| AVG(col)               | Average of values        | **YES**       | No           | AVG(GPA)                   |
+| MIN(col)               | Smallest value           | No            | No           | MIN(BirthDate)             |
+| MAX(col)               | Largest value            | No            | No           | MAX(GPA)                   |
+
+── GROUP BY Golden Rule ──
+Every column in the SELECT that is NOT inside an aggregate function MUST appear in the GROUP BY clause. Otherwise → SQL error!
+
+── Execution Order ──
+WHERE filters rows BEFORE grouping → GROUP BY groups → HAVING filters groups AFTER grouping → ORDER BY sorts final result`,
     syntax: `SELECT column, AGGREGATE_FUNC(column)
 FROM table_name
 WHERE condition
@@ -1644,9 +1706,22 @@ ORDER BY total_potential_revenue DESC;`
     topics: ['HAVING', 'filtering groups'],
     explanation: `HAVING filters groups created by GROUP BY, similar to how WHERE filters individual rows.
 
+── WHERE vs HAVING Comparison ──
+| Aspect           | WHERE                          | HAVING                          |
+|------------------|--------------------------------|---------------------------------|
+| When it runs     | BEFORE GROUP BY (filters rows) | AFTER GROUP BY (filters groups) |
+| Aggregate fns    | ❌ Cannot use                  | ✅ Can use COUNT, SUM, AVG etc  |
+| Column aliases   | ✅ Can use                     | ❌ Cannot use (in most DBs)     |
+| Without GROUP BY | ✅ Works fine                  | ⚠ Possible but rarely correct  |
+
 The key difference: WHERE filters BEFORE grouping, HAVING filters AFTER grouping.
 
-HAVING can reference aggregate functions (COUNT, SUM, AVG, etc.), which WHERE cannot.`,
+HAVING can reference aggregate functions (COUNT, SUM, AVG, etc.), which WHERE cannot.
+
+── Execution Order ──
+FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY
+
+Remember: WHERE runs first to remove unwanted rows, then GROUP BY groups, then HAVING filters the groups.`,
     syntax: `SELECT column, AGGREGATE_FUNC(column)
 FROM table_name
 WHERE condition
@@ -2136,11 +2211,22 @@ FROM employees;`
     topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN'],
     explanation: `Joins combine rows from two or more tables based on a related column between them.
 
-INNER JOIN: Returns only rows with matching values in both tables.
-LEFT JOIN: Returns all rows from the left table, matching rows from the right (NULL for no match).
-RIGHT JOIN: Returns all rows from the right table, matching rows from the left.
-FULL JOIN: Returns all rows when there is a match in either table.
-CROSS JOIN: Cartesian product of all rows.`,
+── JOIN Types Quick Comparison ──
+| Join Type      | Returns                                | Use When                         |
+|----------------|----------------------------------------|----------------------------------|
+| INNER JOIN     | Only matching rows in BOTH tables      | "Get all students with courses"  |
+| LEFT JOIN      | ALL rows from LEFT + matches from RIGHT| "Get all students even if no reg"|
+| RIGHT JOIN     | ALL rows from RIGHT + matches from LEFT| "Get all courses even if empty"  |
+| FULL OUTER JOIN| ALL rows from BOTH tables              | "Get everything from both sides" |
+| CROSS JOIN     | Cartesion product (|A| × |B| rows)     | "Get all combinations"           |
+| SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
+
+── Key Rules ──
+- INNER JOIN requires matching keys (NOT union compatibility — that's SET ops!)
+- LEFT JOIN = RIGHT JOIN with tables swapped
+- To join N tables: need N-1 join conditions
+- FK always goes on the N-side (1:N relationship)
+- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (implicit syntax)`,
     syntax: `-- INNER JOIN
 SELECT a.col, b.col
 FROM table_a a
@@ -2727,13 +2813,36 @@ ORDER BY total_spent DESC;`
     topics: ['scalar subquery', 'correlated subquery', 'EXISTS', 'IN', 'ANY', 'ALL'],
     explanation: `A subquery is a query nested inside another query. Subqueries can be used in SELECT, FROM, WHERE, and HAVING clauses.
 
-Types:
+── Subquery Types Comparison ──
+| Type               | Returns            | Used In              | Example                                |
+|--------------------|--------------------|-----------------------|----------------------------------------|
+| Scalar subquery    | Single value       | SELECT, WHERE, HAVING | (SELECT AVG(salary) FROM employees)    |
+| Row subquery       | Single row         | WHERE                 | WHERE (col1, col2) = (SELECT ...)      |
+| Table subquery     | Multiple rows/cols | FROM (derived table)  | FROM (SELECT ...) AS sub               |
+| Correlated subquery| Varies             | WHERE, SELECT, EXISTS | WHERE col > (SELECT ... FROM outer)    |
+
+── When to Use ──
 - Scalar subquery: Returns a single value (one row, one column)
 - Row subquery: Returns a single row
-- Table subquery: Returns a table (used in FROM)
-- Correlated subquery: References columns from the outer query
+- Table subquery: Returns a table, MUST have an alias
+- Correlated subquery: References columns from the outer query, runs per row
 
-EXISTS is typically more efficient than IN for large result sets.`,
+── Golden Rules ──
+- EXISTS is typically more efficient than IN for large result sets
+- Use EXISTS over IN when NULLs are possible (NULL-safe)
+- Subqueries in FROM MUST have an alias
+- If a JOIN can do the job, prefer JOIN for efficiency
+
+── Correlated vs Non-Correlated Subqueries ──
+A **non-correlated** subquery runs ONCE, the result is cached, and the outer query uses it:
+  SELECT * FROM employees WHERE salary > (SELECT AVG(salary) FROM employees);
+  → The inner AVG runs once, returns a single value.
+
+A **correlated** subquery runs ONCE PER ROW of the outer query:
+  SELECT * FROM employees e WHERE salary > (SELECT AVG(salary) FROM employees WHERE department = e.department);
+  → The inner AVG runs separately for EACH employee (filtered by their department).
+
+Correlated subqueries are slower but more powerful — use them when the inner query needs data from the current outer row.`,
     syntax: `-- Scalar subquery in SELECT
 SELECT 
   name,
@@ -2744,9 +2853,10 @@ FROM employees;
 -- Subquery in WHERE with IN
 SELECT name, department
 FROM employees
-WHERE department_id IN (
-  SELECT id FROM departments 
-  WHERE budget > 100000
+WHERE department IN (
+  SELECT DISTINCT department
+  FROM employees
+  WHERE salary > 90000
 );
 
 -- Correlated subquery with EXISTS
@@ -2754,8 +2864,8 @@ SELECT name
 FROM employees e
 WHERE EXISTS (
   SELECT 1 FROM orders o
-  WHERE o.employee_id = e.id
-    AND o.total > 10000
+  WHERE o.customer = e.name
+    AND o.total > 100
 );
 
 -- Subquery in FROM (derived table)
@@ -2834,6 +2944,7 @@ FROM (
 WHERE employee_count >= 5
 ORDER BY avg_salary DESC;`,
         explanation: 'First computes department statistics in a subquery, then filters and sorts the results.',
+        sourceTables: ['employees'],
         cppRepresentation: `string depts[100]; double sums[100]; int counts[100]; int deptCount=0;
 for (int i=0;i<employeeCount;i++) {
     string d=employees[i].department; int idx=-1;
@@ -5537,6 +5648,1552 @@ JOIN employees e2 ON e1.department <> e2.department
   AND ABS(e1.salary - e2.salary) <= 5000
   AND e1.name < e2.name
 ORDER BY e1.salary;`
+      }
+    ]
+  },
+  {
+    id: 'ddl-create',
+    title: 'DDL — CREATE TABLE & Constraints',
+    description: 'Define database tables with columns, data types, and constraints',
+    icon: '🏗️',
+    difficulty: 'beginner',
+    prerequisites: [],
+    topics: ['CREATE TABLE', 'data types', 'PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'NOT NULL', 'DEFAULT', 'CHECK', 'IDENTITY', 'composite key', 'ON DELETE', 'ON UPDATE'],
+    explanation: `CREATE TABLE defines a new table's structure: column names, data types, and constraints.
+
+Data types: INT, VARCHAR(n), CHAR(n), FLOAT, DECIMAL(p,s), DATE, BOOLEAN, TEXT.
+
+Constraints enforce rules on your data:
+- NOT NULL — column cannot store NULL
+- UNIQUE — all values in column must be different
+- PRIMARY KEY — NOT NULL + UNIQUE (identifies each row)
+- FOREIGN KEY — references a column in another table
+- CHECK — validates values against a boolean expression
+- DEFAULT — sets a fallback value when none is provided
+
+Column-level constraints apply to one column. Table-level constraints can span multiple columns (e.g., composite PRIMARY KEY).`,
+    syntax: `CREATE TABLE table_name (
+  column1 data_type constraint,
+  column2 data_type constraint,
+  ...
+  table_level_constraint
+);
+
+-- Column-level
+CREATE TABLE employees (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  salary DECIMAL(10,2) DEFAULT 0
+);
+
+-- Table-level constraints
+CREATE TABLE enrollments (
+  student_id INT,
+  course_id INT,
+  PRIMARY KEY (student_id, course_id),
+  FOREIGN KEY (student_id) REFERENCES students(id)
+);`,
+    examples: [
+      {
+        title: 'Basic CREATE TABLE',
+        sql: `CREATE TABLE employees (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  department VARCHAR(50),
+  salary DECIMAL(10,2) DEFAULT 50000,
+  status VARCHAR(20) DEFAULT 'active',
+  city VARCHAR(50),
+  email VARCHAR(100) UNIQUE
+);`,
+        explanation: 'Creates the employees table with an integer primary key, a required name, a default salary of 50k, and a unique email constraint.',
+        cppRepresentation: `// Intuitive C++ representation of: CREATE TABLE employees (...)
+struct Employee {
+    int id;
+    string name;
+    string department;
+    double salary;
+    string status;
+    string city;
+    string email;
+};
+// The struct defines the shape — each row is an Employee object.
+// Constraints would be enforced at insertion time via validation.`
+      },
+      {
+        title: 'CREATE with composite PRIMARY KEY',
+        sql: `CREATE TABLE enrollments (
+  student_id INT NOT NULL,
+  course_id INT NOT NULL,
+  enrolled_date DATE DEFAULT CURRENT_DATE,
+  grade VARCHAR(2),
+  PRIMARY KEY (student_id, course_id)
+);`,
+        explanation: 'The composite PRIMARY KEY on (student_id, course_id) ensures a student cannot enroll in the same course twice.',
+        cppRepresentation: `// Intuitive C++ representation of: CREATE TABLE enrollments (...) with composite PK
+struct Enrollment {
+    int student_id;
+    int course_id;
+    string enrolled_date;
+    string grade;
+};
+// Primary key constraint: no two rows with same (student_id, course_id)
+// Enforced at insert time by checking for duplicates:
+// for (int i = 0; i < enrollmentCount; i++)
+//     if (enrollments[i].student_id == newRow.student_id
+//         && enrollments[i].course_id == newRow.course_id)
+//         reject("Duplicate primary key");`
+      },
+      {
+        title: 'FOREIGN KEY with ON DELETE CASCADE',
+        sql: `CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer VARCHAR(100) NOT NULL,
+  product_id INT NOT NULL,
+  quantity INT NOT NULL DEFAULT 1,
+  total DECIMAL(10,2),
+  order_date DATE DEFAULT CURRENT_DATE,
+  FOREIGN KEY (product_id) REFERENCES products(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+);`,
+        explanation: 'The FOREIGN KEY links orders.product_id to products.id. ON DELETE CASCADE means deleting a product automatically deletes its orders.',
+        sourceTables: ['products'],
+        cppRepresentation: `// Intuitive C++ representation of: FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+struct Order { int id; string customer; int product_id; int quantity; double total; string order_date; };
+// When a product is deleted, cascade removes related orders:
+void deleteProduct(int productId) {
+    for (int i = 0; i < orderCount; i++)
+        if (orders[i].product_id == productId)
+            removeOrder(i--); // cascade delete
+    removeProduct(productId);
+}`
+      },
+      {
+        title: 'CHECK constraint',
+        sql: `CREATE TABLE products (
+  id INT PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(50),
+  price DECIMAL(10,2) CHECK (price >= 0),
+  stock INT DEFAULT 0 CHECK (stock >= 0),
+  CHECK (category IN ('Electronics', 'Clothing', 'Books', 'Stationery'))
+);`,
+        explanation: 'CHECK constraints validate data at insert/update time. Price and stock cannot be negative; category must be one of the four listed values.',
+        cppRepresentation: `// Intuitive C++ representation of: CHECK constraints
+struct Product { int id; string name; string category; double price; int stock; };
+void insertProduct(Product p) {
+    if (p.price < 0) throw "CHECK constraint: price must be >= 0";
+    if (p.stock < 0) throw "CHECK constraint: stock must be >= 0";
+    if (p.category != "Electronics" && p.category != "Clothing"
+        && p.category != "Books" && p.category != "Stationery")
+        throw "CHECK constraint: invalid category";
+    products[productCount++] = p;
+}`
+      },
+      {
+        title: 'IDENTITY / auto-increment column',
+        sql: `CREATE TABLE products (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(50),
+  price DECIMAL(10,2) CHECK (price >= 0),
+  stock INT DEFAULT 0
+);`,
+        explanation: 'GENERATED ALWAYS AS IDENTITY auto-increments the id column. You cannot manually insert into an identity column — the database assigns the next value.',
+        cppRepresentation: `// Intuitive C++ representation of: GENERATED ALWAYS AS IDENTITY
+struct Product { int id; string name; string category; double price; int stock; };
+int nextId = 1;
+Product createProduct(string name, string cat, double price, int stock) {
+    Product p = {nextId++, name, cat, price, stock};
+    return p;
+}`
+      },
+      {
+        title: 'All constraints combined',
+        sql: `CREATE TABLE employees (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  department VARCHAR(50) NOT NULL DEFAULT 'General',
+  salary DECIMAL(10,2) CHECK (salary >= 0),
+  status VARCHAR(20) DEFAULT 'active',
+  city VARCHAR(50),
+  email VARCHAR(100) UNIQUE NOT NULL,
+  manager_id INT,
+  CONSTRAINT fk_manager
+    FOREIGN KEY (manager_id) REFERENCES employees(id)
+    ON DELETE SET NULL
+);`,
+        explanation: 'Combines IDENTITY, PRIMARY KEY, NOT NULL, DEFAULT, CHECK, UNIQUE, and a self-referencing FOREIGN KEY with ON DELETE SET NULL.',
+        cppRepresentation: `// Intuitive C++ representation of: CREATE TABLE employees with all constraints
+struct Employee {
+    int id; string name; string department; double salary;
+    string status; string city; string email; int manager_id;
+};
+// Each insert runs through validations:
+void insertEmployee(Employee e) {
+    if (e.name.empty()) throw "NOT NULL: name";
+    if (e.salary < 0) throw "CHECK: salary >= 0";
+    for (int i = 0; i < empCount; i++)
+        if (employees[i].email == e.email) throw "UNIQUE: email";
+    // FK: manager_id must reference existing employee or be NULL
+    if (e.manager_id != 0 && !employeeExists(e.manager_id))
+        throw "FK: manager does not exist";
+    e.id = nextId++; employees[empCount++] = e;
+}`
+      }
+    ],
+    commonMistakes: [
+      'Forgetting that VARCHAR needs a length: VARCHAR(255) not just VARCHAR',
+      'Using TEXT for short strings (VARCHAR is more efficient for bounded lengths)',
+      'Adding a FOREIGN KEY without an index on the referencing column (performance killer)',
+      'Using ON DELETE CASCADE without understanding the ripple effect on child tables',
+      'Forgetting NOT NULL on columns that are part of a PRIMARY KEY (PK already implies it)'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Write a CREATE TABLE statement for the "products" table with columns: id (auto-increment PK), name (required, max 200 chars), category (optional), price (required, must be >= 0), stock (default 0, must be >= 0).',
+        hint: 'Use GENERATED ALWAYS AS IDENTITY for id, VARCHAR(200) NOT NULL for name, CHECK constraints for price and stock.',
+        solution: `CREATE TABLE products (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(50),
+  price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+  stock INT DEFAULT 0 CHECK (stock >= 0)
+);`
+      },
+      {
+        question: 'Create a table "order_items" with a composite primary key (order_id, product_id), a quantity column (NOT NULL, > 0), and foreign keys referencing orders(id) and products(id) with ON DELETE CASCADE.',
+        hint: 'Use PRIMARY KEY (order_id, product_id) as a table-level constraint. Add two FOREIGN KEY clauses referencing orders and products.',
+        solution: `CREATE TABLE order_items (
+  order_id INT NOT NULL,
+  product_id INT NOT NULL,
+  quantity INT NOT NULL CHECK (quantity > 0),
+  price DECIMAL(10,2) NOT NULL,
+  PRIMARY KEY (order_id, product_id),
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);`
+      },
+      {
+        question: 'Challenge: Create a "projects" table with an id (auto-increment PK), name (required, unique), budget (required, >= 1000), start_date (defaults to current date), and a CHECK constraint ensuring the name is at least 3 characters long (use LENGTH()).',
+        hint: 'Use GENERATED ALWAYS AS IDENTITY, UNIQUE on name, DEFAULT CURRENT_DATE, and CHECK (LENGTH(name) >= 3).',
+        solution: `CREATE TABLE projects (
+  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name VARCHAR(200) NOT NULL UNIQUE,
+  budget DECIMAL(12,2) NOT NULL CHECK (budget >= 1000),
+  start_date DATE DEFAULT CURRENT_DATE,
+  CHECK (LENGTH(name) >= 3)
+);`
+      }
+    ]
+  },
+  {
+    id: 'dml-crud',
+    title: 'DML — INSERT, UPDATE, DELETE',
+    description: 'Modify table data with INSERT, UPDATE, and DELETE statements',
+    icon: '✏️',
+    difficulty: 'beginner',
+    prerequisites: ['select', 'ddl-create'],
+    topics: ['INSERT', 'UPDATE', 'DELETE', 'INSERT INTO SELECT', 'TRUNCATE vs DELETE vs DROP'],
+    explanation: `DML (Data Manipulation Language) modifies the data stored in tables.
+
+INSERT adds new rows. Three forms: all columns, named columns, and INSERT INTO SELECT.
+
+UPDATE modifies existing rows. Always use a WHERE clause unless you intend to update every row.
+
+DELETE removes rows. Always use a WHERE clause unless you intend to empty the table.
+
+Key difference between DROP, TRUNCATE, and DELETE:
+- DELETE: removes rows, can use WHERE, fires triggers, can be rolled back
+- TRUNCATE: removes all rows, cannot use WHERE, resets identity/auto-increment, minimal logging
+- DROP: removes the entire table structure and all data`,
+    syntax: `-- INSERT all columns (values in column order)
+INSERT INTO table_name
+VALUES (val1, val2, val3);
+
+-- INSERT named columns
+INSERT INTO table_name (col1, col2)
+VALUES (val1, val2);
+
+-- INSERT from SELECT
+INSERT INTO table_name (col1, col2)
+SELECT col1, col2 FROM other_table;
+
+-- UPDATE
+UPDATE table_name
+SET column1 = value1, column2 = value2
+WHERE condition;
+
+-- DELETE
+DELETE FROM table_name
+WHERE condition;`,
+    examples: [
+      {
+        title: 'INSERT — all columns (positional)',
+        sql: `INSERT INTO employees
+VALUES (1, 'Alice', 'Engineering', 95000, 'active', 'New York', 'alice@company.com');`,
+        explanation: 'Inserts a row by providing values for ALL columns in the exact order they were defined. Fragile — if the table structure changes, this breaks.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: INSERT INTO employees VALUES (...)
+struct Employee { int id; string name; string department; double salary; string status; string city; string email; };
+Employee alice = {1, "Alice", "Engineering", 95000, "active", "New York", "alice@company.com"};
+employees[employeeCount++] = alice;`
+      },
+      {
+        title: 'INSERT — named columns',
+        sql: `INSERT INTO employees (id, name, department, salary, city)
+VALUES (2, 'Bob', 'Marketing', 72000, 'San Francisco');`,
+        explanation: 'Inserts a row by specifying only the columns you want. Missing columns use their DEFAULT values (or NULL if no default). More robust than positional INSERT.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: INSERT INTO employees (id, name, department, salary, city) VALUES (...)
+Employee bob = {2, "Bob", "Marketing", 72000, "active", "San Francisco", ""};
+// status defaults to 'active', email defaults to empty string
+employees[employeeCount++] = bob;`
+      },
+      {
+        title: 'INSERT INTO SELECT',
+        sql: `INSERT INTO employees (id, name, department, salary, city, status)
+SELECT id + 100, name, 'Engineering', 65000, city, 'inactive'
+FROM employees
+WHERE department = 'Marketing';`,
+        explanation: 'Copies Marketing employees into new Engineering rows with adjusted data. INSERT INTO SELECT is powerful for bulk data duplication and transformation.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: INSERT INTO employees SELECT ... FROM employees WHERE department = 'Marketing'
+Employee newRows[100];
+int newCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Marketing") {
+        Employee e = {employees[i].id + 100, employees[i].name, "Engineering", 65000, "inactive", employees[i].city, ""};
+        newRows[newCount++] = e;
+    }
+}
+for (int i = 0; i < newCount; i++)
+    employees[employeeCount++] = newRows[i];`
+      },
+      {
+        title: 'UPDATE with WHERE',
+        sql: `UPDATE employees
+SET salary = salary * 1.10,
+    status = 'active'
+WHERE department = 'Engineering';`,
+        explanation: 'Gives a 10% raise to all Engineering employees and sets their status to active. The WHERE clause restricts which rows are affected.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: UPDATE employees SET salary = salary * 1.10, status = 'active' WHERE department = 'Engineering'
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering") {
+        employees[i].salary *= 1.10;
+        employees[i].status = "active";
+    }
+}`
+      },
+      {
+        title: 'UPDATE without WHERE (all rows)',
+        sql: `UPDATE employees
+SET status = 'active';`,
+        explanation: 'Updates EVERY row in the table. Without a WHERE clause, the SET clause applies to all rows. Use with extreme caution — there is no undo in production.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: UPDATE employees SET status = 'active' (no WHERE)
+for (int i = 0; i < employeeCount; i++)
+    employees[i].status = "active";`
+      },
+      {
+        title: 'DELETE with and without WHERE',
+        sql: `-- Delete specific rows
+DELETE FROM employees
+WHERE status = 'inactive' AND salary < 50000;
+
+-- Delete all rows
+DELETE FROM employees;`,
+        explanation: 'The first statement deletes only inactive employees earning under $50k. The second deletes EVERY row but keeps the table structure (DDL is preserved). TRUNCATE is faster for deleting all rows.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: DELETE FROM employees WHERE status = 'inactive' AND salary < 50000
+int writePos = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (!(employees[i].status == "inactive" && employees[i].salary < 50000))
+        employees[writePos++] = employees[i];
+}
+employeeCount = writePos;
+
+// DELETE FROM employees (no WHERE):
+// employeeCount = 0;`
+      }
+    ],
+    commonMistakes: [
+      'Forgetting the WHERE clause in UPDATE/DELETE (modifies/removes ALL rows)',
+      'Using INSERT with positional VALUES that don\'t match the column order',
+      'Assuming INSERT INTO SELECT preserves source data order (no ORDER BY needed)',
+      'Confusing TRUNCATE with DELETE: TRUNCATE cannot use WHERE, resets identity, is DDL not DML'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Insert a new product with: id=10, name="Wireless Mouse", category="Electronics", price=29.99, stock=150.',
+        hint: 'Use INSERT INTO products (columns) VALUES (values). All columns are id, name, category, price, stock.',
+        solution: `INSERT INTO products (id, name, category, price, stock)
+VALUES (10, 'Wireless Mouse', 'Electronics', 29.99, 150);`
+      },
+      {
+        question: 'Give all Marketing employees a 5% raise and update their city to "Chicago".',
+        hint: 'Use UPDATE with SET salary = salary * 1.05, city = \'Chicago\' and a WHERE department = \'Marketing\' filter.',
+        solution: `UPDATE employees
+SET salary = salary * 1.05,
+    city = 'Chicago'
+WHERE department = 'Marketing';`
+      },
+      {
+        question: 'Challenge: Write an INSERT INTO SELECT statement that creates "archived_orders" entries for all orders before 2024. Assume archived_orders has the same columns as orders (id, customer, product_id, quantity, total, order_date). After inserting, delete those old orders from the orders table.',
+        hint: 'First INSERT INTO archived_orders SELECT * FROM orders WHERE order_date < \'2024-01-01\'. Then DELETE FROM orders WHERE order_date < \'2024-01-01\'.',
+        solution: `INSERT INTO archived_orders (id, customer, product_id, quantity, total, order_date)
+SELECT id, customer, product_id, quantity, total, order_date
+FROM orders
+WHERE order_date < '2024-01-01';
+
+DELETE FROM orders
+WHERE order_date < '2024-01-01';`
+      }
+    ]
+  },
+  {
+    id: 'alter-drop',
+    title: 'ALTER TABLE & DROP Operations',
+    description: 'Modify table structure with ALTER TABLE and remove objects with DROP',
+    icon: '🔧',
+    difficulty: 'intermediate',
+    prerequisites: ['ddl-create', 'dml-crud'],
+    topics: ['ALTER TABLE', 'ADD COLUMN', 'DROP COLUMN', 'ALTER COLUMN', 'ADD CONSTRAINT', 'DROP CONSTRAINT', 'DROP TABLE', 'TRUNCATE TABLE'],
+    explanation: `ALTER TABLE modifies an existing table's structure without losing the data inside it.
+
+Common operations:
+- ADD COLUMN: adds a new column
+- DROP COLUMN: removes an existing column
+- ALTER COLUMN: changes a column's data type or default value
+- ADD CONSTRAINT: adds a constraint (PK, FK, UNIQUE, CHECK, DEFAULT)
+- DROP CONSTRAINT: removes a constraint
+
+DROP TABLE removes the table and all its data permanently.
+TRUNCATE TABLE removes all rows but keeps the table structure.
+
+Unlike CREATE TABLE, ALTER TABLE works on tables that already contain data — constraints are checked against existing rows.`,
+    syntax: `-- Add a column
+ALTER TABLE table_name
+ADD COLUMN column_name data_type constraint;
+
+-- Drop a column
+ALTER TABLE table_name
+DROP COLUMN column_name;
+
+-- Alter column type
+ALTER TABLE table_name
+ALTER COLUMN column_name TYPE new_data_type;
+
+-- Add a constraint
+ALTER TABLE table_name
+ADD CONSTRAINT constraint_name constraint_type (column);
+
+-- Drop a constraint
+ALTER TABLE table_name
+DROP CONSTRAINT constraint_name;
+
+-- Drop table
+DROP TABLE table_name;
+
+-- Truncate table
+TRUNCATE TABLE table_name;`,
+    examples: [
+      {
+        title: 'ADD and DROP columns',
+        sql: `-- Add a new column
+ALTER TABLE employees
+ADD COLUMN phone VARCHAR(20);
+
+-- Add a column with a default
+ALTER TABLE employees
+ADD COLUMN bonus DECIMAL(10,2) DEFAULT 0;
+
+-- Drop a column
+ALTER TABLE employees
+DROP COLUMN phone;`,
+        explanation: 'ADD COLUMN adds a new column (NULL allowed unless NOT NULL specified). The bonus column gets a default of 0. DROP COLUMN removes the phone column permanently.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: ALTER TABLE employees ADD/DROP COLUMN
+// Before: struct Employee { int id; string name; ... };
+// ADD COLUMN phone: add a field to the struct
+struct EmployeeV2 {
+    int id; string name; string department; double salary;
+    string status; string city; string email; string phone;
+};
+// DROP COLUMN phone: revert to original struct (lossy — data is gone)
+// Existing rows must be migrated to the new struct shape.`
+      },
+      {
+        title: 'ALTER COLUMN type',
+        sql: `-- Change column data type
+ALTER TABLE employees
+ALTER COLUMN salary TYPE DECIMAL(12,2);
+
+-- Add a NOT NULL constraint to an existing column
+ALTER TABLE employees
+ALTER COLUMN department SET NOT NULL;
+
+-- Drop the NOT NULL constraint
+ALTER TABLE employees
+ALTER COLUMN department DROP NOT NULL;`,
+        explanation: 'ALTER COLUMN TYPE changes the data type (may fail if existing data is incompatible). SET/DROP NOT NULL adds or removes the NOT NULL constraint on an existing column.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: ALTER COLUMN salary TYPE DECIMAL(12,2)
+// Widening the type: all existing values fit automatically
+struct EmployeeV2 {
+    int id; string name; string department;
+    double salary; // was DECIMAL(10,2), now DECIMAL(12,2) — no change in C++
+};
+// SET NOT NULL on department: existing NULL values would cause failure
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].department.empty())
+        throw "Cannot add NOT NULL: existing rows have NULL";`
+      },
+      {
+        title: 'ADD and DROP constraints',
+        sql: `-- Add a PRIMARY KEY
+ALTER TABLE employees
+ADD PRIMARY KEY (id);
+
+-- Add a FOREIGN KEY
+ALTER TABLE orders
+ADD CONSTRAINT fk_product
+FOREIGN KEY (product_id) REFERENCES products(id);
+
+-- Add a UNIQUE constraint
+ALTER TABLE employees
+ADD CONSTRAINT uq_email UNIQUE (email);
+
+-- Add a CHECK constraint
+ALTER TABLE employees
+ADD CONSTRAINT chk_salary CHECK (salary >= 0);
+
+-- Drop a constraint
+ALTER TABLE employees
+DROP CONSTRAINT chk_salary;`,
+        explanation: 'ADD CONSTRAINT adds a constraint by name. PRIMARY KEY, UNIQUE, and CHECK are validated against existing data. FOREIGN KEY requires the referenced table and columns to exist.',
+        sourceTables: ['employees', 'orders', 'products'],
+        cppRepresentation: `// Intuitive C++ representation of: ADD CONSTRAINT
+// Adding PRIMARY KEY on id:
+bool addPrimaryKey() {
+    bool seen[1000] = {false};
+    for (int i = 0; i < employeeCount; i++) {
+        if (seen[employees[i].id]) return false; // duplicate
+        if (employees[i].id == 0) return false; // NULL
+        seen[employees[i].id] = true;
+    }
+    return true;
+}
+// Adding CHECK (salary >= 0):
+bool addCheckSalary() {
+    for (int i = 0; i < employeeCount; i++)
+        if (employees[i].salary < 0) return false;
+    return true;
+}`
+      },
+      {
+        title: 'DROP TABLE vs TRUNCATE TABLE',
+        sql: `-- Remove all rows (keep structure)
+TRUNCATE TABLE employees;
+
+-- Remove entire table (structure + data)
+DROP TABLE employees;
+
+-- Remove table only if it exists (no error if missing)
+DROP TABLE IF EXISTS employees;`,
+        explanation: 'TRUNCATE is faster than DELETE without WHERE — it deallocates data pages, resets identity counters, and logs minimally. DROP TABLE removes the table definition entirely. IF EXISTS prevents errors on non-existent tables.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of TRUNCATE vs DROP
+// TRUNCATE TABLE employees: remove all rows but keep the struct
+employeeCount = 0;
+nextId = 1; // identity reset
+
+// DROP TABLE employees: remove everything
+// struct Employee is deleted; employee array is gone
+// Employee employees[1000]; // this line is removed
+// int employeeCount;        // this line is removed`
+      },
+      {
+        title: 'Multiple ALTER operations',
+        sql: `ALTER TABLE employees
+  ADD COLUMN middle_name VARCHAR(50),
+  ALTER COLUMN salary TYPE DECIMAL(14,2),
+  ALTER COLUMN city SET DEFAULT 'Unknown',
+  ADD CONSTRAINT chk_city CHECK (city IS NOT NULL AND city <> ''),
+  ADD CONSTRAINT uq_name_dept UNIQUE (name, department);`,
+        explanation: 'Chains multiple ALTER operations: adds a column, widens salary precision, sets a default for city, adds a CHECK constraint, and adds a composite UNIQUE on (name, department).',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: multiple ALTER operations on employees
+struct Employee {
+    int id; string name; string middle_name; string department;
+    double salary; string status; string city; string email;
+};
+// ALTER COLUMN salary TYPE DECIMAL(14,2): existing values fit
+// ALTER COLUMN city SET DEFAULT 'Unknown': new rows default to "Unknown"
+// CHECK (city NOT NULL AND city <> ''):
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].city.empty()) throw "CHECK city failed";
+// UNIQUE (name, department):
+for (int i = 0; i < employeeCount; i++)
+    for (int j = i + 1; j < employeeCount; j++)
+        if (employees[i].name == employees[j].name
+            && employees[i].department == employees[j].department)
+            throw "UNIQUE (name, department) violated";`
+      }
+    ],
+    commonMistakes: [
+      'Running ALTER COLUMN TYPE without checking if existing data is compatible (causes conversion errors)',
+      'Trying to DROP COLUMN that is referenced by a FOREIGN KEY',
+      'Forgetting that TRUNCATE cannot be used on tables with FOREIGN KEY references',
+      'Not using IF EXISTS with DROP TABLE in migration scripts (causes errors on re-runs)',
+      'Adding UNIQUE constraints on columns that already have duplicate values (will fail)'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Write an ALTER TABLE statement to add a "salary" column to the "employees" table of type DECIMAL(10,2) with a default of 0. Also add a CHECK constraint to ensure salary is never negative.',
+        hint: 'Use ADD COLUMN with DEFAULT, then ADD CONSTRAINT with CHECK.',
+        solution: `ALTER TABLE employees
+ADD COLUMN salary DECIMAL(10,2) DEFAULT 0;
+
+ALTER TABLE employees
+ADD CONSTRAINT chk_salary_nonneg CHECK (salary >= 0);`
+      },
+      {
+        question: 'Write a statement to remove the "email" column from the "employees" table. Then write a statement to drop the "employees" table entirely if it exists.',
+        hint: 'Use DROP COLUMN for the first, DROP TABLE IF EXISTS for the second.',
+        solution: `ALTER TABLE employees
+DROP COLUMN email;
+
+DROP TABLE IF EXISTS employees;`
+      },
+      {
+        question: 'Challenge: You have a "products" table with a "price" column of type DECIMAL(8,2). Write an ALTER TABLE statement to change the price column to DECIMAL(12,2) and add a NOT NULL constraint. Then add a foreign key on the "orders" table\'s product_id column referencing products(id) with ON DELETE CASCADE. Assume orders already exists.',
+        hint: 'Use ALTER COLUMN ... TYPE for the type change, ALTER COLUMN ... SET NOT NULL for the constraint, and ADD CONSTRAINT ... FOREIGN KEY for the FK.',
+        solution: `ALTER TABLE products
+ALTER COLUMN price TYPE DECIMAL(12,2),
+ALTER COLUMN price SET NOT NULL;
+
+ALTER TABLE orders
+ADD CONSTRAINT fk_orders_products
+FOREIGN KEY (product_id) REFERENCES products(id)
+ON DELETE CASCADE;`
+      }
+    ]
+  },
+  {
+    id: 'exists-not-exists',
+    title: 'EXISTS & NOT EXISTS — Correlated Subqueries',
+    description: 'Use EXISTS and NOT EXISTS to test for the presence or absence of related rows',
+    icon: '🔍',
+    difficulty: 'intermediate',
+    prerequisites: ['subqueries', 'select', 'where'],
+    topics: ['EXISTS', 'NOT EXISTS', 'correlated subquery', 'IN vs EXISTS', 'NULL safety', 'division pattern'],
+    explanation: `EXISTS returns TRUE if the subquery returns at least one row. It stops scanning as soon as a match is found (short-circuit evaluation).
+
+NOT EXISTS returns TRUE if the subquery returns zero rows. It is NULL-safe — unlike NOT IN, NOT EXISTS handles NULLs correctly.
+
+Correlated subqueries reference columns from the outer query. EXISTS with correlation is the standard way to test "has/has not" relationships.
+
+Key difference: EXISTS vs IN
+- EXISTS can be correlated (re-evaluated per outer row)
+- IN with a subquery runs the subquery once
+- NOT EXISTS is NULL-safe; NOT IN is NOT NULL-safe
+- EXISTS typically faster when the subquery can short-circuit`,
+    syntax: `-- EXISTS — find rows that have matches
+SELECT column1, column2
+FROM table_a a
+WHERE EXISTS (
+  SELECT 1 FROM table_b b
+  WHERE b.foreign_key = a.id
+);
+
+-- NOT EXISTS — find rows without matches
+SELECT column1, column2
+FROM table_a a
+WHERE NOT EXISTS (
+  SELECT 1 FROM table_b b
+  WHERE b.foreign_key = a.id
+);
+
+-- Common convention: SELECT 1 or SELECT *
+-- Inside EXISTS, SELECT list doesn't matter — only row existence is checked`,
+    examples: [
+      {
+        title: 'EXISTS — find products that have been ordered',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+)
+ORDER BY p.name;`,
+        explanation: 'For each product, the EXISTS subquery checks if any order references it. If yes, the product is included. The subquery short-circuits on the first match.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
+for (int i = 0; i < productCount; i++) {
+    bool hasOrders = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].product_id == products[i].id) {
+            hasOrders = true;
+            break; // short-circuit — EXISTS stops at first match
+        }
+    }
+    if (hasOrders)
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
+}`
+      },
+      {
+        title: 'NOT EXISTS — find products never ordered',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+)
+ORDER BY p.price DESC;`,
+        explanation: 'NOT EXISTS finds products with zero matching orders. Unlike NOT IN, NOT EXISTS correctly handles NULLs in the subquery — it never produces UNKNOWN.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
+for (int i = 0; i < productCount; i++) {
+    bool hasOrders = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].product_id == products[i].id) {
+            hasOrders = true;
+            break;
+        }
+    }
+    if (!hasOrders)
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
+}`
+      },
+      {
+        title: 'NOT EXISTS vs NOT IN — NULL safety',
+        sql: `-- NULL-safe: NOT EXISTS handles NULLs correctly
+SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+);
+
+-- DANGEROUS: NOT IN returns empty results if subquery contains NULL
+SELECT e.name, e.department
+FROM employees e
+WHERE e.name NOT IN (
+  SELECT o.customer FROM orders o
+);`,
+        explanation: 'NOT IN returns zero rows if ANY value in the subquery is NULL (because NULL comparisons yield UNKNOWN, which is NOT TRUE). NOT EXISTS handles NULLs correctly and is the safe choice.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS vs NOT IN NULL behavior
+// NOT EXISTS (safe):
+for (int i = 0; i < employeeCount; i++) {
+    bool found = false;
+    for (int j = 0; j < orderCount; j++)
+        if (orders[j].customer == employees[i].name) { found = true; break; }
+    if (!found) cout << employees[i].name << "\\n";
+}
+// NOT IN (breaks with NULL):
+// SQL semantics: if any orders.customer is NULL,
+// the entire NOT IN evaluates to UNKNOWN (zero rows).
+// C++ doesn't model this directly — it's a tri-valued logic issue.`
+      },
+      {
+        title: 'Correlated EXISTS — "has a" pattern',
+        sql: `SELECT e.name, e.department, e.salary
+FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+    AND o.total > 200
+)
+ORDER BY e.salary DESC;`,
+        explanation: 'A correlated EXISTS: for each employee, checks if they have placed any order over $200. The correlation is o.customer = e.name, linking inner to outer query.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: correlated EXISTS — employees with large orders
+for (int i = 0; i < employeeCount; i++) {
+    bool hasBigOrder = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].customer == employees[i].name && orders[j].total > 200) {
+            hasBigOrder = true;
+            break;
+        }
+    }
+    if (hasBigOrder)
+        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << "\\n";
+}`
+      },
+      {
+        title: 'Division pattern with NOT EXISTS',
+        sql: `-- Find employees who have ordered ALL products in the 'Electronics' category
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`,
+        explanation: 'The "division" or "relational division" pattern: double NOT EXISTS finds entities related to ALL items in a set. The inner NOT EXISTS finds Electronics products the employee has NOT ordered. The outer NOT EXISTS finds employees where no such product exists — meaning they ordered all of them.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: division pattern (employees who ordered ALL Electronics)
+for (int i = 0; i < employeeCount; i++) {
+    bool orderedAllElectronics = true;
+    for (int p = 0; p < productCount; p++) {
+        if (products[p].category != "Electronics") continue;
+        bool orderedThis = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id) {
+                orderedThis = true;
+                break;
+            }
+        }
+        if (!orderedThis) { orderedAllElectronics = false; break; }
+    }
+    if (orderedAllElectronics)
+        cout << employees[i].name << "\\n";
+}`
+      }
+    ],
+    commonMistakes: [
+      'Using NOT IN with a subquery that might return NULL (get empty results silently)',
+      'Adding ORDER BY inside an EXISTS subquery (unnecessary — EXISTS only checks row count)',
+      'Forgetting the correlation condition (without it, EXISTS checks the same thing for every outer row)',
+      'Writing complex EXISTS subqueries that could be expressed as simple JOINs (EXISTS is for boolean checks, not data retrieval)'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Use EXISTS to find all departments that have at least one employee with a salary above $90,000. Show the department name.',
+        hint: 'SELECT DISTINCT department FROM employees e WHERE EXISTS (SELECT 1 FROM employees e2 WHERE e2.department = e.department AND e2.salary > 90000).',
+        solution: `SELECT DISTINCT e.department
+FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM employees e2
+  WHERE e2.department = e.department
+    AND e2.salary > 90000
+);`
+      },
+      {
+        question: 'Find all employees who have never placed an order, using NOT EXISTS. Show their name and department.',
+        hint: 'Use NOT EXISTS (SELECT 1 FROM orders WHERE customer = e.name) correlated to the outer employee.',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+);`
+      },
+      {
+        question: 'Challenge: Using the relational division pattern (double NOT EXISTS), find employees who have placed orders for ALL products that cost more than $100. Show their name and department. (This means they\'ve ordered every single expensive product at least once.)',
+        hint: 'Outer NOT EXISTS on products: WHERE price > 100 AND NOT EXISTS (orders linking employee to that product).',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.price > 100
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`
+      }
+    ]
+  },
+  {
+    id: 'division-queries',
+    title: 'Division Queries \u2014 "Assigned to ALL" Pattern',
+    description: 'Use the relational division pattern to find entities related to ALL items in a set',
+    icon: '\uD83D\uDCCA',
+    difficulty: 'advanced',
+    prerequisites: ['exists-not-exists', 'subqueries', 'set-operations', 'select', 'where'],
+    topics: ['DIVISION', 'double negation', 'NOT EXISTS', 'EXCEPT', 'for all', 'relational division'],
+    explanation: `Relational division answers "for all" queries: find entities that are related to ALL items in a set.
+
+The core insight is double negation. "Employee is assigned to ALL projects of dept X" translates to "There is NO project of dept X that this employee is NOT on."
+
+In SQL, this is expressed as:
+  NOT EXISTS (set of all targets EXCEPT set of targets the entity has)
+
+Or with nested NOT EXISTS:
+  NOT EXISTS (
+    SELECT target FROM targets
+    WHERE condition AND NOT EXISTS (
+      SELECT 1 FROM links
+      WHERE link.entity = outer.entity AND link.target = target.id
+    )
+  )
+
+Mental model: The outer NOT EXISTS asks "Does a counterexample exist?" If no counterexample exists (there is no project the employee has not been assigned to), then the employee is assigned to ALL projects.
+
+Three approaches:
+1. Double NOT EXISTS (most common, NULL-safe)
+2. EXCEPT inside NOT EXISTS (more readable)
+3. HAVING COUNT = total count (requires join table)`,
+    syntax: `-- Division: double NOT EXISTS (standard form)
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);
+
+-- Division: EXCEPT pattern
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p WHERE p.category = 'Electronics'
+    EXCEPT
+    SELECT o.product_id FROM orders o WHERE o.customer = e.name
+  )
+);
+
+-- Division: HAVING COUNT
+SELECT o.customer
+FROM orders o
+JOIN products p ON o.product_id = p.id
+WHERE p.category = 'Electronics'
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products WHERE category = 'Electronics'
+);`,
+    examples: [
+      {
+        title: 'Basic division \u2014 double NOT EXISTS pattern',
+        sql: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`,
+        explanation: 'For each employee, the inner NOT EXISTS checks if there is an Electronics product they have NOT ordered. If no such product exists (outer NOT EXISTS), the employee has ordered ALL Electronics products.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: employees who ordered ALL Electronics products
+for (int i = 0; i < employeeCount; i++) {
+    bool allOrdered = true;
+    for (int p = 0; p < productCount; p++) {
+        if (products[p].category != "Electronics") continue;
+        bool found = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id)
+                { found = true; break; }
+        }
+        if (!found) { allOrdered = false; break; }
+    }
+    if (allOrdered)
+        cout << employees[i].name << " | " << employees[i].department << "\\n";
+}`
+      },
+      {
+        title: 'Division with EXCEPT',
+        sql: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p WHERE p.price > 100
+    EXCEPT
+    SELECT o.product_id FROM orders o WHERE o.customer = e.name
+  )
+);`,
+        explanation: 'The EXCEPT pattern is more readable: "Take all expensive product IDs, remove the ones this employee ordered. If nothing remains, they ordered all of them."',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: EXCEPT-based division
+for (int i = 0; i < employeeCount; i++) {
+    bool allOrdered = true;
+    for (int p = 0; p < productCount; p++) {
+        if (!(products[p].price > 100)) continue;
+        bool found = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id)
+                { found = true; break; }
+        }
+        if (!found) { allOrdered = false; break; }
+    }
+    if (allOrdered)
+        cout << employees[i].name << " | " << employees[i].department << "\\n";
+}`
+      },
+      {
+        title: 'Division with HAVING COUNT',
+        sql: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS products_ordered
+FROM orders o
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products
+)
+ORDER BY o.customer;`,
+        explanation: 'The HAVING COUNT approach counts distinct products each customer ordered. If it equals the total number of products, they ordered all of them. Requires a subquery for the total count.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: HAVING COUNT division
+int totalProducts = productCount;
+string customers[100];
+int custCount = 0;
+int custCounts[100] = {0};
+int seenProducts[100][100] = {{0}};
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < custCount; j++)
+        if (customers[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = custCount++; customers[idx] = orders[i].customer; }
+    bool dup = false;
+    for (int k = 0; k < seenProducts[idx][0]; k++)
+        if (seenProducts[idx][k + 1] == orders[i].product_id) { dup = true; break; }
+    if (!dup) { seenProducts[idx][++seenProducts[idx][0]] = orders[i].product_id; custCounts[idx]++; }
+}
+for (int i = 0; i < custCount; i++)
+    if (custCounts[i] == totalProducts)
+        cout << customers[i] << " | " << custCounts[i] << "\\n";`
+      }
+    ],
+    commonMistakes: [
+      'Using NOT IN for division (fails if the subquery contains NULL values)',
+      'Forgetting DISTINCT in the HAVING COUNT approach (duplicates inflate the count)',
+      'Confusing the double NOT EXISTS logic: outer checks for counterexamples, inner checks for a specific missing item',
+      'Writing the division query without correlating the inner subquery to the outer table',
+      'Using EXCEPT without matching column count and data types between the two queries'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Write a query using double NOT EXISTS to find employees who have placed orders for ALL products in the "Clothing" category. Show employee name and department.',
+        hint: 'Outer NOT EXISTS on products WHERE category = \'Clothing\' AND inner NOT EXISTS on orders linking employee to product WHERE o.customer = e.name AND o.product_id = p.id.',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Clothing'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`
+      },
+      {
+        question: 'Rewrite the division query from question 1 using the EXCEPT pattern instead of double NOT EXISTS.',
+        hint: 'Use NOT EXISTS ( (SELECT p.id FROM products p WHERE p.category = \'Clothing\') EXCEPT (SELECT o.product_id FROM orders o WHERE o.customer = e.name) ).',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p
+    WHERE p.category = 'Clothing'
+    EXCEPT
+    SELECT o.product_id FROM orders o
+    WHERE o.customer = e.name
+  )
+);`
+      },
+      {
+        question: 'Challenge: Using the HAVING COUNT approach, find customers who have ordered ALL products costing more than $50. Show customer name and the count of expensive products they ordered. Sort by customer name.',
+        hint: 'GROUP BY o.customer, HAVING COUNT(DISTINCT o.product_id) = (SELECT COUNT(*) FROM products WHERE price > 50). JOIN products to filter by price.',
+        solution: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS expensive_ordered
+FROM orders o
+JOIN products p ON o.product_id = p.id
+WHERE p.price > 50
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products WHERE price > 50
+)
+ORDER BY o.customer;`
+      }
+    ]
+  },
+  {
+    id: 'relational-algebra',
+    title: 'Relational Algebra \u2014 \u03C3, \u03C0, \u22C8, \u222A, \u2212, \u2229',
+    description: 'Express queries as RA expressions then translate to SQL',
+    icon: '\u22A2',
+    difficulty: 'advanced',
+    prerequisites: ['select', 'where', 'joins', 'set-operations'],
+    topics: ['SELECT \u03C3', 'PROJECT \u03C0', 'RENAME \u03C1', 'EQUIJOIN', 'NATURAL JOIN', 'THETA JOIN', 'UNION', 'DIFFERENCE', 'INTERSECTION', 'DIVISION'],
+    explanation: `Relational Algebra (RA) is the theoretical foundation of SQL. Every SQL query can be expressed as an RA expression.
+
+Core Operations:
+
+\u03C3 (SELECT / filter rows) \u2014 \u03C3_{condition}(Table)
+  SQL: SELECT * FROM Table WHERE condition
+
+\u03C0 (PROJECT / select columns) \u2014 \u03C0_{col1, col2}(Table)
+  SQL: SELECT col1, col2 FROM Table
+
+\u22C8 (JOIN) \u2014 Various join types:
+  \u2022 \u03B8-join (theta join): \u22C8_{condition} \u2014 JOIN ON condition
+  \u2022 Equijoin: \u22C8_{=} \u2014 JOIN ON equal columns
+  \u2022 Natural join: \u22C8 \u2014 NATURAL JOIN (matches same-named columns)
+
+\u03C1 (RENAME) \u2014 \u03C1_{new}(Table) or \u03C1_{new(a1, a2)}(Table)
+  SQL: Table AS new
+
+\u222A (UNION) \u2014 Set union. SQL: UNION
+\u2212 (DIFFERENCE) \u2014 Set difference. SQL: EXCEPT
+\u2229 (INTERSECTION) \u2014 Set intersection. SQL: INTERSECT
+\u00D7 (CARTESIAN PRODUCT) \u2014 All pairs. SQL: CROSS JOIN or FROM a, b
+
+Strategy: Write the RA expression first, then translate to SQL working from innermost to outermost.
+
+Example: "Names of Engineering employees earning over 80k"
+  RA: \u03C0_{name}(\u03C3_{department='Engineering' \u2227 salary>80000}(employees))
+  SQL: SELECT name FROM employees WHERE department = 'Engineering' AND salary > 80000;`,
+    syntax: `-- RA to SQL Translation Reference:
+-- \u03C3_{condition}(Table)              \u2192 SELECT * FROM Table WHERE condition
+-- \u03C0_{cols}(Table)                   \u2192 SELECT cols FROM Table
+-- \u03C1_{alias}(Table)                  \u2192 Table AS alias
+-- Table1 \u22C8_{cond} Table2            \u2192 Table1 JOIN Table2 ON cond
+-- Table1 \u22C8 Table2                   \u2192 Table1 NATURAL JOIN Table2
+-- Table1 \u222A Table2                   \u2192 Table1 UNION Table2
+-- Table1 \u2212 Table2                   \u2192 Table1 EXCEPT Table2
+-- Table1 \u2229 Table2                   \u2192 Table1 INTERSECT Table2
+-- Table1 \u00D7 Table2                   \u2192 Table1 CROSS JOIN Table2
+
+-- Composition: Apply innermost first
+-- \u03C0_{name}(\u03C3_{dept='Eng'}(employees))
+-- Step 1: \u03C3 \u2192 WHERE
+-- Step 2: \u03C0 \u2192 SELECT`,
+    examples: [
+      {
+        title: '\u03C3 and \u03C0 \u2014 basic selection and projection',
+        sql: `-- RA: \u03C0_{name, salary}(\u03C3_{department='Engineering'}(employees))
+SELECT name, salary
+FROM employees
+WHERE department = 'Engineering';`,
+        explanation: '\u03C3 filters rows (WHERE), \u03C0 selects columns (SELECT). In RA, \u03C3 is applied first, then \u03C0. The SQL optimizer may reorder, but the logical meaning is the same.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// C++: \u03C3_{dept='Eng'} then \u03C0_{name, salary}
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering")
+        cout << employees[i].name << " | " << employees[i].salary << "\\n";
+}`
+      },
+      {
+        title: 'Join in RA \u2014 \u03B8-join and equijoin',
+        sql: `-- RA: \u03C0_{name, product}(\u03C3_{total>200}(employees \u22C8_{name=customer} orders \u22C8_{product_id=id} products))
+SELECT e.name, p.name AS product, o.total
+FROM employees e
+JOIN orders o ON e.name = o.customer
+JOIN products p ON o.product_id = p.id
+WHERE o.total > 200;`,
+        explanation: 'The \u03B8-join (\u22C8_{condition}) combines rows where the condition holds. Multiple joins chain together. In RA: ((employees \u22C8 orders) \u22C8 products).',
+        sourceTables: ['employees', 'orders', 'products'],
+        cppRepresentation: `// C++: employees \u22C8_{name=customer} orders \u22C8_{product_id=id} products
+for (int i = 0; i < employeeCount; i++) {
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].customer != employees[i].name) continue;
+        for (int k = 0; k < productCount; k++) {
+            if (products[k].id != orders[j].product_id) continue;
+            if (orders[j].total > 200)
+                cout << employees[i].name << " | " << products[k].name << " | " << orders[j].total << "\\n";
+        }
+    }
+}`
+      },
+      {
+        title: 'RA to SQL translation',
+        sql: `-- RA: \u03C0_{name, salary}(\u03C3_{city='NYC'}(employees)) \u2229 \u03C0_{name, salary}(employees \u22C8 orders)
+-- NYC employees who have placed orders
+
+SELECT e.name, e.salary
+FROM employees e
+WHERE e.city = 'New York'
+INTERSECT
+SELECT e.name, e.salary
+FROM employees e
+JOIN orders o ON e.name = o.customer;`,
+        explanation: 'Start from the innermost operation. \u03C3_{city=\'NYC\'}(employees) filters rows, then \u03C0 projects columns. The join produces employee-order pairs, and INTERSECT finds NYC employees who also appear in the join result.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// C++: \u03C0 \u2229 \u03C0 (INTERSECT)
+string nycNames[100]; double nycSalaries[100]; int nycCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].city == "New York") {
+        nycNames[nycCount] = employees[i].name;
+        nycSalaries[nycCount] = employees[i].salary;
+        nycCount++;
+    }
+}
+string ordNames[100]; double ordSalaries[100]; int ordCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < ordCount; j++)
+        if (ordNames[j] == orders[i].customer) { dup = true; break; }
+    if (!dup) {
+        ordNames[ordCount] = orders[i].customer;
+        for (int e = 0; e < employeeCount; e++)
+            if (employees[e].name == orders[i].customer)
+                { ordSalaries[ordCount] = employees[e].salary; break; }
+        ordCount++;
+    }
+}
+for (int i = 0; i < nycCount; i++)
+    for (int j = 0; j < ordCount; j++)
+        if (nycNames[i] == ordNames[j])
+            cout << nycNames[i] << " | " << nycSalaries[i] << "\\n";`
+      },
+      {
+        title: 'Division expressed in RA',
+        sql: `-- RA division: A \u00F7 B = \u03C0_{cols}(A) \u2212 \u03C0_{cols}((\u03C0_{cols}(A) \u00D7 B) \u2212 R)
+-- Employees who ordered ALL Electronics:
+-- \u03C0_{name}(employees) \u2212 \u03C0_{name}(
+--   (\u03C0_{name}(employees) \u00D7 \u03C0_{id}(\u03C3_{category='Electronics'}(products)))
+--   \u2212
+--   \u03C0_{name, product_id}(employees \u22C8_{name=customer} orders)
+-- )
+
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`,
+        explanation: 'Division in RA: A \u00F7 B finds all tuples in A that are related to ALL tuples in B. The formula uses Cartesian product (\u00D7) to generate all possible combinations, then removes actual relationships to find missing ones.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: Division - employees who ordered ALL Electronics
+for (int i = 0; i < employeeCount; i++) {
+    bool allOrdered = true;
+    for (int p = 0; p < productCount; p++) {
+        if (products[p].category != "Electronics") continue;
+        bool found = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id)
+                { found = true; break; }
+        }
+        if (!found) { allOrdered = false; break; }
+    }
+    if (allOrdered) cout << employees[i].name << "\\n";
+}`
+      }
+    ],
+    commonMistakes: [
+      'Confusing \u03C3 (row filter) with \u03C0 (column filter) \u2014 \u03C3 affects rows, \u03C0 affects columns',
+      'Forgetting that natural join \u22C8 automatically matches on ALL common column names (use \u03B8-join for explicit control)',
+      'Writing RA expressions that produce different column names or counts than what the SQL needs',
+      'Forgetting that RA set operations (\u222A, \u2212, \u2229) require union-compatible schemas (same column count and types)',
+      'Using \u00D7 (Cartesian product) without a join condition \u2014 produces every pair, usually unintended'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Write an RA expression and its SQL translation for: "Names and salaries of employees in Marketing who earn more than $70,000."',
+        hint: 'RA: \u03C0_{name, salary}(\u03C3_{department=\'Marketing\' \u2227 salary>70000}(employees)). SQL: SELECT name, salary FROM employees WHERE department = \'Marketing\' AND salary > 70000.',
+        solution: `-- RA: \u03C0_{name, salary}(\u03C3_{department='Marketing' \u2227 salary>70000}(employees))
+SELECT name, salary
+FROM employees
+WHERE department = 'Marketing' AND salary > 70000;`
+      },
+      {
+        question: 'Translate this RA expression to SQL: \u03C0_{name, city}(employees \u22C8_{name=customer} orders). What does it return?',
+        hint: 'The \u03B8-join combines employees with orders where employee name = order customer. Then \u03C0 projects name and city. Use DISTINCT to avoid duplicates.',
+        solution: `SELECT DISTINCT e.name, e.city
+FROM employees e
+JOIN orders o ON e.name = o.customer;`
+      },
+      {
+        question: 'Challenge: Write an RA expression and SQL for: "Find departments where every employee earns more than $50,000." Use the difference pattern: all departments minus departments that have at least one employee earning \u2264 $50k.',
+        hint: 'RA: \u03C0_{department}(employees) \u2212 \u03C0_{department}(\u03C3_{salary \u2264 50000}(employees)). SQL: SELECT DISTINCT department FROM employees EXCEPT SELECT department FROM employees WHERE salary <= 50000.',
+        solution: `-- RA: \u03C0_{department}(employees) \u2212 \u03C0_{department}(\u03C3_{salary \u2264 50000}(employees))
+SELECT DISTINCT department
+FROM employees
+EXCEPT
+SELECT department
+FROM employees
+WHERE salary <= 50000;`
+      }
+    ]
+  },
+  {
+    id: 'exam-prep',
+    title: 'Exam Prep \u2014 Midterm & Final Solutions',
+    description: 'Comprehensive exam preparation with Entity Integrity, Referential Integrity, query writing playbook, and full solutions',
+    icon: '\uD83D\uDCDD',
+    difficulty: 'advanced',
+    prerequisites: ['ddl-create', 'dml-crud', 'select', 'where', 'joins', 'subqueries', 'set-operations', 'exists-not-exists', 'division-queries', 'relational-algebra'],
+    topics: ['Exam', 'Midterm', 'Final', 'Practice', 'DDL', 'DML', 'SQL', 'RA'],
+    explanation: `Comprehensive exam preparation for your midterm and final.
+
+=== Entity Integrity vs Referential Integrity ===
+
+Entity Integrity: PRIMARY KEY columns cannot be NULL. Ensures every row is uniquely identifiable.
+  Violation: INSERT INTO employees (id, name) VALUES (NULL, 'Alice');
+  Rule: No component of a PRIMARY KEY can be NULL.
+
+Referential Integrity: FOREIGN KEY values must match a PRIMARY KEY value in the referenced table (or be NULL).
+  Violation: INSERT INTO orders (id, product_id) VALUES (1, 999); -- no product with id=999
+  Rule: A FK value must exist in the referenced PK column, or be NULL.
+
+=== Common T/F Question Patterns ===
+
+\u2022 "A PRIMARY KEY can be NULL" \u2192 FALSE (Entity Integrity)
+\u2022 "A FOREIGN KEY can be NULL" \u2192 TRUE (if not declared NOT NULL)
+\u2022 "A table can have multiple FOREIGN KEYs" \u2192 TRUE
+\u2022 "A table can have multiple PRIMARY KEYs" \u2192 FALSE (only one, but can be composite)
+\u2022 "UNIQUE allows one NULL" \u2192 TRUE (in most DBMS)
+\u2022 "DELETE removes the table structure" \u2192 FALSE (DROP does)
+\u2022 "TRUNCATE can use a WHERE clause" \u2192 FALSE (DELETE can)
+
+=== The Complete Query Writing Playbook (6 Steps) ===
+
+Step 1: What to display?
+  Identify the SELECT columns. Are there expressions? Aggregates? Aliases?
+Step 2: Which tables?
+  Identify all FROM and JOIN tables. Every column must come from one of these.
+Step 3: How to connect?
+  Identify JOIN conditions. Usually FK = PK relationships.
+Step 4: Filtering?
+  Identify WHERE conditions. Row-level filters applied before grouping.
+Step 5: Grouping?
+  Identify GROUP BY columns and HAVING conditions. Every non-aggregate in SELECT must be in GROUP BY.
+Step 6: Sorting?
+  Identify ORDER BY columns and direction (ASC/DESC). Add LIMIT if needed.
+
+=== Pattern Recognition Table ===
+
+English Phrase                    \u2192 SQL Pattern
+"who have ordered"                \u2192 EXISTS or JOIN
+"who have NOT ordered"            \u2192 NOT EXISTS
+"who ordered ALL"                 \u2192 Division (double NOT EXISTS)
+"average per department"          \u2192 GROUP BY + AVG
+"top 3"                           \u2192 ORDER BY + LIMIT
+"in both tables"                  \u2192 INTERSECT or JOIN
+"in neither table"                \u2192 NOT EXISTS or EXCEPT
+"find duplicates"                 \u2192 GROUP BY + HAVING COUNT(*) > 1
+"running total"                   \u2192 Window SUM() OVER (ORDER BY)
+"compare to department average"   \u2192 Window AVG() OVER (PARTITION BY)
+
+=== Final Exam Checklist ===
+
+Before submitting, check:
+\u2610 Every column in SELECT is valid for the tables used
+\u2610 JOINs have ON conditions (no accidental Cartesian products)
+\u2610 Non-aggregated columns are in GROUP BY
+\u2610 WHERE is for row filtering, HAVING is for group filtering
+\u2610 NOT EXISTS used instead of NOT IN (NULL-safe)
+\u2610 ORDER BY is at the end of UNION queries, not inside individual SELECTs
+\u2610 Subqueries in FROM have aliases
+\u2610 LIKE uses % wildcards, not = with %
+\u2610 NULL comparisons use IS NULL, not = NULL
+\u2610 Constraint names are unique within the schema`,
+    syntax: `-- Query Writing Playbook (6 steps):
+-- Step 1: SELECT columns (what to display?)
+-- Step 2: FROM/JOIN tables (which tables?)
+-- Step 3: ON conditions (how to connect?)
+-- Step 4: WHERE filters (row-level filtering?)
+-- Step 5: GROUP BY + HAVING (grouping?)
+-- Step 6: ORDER BY + LIMIT (sorting?)
+
+-- Pattern Recognition Quick Reference:
+-- "has/contains"          \u2192 EXISTS
+-- "does not have"         \u2192 NOT EXISTS
+-- "all / every"           \u2192 Division (double NOT EXISTS)
+-- "per department/city"   \u2192 GROUP BY
+-- "most / top / highest"  \u2192 ORDER BY DESC + LIMIT
+-- "in common"             \u2192 INTERSECT
+-- "except / but not"      \u2192 EXCEPT or NOT EXISTS`,
+    examples: [
+      {
+        title: 'Entity Integrity vs Referential Integrity',
+        sql: `-- ENTITY INTEGRITY: PRIMARY KEY cannot be NULL
+CREATE TABLE employees (
+  id INT PRIMARY KEY,   -- id cannot be NULL
+  name VARCHAR(100) NOT NULL
+);
+
+-- Violation: INSERT INTO employees VALUES (NULL, 'Alice');
+-- ERROR: null value in column "id" violates not-null constraint
+
+-- REFERENTIAL INTEGRITY: FOREIGN KEY references existing PK
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  product_id INT REFERENCES products(id)
+);
+
+-- Violation: INSERT INTO orders VALUES (1, 999);
+-- ERROR: insert or update violates foreign key constraint`,
+        explanation: 'Entity Integrity prevents NULL in PK columns \u2014 every row must be uniquely identifiable. Referential Integrity ensures FK values reference existing PK values. The first protects row identity, the second protects relationship validity.',
+      },
+      {
+        title: 'Common T/F Question Traps',
+        sql: `-- TRUE or FALSE?
+-- 1. "A table can have multiple FOREIGN KEYs" \u2192 TRUE
+--    A table can reference multiple parent tables.
+
+-- 2. "PRIMARY KEY automatically enforces UNIQUE and NOT NULL" \u2192 TRUE
+--    PK implies both constraints.
+
+-- 3. "DELETE FROM employees removes the table structure" \u2192 FALSE
+--    DELETE removes rows, not structure. DROP TABLE removes the table.
+
+-- 4. "A FOREIGN KEY column can contain NULLs" \u2192 TRUE
+--    Unless declared NOT NULL, FK columns accept NULL.
+
+-- 5. "ORDER BY can be used inside a UNION subquery" \u2192 FALSE
+--    ORDER BY applies to the entire UNION result, not individual SELECTs.
+
+-- 6. "NOT IN returns correct results even with NULLs in the subquery" \u2192 FALSE
+--    NOT IN returns empty results if the subquery contains ANY NULL.
+
+-- 7. "A composite PRIMARY KEY allows individual columns to be NULL" \u2192 FALSE
+--    No component of a PK can be NULL (Entity Integrity).`,
+        explanation: 'Exam questions test conceptual understanding of edge cases, not just syntax. Key facts to memorize: PK never allows NULL (even composite), FK allows NULL unless NOT NULL, NOT IN fails with NULLs, DELETE is DML not DDL, ORDER BY goes at the end of UNION.',
+      },
+      {
+        title: 'Query Writing Playbook in Action',
+        sql: `-- Question: "Find the names and salaries of Engineering employees
+-- who have placed orders totaling more than $500. Show highest paid first."
+
+-- Step 1: What to display?   \u2192 SELECT e.name, e.salary, SUM(o.total)
+-- Step 2: Which tables?      \u2192 FROM employees e
+-- Step 3: How to connect?    \u2192 JOIN orders o ON e.name = o.customer
+-- Step 4: Filtering?         \u2192 WHERE e.department = 'Engineering'
+-- Step 5: Grouping?          \u2192 GROUP BY e.name, e.salary
+--                              HAVING SUM(o.total) > 500
+-- Step 6: Sorting?           \u2192 ORDER BY e.salary DESC
+
+SELECT e.name, e.salary, SUM(o.total) AS total_ordered
+FROM employees e
+JOIN orders o ON e.name = o.customer
+WHERE e.department = 'Engineering'
+GROUP BY e.name, e.salary
+HAVING SUM(o.total) > 500
+ORDER BY e.salary DESC;`,
+        explanation: 'Walk through all 6 steps systematically. Step 5 (GROUP BY) is needed because the question asks for total per employee. If the question was "who placed at least one order over $500", you could skip GROUP BY and just use WHERE o.total > 500.',
+      },
+      {
+        title: 'Full Exam-Style Solution',
+        sql: `-- Question: "List all products that have been ordered by EVERY employee
+-- in the Marketing department. Show the product name and category."
+
+-- Step 1: Display:      \u2192 p.name, p.category
+-- Step 2: Tables:       \u2192 products p, orders o, employees e
+-- Step 3: Connect:      \u2192 p.id = o.product_id, o.customer = e.name
+-- Step 4: Filter:       \u2192 e.department = 'Marketing'
+-- Step 5: Grouping:     \u2192 Division pattern (for ALL)
+-- Step 6: Sort:         \u2192 ORDER BY p.name
+
+-- This is a division query in reverse: products ordered by ALL Marketing employees.
+
+SELECT p.name, p.category
+FROM products p
+WHERE NOT EXISTS (
+  SELECT e.name FROM employees e
+  WHERE e.department = 'Marketing'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+)
+ORDER BY p.name;
+
+-- Alternative: COUNT approach
+SELECT p.name, p.category
+FROM products p
+WHERE (
+  SELECT COUNT(DISTINCT e.name)
+  FROM employees e
+  JOIN orders o ON e.name = o.customer
+  WHERE e.department = 'Marketing'
+    AND o.product_id = p.id
+) = (
+  SELECT COUNT(*) FROM employees WHERE department = 'Marketing'
+)
+ORDER BY p.name;`,
+        explanation: 'A division query in reverse: instead of "employees who ordered ALL products", it asks for "products ordered by ALL employees" of a department. The double NOT EXISTS pattern adapts naturally to either direction by swapping which entity is the outer loop.',
+      }
+    ],
+    commonMistakes: [
+      'Aggregate in WHERE: Using aggregate functions like COUNT() directly in WHERE. Wrong: SELECT department FROM employees WHERE COUNT(*) > 5; Correct: Use HAVING: SELECT department FROM employees GROUP BY department HAVING COUNT(*) > 5;',
+      'LIKE with =: Using = instead of LIKE for pattern matching. Wrong: WHERE name = \'%son%\'; Correct: WHERE name LIKE \'%son%\';',
+      'Missing join condition: Writing a JOIN without an ON clause (accidental Cartesian product). Wrong: SELECT * FROM employees JOIN orders; Correct: SELECT * FROM employees JOIN orders ON employees.name = orders.customer;',
+      'Incompatible UNION: UNION queries with mismatched column counts or types. Wrong: SELECT name, salary FROM employees UNION SELECT id FROM products; Correct: Both SELECTs must have the same number and compatible types of columns.',
+      'ORDER BY inside UNION: Using ORDER BY in individual SELECTs within a UNION. Wrong: SELECT name FROM employees ORDER BY name UNION SELECT name FROM products; Correct: ORDER BY goes at the very end of the entire UNION statement.',
+      'NULL check with =: Using = NULL instead of IS NULL. Wrong: WHERE name = NULL; Correct: WHERE name IS NULL; (NULL is not a value, it is the absence of a value.)',
+      'Forgetting GROUP BY: Selecting non-aggregated columns with aggregates. Wrong: SELECT department, COUNT(*) FROM employees; Correct: SELECT department, COUNT(*) FROM employees GROUP BY department;',
+      'Column not in GROUP BY: Selecting a column that is neither in GROUP BY nor an aggregate. Wrong: SELECT name, department, COUNT(*) FROM employees GROUP BY department; Correct: Remove name from SELECT or add it to GROUP BY.',
+      'No alias for subquery in FROM: Every derived table must have an alias. Wrong: SELECT * FROM (SELECT name FROM employees); Correct: SELECT * FROM (SELECT name FROM employees) AS e;',
+      'NOT IN with NULLs: NOT IN returns empty results if the subquery contains any NULL. Wrong: WHERE id NOT IN (SELECT manager_id FROM employees); Correct: Use NOT EXISTS instead to avoid NULL issues.',
+      'Wrong FK placement: Foreign key on the wrong table. Wrong: Adding FK to the parent table referencing the child. Correct: FK goes on the child (referencing) table pointing to the parent (referenced) table.',
+      'Duplicate constraint name: Reusing the same constraint name within the same schema. Wrong: Two tables both using CONSTRAINT pk_id PRIMARY KEY (id); Correct: Use unique names like pk_employees and pk_products.'
+    ],
+    practiceQuestions: [
+      {
+        question: 'Step-by-step: Use the 6-step playbook to write a query. Question: "Find departments where the average salary is above $80,000. Show department name and average salary, sorted by highest average first." Walk through each step before writing the final query.',
+        hint: 'Step 1: SELECT department, AVG(salary). Step 2: FROM employees. Step 3: No JOIN. Step 4: No WHERE. Step 5: GROUP BY department HAVING AVG(salary) > 80000. Step 6: ORDER BY AVG(salary) DESC.',
+        solution: `-- Step 1: What to display? \u2192 department, AVG(salary)
+-- Step 2: Which tables? \u2192 employees
+-- Step 3: How to connect? \u2192 No join (single table)
+-- Step 4: Filtering? \u2192 No row-level filter
+-- Step 5: Grouping? \u2192 GROUP BY department
+--         HAVING AVG(salary) > 80000
+-- Step 6: Sorting? \u2192 ORDER BY avg_salary DESC
+
+SELECT department, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department
+HAVING AVG(salary) > 80000
+ORDER BY avg_salary DESC;`
+      },
+      {
+        question: 'Debugging: The following query has TWO errors. Identify and fix them. Query: SELECT name, department, COUNT(*) FROM employees WHERE COUNT(*) > 2 ORDER BY department;',
+        hint: 'Error 1: COUNT(*) in WHERE (use HAVING instead). Error 2: name and department are not in GROUP BY. Fix: Remove name, add GROUP BY department, and move the COUNT filter to HAVING.',
+        solution: `-- Error 1: Aggregate COUNT(*) used in WHERE clause
+-- Error 2: Column 'name' selected but not in GROUP BY
+-- Fixed query:
+SELECT department, COUNT(*)
+FROM employees
+GROUP BY department
+HAVING COUNT(*) > 2
+ORDER BY department;`
+      },
+      {
+        question: 'True or False: Explain why each statement is T or F. (a) NOT IN (SELECT ...) is always equivalent to NOT EXISTS (SELECT ...). (b) A FOREIGN KEY column can contain duplicate values. (c) TRUNCATE TABLE removes all rows and resets the identity counter. (d) You can use ORDER BY inside an individual SELECT of a UNION.',
+        hint: '(a) FALSE \u2014 NOT IN fails with NULLs in subquery. (b) TRUE \u2014 FK allows duplicates unless UNIQUE. (c) TRUE \u2014 TRUNCATE resets identity counters. (d) FALSE \u2014 ORDER BY goes at the end of the entire UNION.',
+        solution: `-- (a) FALSE: NOT IN returns empty if subquery contains ANY NULL.
+-- NOT EXISTS handles NULLs correctly. Prefer NOT EXISTS.
+
+-- (b) TRUE: A FOREIGN KEY column can have duplicates
+-- unless it also has a UNIQUE constraint. FK only ensures
+-- values exist in the parent table.
+
+-- (c) TRUE: TRUNCATE TABLE removes all rows and resets
+-- auto-increment/identity counters. It is DDL, not DML.
+
+-- (d) FALSE: ORDER BY cannot be used inside individual
+-- SELECT statements of a UNION. It must be at the very end,
+-- applying to the entire UNION result.`
+      },
+      {
+        question: 'Challenge (exam-style): "Find the name of the employee who has spent the most money across all their orders. Show their name and total amount spent. If there is a tie, show all tied employees."',
+        hint: 'Use a window function: RANK() OVER (ORDER BY SUM(o.total) DESC). Wrap in a subquery and filter WHERE rnk = 1 to handle ties.',
+        solution: `SELECT name, total_spent
+FROM (
+  SELECT e.name, SUM(o.total) AS total_spent,
+         RANK() OVER (ORDER BY SUM(o.total) DESC) AS rnk
+  FROM employees e
+  JOIN orders o ON e.name = o.customer
+  GROUP BY e.name
+) ranked
+WHERE rnk = 1
+ORDER BY name;`
       }
     ]
   }
