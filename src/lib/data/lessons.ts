@@ -725,17 +725,22 @@ WHERE (name LIKE 'A%' OR name LIKE 'B%' OR name LIKE 'C%' OR name LIKE 'D%' OR n
     difficulty: 'beginner',
     prerequisites: ['select'],
     topics: ['ORDER BY', 'ASC', 'DESC', 'multiple columns'],
-    explanation: `ORDER BY sorts the result set. You can sort by one or more columns, in ascending (ASC, default) or descending (DESC) order.
-
-Sorting applies after filtering (WHERE) but before limiting (LIMIT).
-
-NULL values sort last by default in PostgreSQL (NULLS LAST), first in some other databases.
+    explanation: `ORDER BY sorts the result set. You can sort by one or more columns, ascending (ASC, default) or descending (DESC).
 
 ── ORDER BY Rules ──
-- Can sort by column name, alias, or numeric position (e.g., ORDER BY 3, 2 DESC)
-- Multiple sort keys: ORDER BY col1 ASC, col2 DESC (col1 primary, col2 secondary)
-- In UNION: only ONE ORDER BY at the very end
-- ORDER BY can use expressions and CASE for custom sort logic`,
+- Can sort by column NAME, ALIAS, or numeric POSITION (ORDER BY 3, 2 DESC)
+- Multiple keys: ORDER BY col1 ASC, col2 DESC (col1 = primary sort, col2 = tiebreaker)
+- In UNION: only ONE ORDER BY at the very END
+- Can use expressions: ORDER BY LENGTH(name) DESC, CASE WHEN status='active' THEN 1 ELSE 2 END
+- Execution order: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT
+
+── NULLs Sorting ──
+| Database     | NULLs First? | Override              |
+|--------------|:------------:|-----------------------|
+| PostgreSQL   | Last (ASC)   | NULLS FIRST / NULLS LAST |
+| MySQL        | First (ASC)  | No override           |
+| SQL Server   | First (ASC)  | No override           |
+| Oracle       | Last (ASC)   | NULLS FIRST / NULLS LAST |`,
     syntax: `SELECT column1, column2
 FROM table_name
 ORDER BY column1 ASC, column2 DESC;
@@ -1711,7 +1716,7 @@ ORDER BY total_potential_revenue DESC;`
 |------------------|--------------------------------|---------------------------------|
 | When it runs     | BEFORE GROUP BY (filters rows) | AFTER GROUP BY (filters groups) |
 | Aggregate fns    | ❌ Cannot use                  | ✅ Can use COUNT, SUM, AVG etc  |
-| Column aliases   | ✅ Can use                     | ❌ Cannot use (in most DBs)     |
+| Column aliases   | ✅ Can use                     | ❌ Cannot use (standard SQL — MySQL allows it) |
 | Without GROUP BY | ✅ Works fine                  | ⚠ Possible but rarely correct  |
 
 The key difference: WHERE filters BEFORE grouping, HAVING filters AFTER grouping.
@@ -3186,13 +3191,36 @@ LIMIT 1;`
     difficulty: 'intermediate',
     prerequisites: ['select', 'where'],
     topics: ['CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'conditional aggregation'],
-    explanation: `CASE WHEN is SQL's version of if-then-else logic. It evaluates conditions sequentially and returns a value when the first condition is true.
+    explanation: `── Two Forms of CASE ──
+| Form          | Syntax                                          | Use When                                |
+|---------------|-------------------------------------------------|-----------------------------------------|
+| Simple CASE   | CASE expr WHEN val1 THEN ... WHEN val2 THEN ... | Comparing ONE expression to many values |
+| Searched CASE | CASE WHEN condition1 THEN ... WHEN condition2   | Evaluating different boolean conditions |
 
-Two forms:
-- Simple CASE: Compares one expression to multiple values
-- Searched CASE: Evaluates multiple boolean conditions
+Simple CASE = switch/case on a single expression. Searched CASE = if/else if with arbitrary boolean logic.
 
-CASE can be used in SELECT, WHERE, ORDER BY, and GROUP BY.`,
+── How CASE Evaluates ──
+- Conditions evaluate TOP TO BOTTOM
+- Returns the value from the FIRST matching WHEN
+- If no WHEN matches and no ELSE → returns NULL
+- ELSE is optional but recommended
+
+── Where CASE Can Be Used ──
+| Clause    | Example                                        |
+|-----------|------------------------------------------------|
+| SELECT    | SELECT name, CASE WHEN ... END AS grade        |
+| WHERE     | WHERE CASE WHEN role='admin' THEN 1 ELSE 0 END = 1 |
+| ORDER BY  | ORDER BY CASE status WHEN 'active' THEN 1 ELSE 2 END |
+| GROUP BY  | GROUP BY CASE WHEN age < 18 THEN 'minor' ELSE 'adult' END |
+
+── CASE with Aggregate Functions (Pivot Pattern) ──
+Count values conditionally inside a single query:
+  SELECT
+    COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_count,
+    COUNT(CASE WHEN status = 'inactive' THEN 1 END) AS inactive_count
+  FROM users;
+
+This avoids multiple queries — one scan, multiple conditional counts.`,
     syntax: `-- Searched CASE (most common)
 SELECT 
   name,
@@ -3529,11 +3557,40 @@ ORDER BY grand_total DESC;`
     difficulty: 'intermediate',
     prerequisites: ['subqueries', 'select'],
     topics: ['WITH', 'CTE', 'readability', 'multiple CTEs'],
-    explanation: `A CTE (Common Table Expression) is a named temporary result set that you can reference within a query. Defined using the WITH keyword.
+    explanation: `── What a CTE Is ──
+A CTE (Common Table Expression) is a named temporary result set defined with WITH.
+It exists only for the duration of the query — like a view that lives for one statement.
 
-CTEs make complex queries more readable by breaking them into logical steps. Unlike subqueries, you can reference a CTE multiple times in the same query.
+── CTE vs Subquery ──
+| Aspect             | CTE                                      | Subquery                                |
+|--------------------|------------------------------------------|-----------------------------------------|
+| Syntax             | WITH name AS (...) SELECT ...            | SELECT ... FROM (SELECT ...)            |
+| Reusable           | ✅ Can reference the CTE MULTIPLE times  | ❌ Must rewrite or nest again           |
+| Readability        | ✅ Read top-to-bottom (linear flow)      | ❌ Nested inside-out (harder to follow) |
+| Recursive          | ✅ WITH RECURSIVE                        | ❌ Cannot be recursive                  |
+| Scope              | Defined once, used in subsequent query   | Exists only inside the enclosing query  |
 
-CTEs are not materialized by default in PostgreSQL — they act like views that exist only for the duration of the query.`,
+── Multiple CTEs ──
+WITH
+  cte1 AS (SELECT ...),
+  cte2 AS (SELECT ... FROM cte1 ...)   -- cte2 can reference cte1
+SELECT * FROM cte2;
+
+── CTE Rules ──
+- CTEs must come BEFORE the main query
+- Separate multiple CTEs with commas (no WITH keyword after the first)
+- A CTE can reference previously defined CTEs (chaining)
+- CTEs are NOT materialized by default (PostgreSQL) — they re-execute each time they're referenced
+- Use CTEs for readability; use temp tables for performance if referenced multiple times
+
+── WITH RECURSIVE ──
+Recursive CTEs reference themselves to process hierarchical data (org charts, categories, tree structures):
+  WITH RECURSIVE cte AS (
+    SELECT ... WHERE parent IS NULL    -- anchor: start with root
+    UNION ALL
+    SELECT ... FROM cte JOIN ...       -- recursive: join back to cte
+  )
+  SELECT * FROM cte;`,
     syntax: `-- Basic CTE
 WITH sales_summary AS (
   SELECT 
@@ -4021,17 +4078,53 @@ ORDER BY percentage DESC;`
     difficulty: 'advanced',
     prerequisites: ['group-by', 'order-by'],
     topics: ['OVER', 'PARTITION BY', 'ORDER BY in window', 'frame clause', 'ROWS', 'RANGE'],
-    explanation: `Window functions perform calculations across a set of rows related to the current row, while preserving individual row details.
+    explanation: `── What a Window Function Does ──
+A window function calculates a value across a set of rows related to the current row,
+but WITHOUT collapsing rows — every original row is preserved with the window result added.
 
-Unlike GROUP BY, window functions do NOT collapse rows — each row retains its identity.
+── Window Function vs GROUP BY ──
+| Aspect         | GROUP BY                          | Window Function                          |
+|----------------|-----------------------------------|------------------------------------------|
+| Row count      | Collapses groups → fewer rows     | Preserves all rows                       |
+| Per-row detail | Lost (only group-level remains)   | Retained (individual + aggregate shown)  |
+| Use case       | "Total sales per department"      | "Each employee + their dept average"     |
 
-Key concepts:
-- OVER(): Defines the window (set of rows)
-- PARTITION BY: Divides rows into groups (optional)
-- ORDER BY: Orders rows within the partition
-- Frame: ROWS BETWEEN, RANGE BETWEEN (defines the sliding window)
+── Window Function Parts ──
+function_name() OVER (
+  PARTITION BY col1, col2     -- groups (optional) — like GROUP BY for the window
+  ORDER BY col3               -- ordering within each partition
+  frame_clause                — defines the sliding window (ROWS/RANGE BETWEEN)
+)
 
-PostgreSQL is one of the most standards-compliant databases for window functions.`,
+── The Frame Clause ──
+ROWS BETWEEN start AND end (or RANGE for logical offset)
+| Frame Boundary  | Meaning                              |
+|-----------------|--------------------------------------|
+| UNBOUNDED PRECEDING | From the first row of the partition |
+| n PRECEDING     | n rows before the current row        |
+| CURRENT ROW     | The current row                      |
+| n FOLLOWING     | n rows after the current row         |
+| UNBOUNDED FOLLOWING | To the last row of the partition |
+
+Default frame (with ORDER BY): RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+Default frame (without ORDER BY): entire partition
+
+── Execution Order ──
+FROM → WHERE → GROUP BY → HAVING → WINDOW FUNCTIONS → SELECT (projection) → ORDER BY
+
+Window functions run AFTER WHERE and GROUP BY but BEFORE ORDER BY.
+That's why you CANNOT use window results in WHERE — they don't exist yet.
+
+── Common Window Functions ──
+| Function      | Purpose                               |
+|---------------|---------------------------------------|
+| SUM/AVG/COUNT | Running totals, moving averages       |
+| ROW_NUMBER    | Unique row number within partition    |
+| RANK          | Rank with gaps for ties               |
+| DENSE_RANK    | Rank without gaps                     |
+| LAG/LEAD      | Access previous/next row values       |
+| FIRST_VALUE   | First value in the window frame       |
+| NTILE         | Divide rows into N buckets            |`,
     syntax: `-- Basic window function
 SELECT 
   name,
@@ -4486,15 +4579,31 @@ ORDER BY department, salary DESC;`
     difficulty: 'advanced',
     prerequisites: ['window-functions'],
     topics: ['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'NTILE'],
-    explanation: `These three ranking functions assign a number to each row within a partition. The key difference is how they handle ties:
+    explanation: `── Ranking Functions Comparison ──
+Given data sorted by salary DESC (ties: two people earn 100K):
 
-ROW_NUMBER: Assigns a unique number to each row (1, 2, 3, 4, ...). Ties are broken arbitrarily (or by ORDER BY).
+| Name   | Salary | ROW_NUMBER | RANK | DENSE_RANK | NTILE(4) |
+|--------|--------|------------|------|------------|----------|
+| Alice  | 100K   | 1          | 1    | 1          | 1        |
+| Bob    | 100K   | 2          | 1    | 1          | 1        |
+| Carol  | 90K    | 3          | 3    | 2          | 2        |
+| Dave   | 80K    | 4          | 4    | 3          | 2        |
+| Eve    | 70K    | 5          | 5    | 4          | 3        |
+| Frank  | 60K    | 6          | 6    | 5          | 4        |
 
-RANK: Same rank for ties, then skips the next rank(s). Example: 1, 1, 3, 4.
+── When to Use Each ──
+| Function    | Behavior with Ties         | Skip gaps? | Best For                              |
+|-------------|----------------------------|------------|---------------------------------------|
+| ROW_NUMBER  | Unique for EVERY row       | N/A        | Pagination, dedup, top-N-per-group    |
+| RANK        | Same rank for ties         | ✅ Skips   | "Top 3" that includes ties (N might exceed 3) |
+| DENSE_RANK  | Same rank for ties         | ❌ No skip | "Top 3" that stops exactly at 3       |
+| NTILE(n)    | Divides into n buckets     | N/A        | Quartiles, deciles, equal groups      |
 
-DENSE_RANK: Same rank for ties, but does NOT skip ranks. Example: 1, 1, 2, 3.
-
-NTILE(n): Divides rows into n roughly equal buckets.`,
+── ROW_NUMBER vs RANK vs DENSE_RANK Quick Rule ──
+- Need unique numbers? → ROW_NUMBER
+- Ties get same rank, accept gaps? → RANK
+- Ties get same rank, no gaps? → DENSE_RANK
+- Need even groups? → NTILE`,
     syntax: `SELECT 
   name,
   department,
@@ -4870,19 +4979,28 @@ ORDER BY customer, order_date;`
     difficulty: 'intermediate',
     prerequisites: ['select'],
     topics: ['CONCAT', 'SUBSTRING', 'REPLACE', 'TRIM', 'UPPER', 'LOWER', 'LENGTH', 'POSITION'],
-    explanation: `SQL provides a rich set of string functions to manipulate text data. PostgreSQL has one of the most comprehensive implementations.
+    explanation: `── String Function Reference ──
+| Function              | What It Does                  | Input Example               | Output                    |
+|-----------------------|-------------------------------|-----------------------------|---------------------------|
+| CONCAT(a, b) / a \|\| b | Join strings                | CONCAT('Hello', ' World')   | 'Hello World'             |
+| SUBSTRING(str FROM p FOR n) | Extract part             | SUBSTRING('Hello' FROM 2 FOR 3) | 'ell'               |
+| REPLACE(str, old, new)| Replace substring            | REPLACE('Hi', 'Hi', 'Bye')  | 'Bye'                     |
+| TRIM(str)             | Remove leading/trailing spaces| TRIM('  hi  ')              | 'hi'                      |
+| UPPER(str)            | Convert to uppercase         | UPPER('hello')              | 'HELLO'                   |
+| LOWER(str)            | Convert to lowercase         | LOWER('HELLO')              | 'hello'                   |
+| LENGTH(str)           | Count characters             | LENGTH('Hello')             | 5                         |
+| POSITION(sub IN str)  | Find substring position      | POSITION('ll' IN 'Hello')   | 3                         |
+| LPAD(str, n, pad)     | Pad on the left              | LPAD('7', 3, '0')           | '007'                     |
+| RPAD(str, n, pad)     | Pad on the right             | RPAD('7', 3, '0')           | '700'                     |
+| LEFT(str, n)          | First n characters           | LEFT('Hello', 2)            | 'He'                      |
+| RIGHT(str, n)         | Last n characters            | RIGHT('Hello', 2)           | 'lo'                      |
 
-Key functions:
-- CONCAT / ||: Join strings together
-- SUBSTRING: Extract part of a string
-- REPLACE: Replace occurrences of a substring
-- TRIM / LTRIM / RTRIM: Remove whitespace
-- UPPER / LOWER: Change case
-- LENGTH: Get string length
-- POSITION / STRPOS: Find substring position
-- LPAD / RPAD: Pad strings to a length
-
-PostgreSQL also supports function chaining: UPPER(TRIM(column)) works naturally.`,
+── Golden Rules ──
+- Functions CAN be nested: UPPER(TRIM(column)) works naturally
+- LENGTH counts characters, not bytes (in PostgreSQL)
+- POSITION is case-sensitive; use LOWER() for case-insensitive search
+- || is the SQL standard concatenation operator; CONCAT() is also standard
+- TRIM by default removes spaces; use TRIM(LEADING/TRAILING char FROM str) for custom chars`,
     syntax: `-- Concatenation
 SELECT CONCAT(first_name, ' ', last_name) AS full_name;
 -- or using ||
@@ -5092,15 +5210,32 @@ ORDER BY id;`
     difficulty: 'intermediate',
     prerequisites: ['where'],
     topics: ['LIKE', 'ILIKE', 'SIMILAR TO', 'regex', '~', '~*', 'regexp_replace', 'regexp_match'],
-    explanation: `SQL offers multiple ways to search for patterns in text data, from simple wildcards to full regular expressions.
+    explanation: `── Pattern Matching Methods ──
+| Method            | What It Does                     | Example                         | Standard?  |
+|-------------------|----------------------------------|---------------------------------|------------|
+| LIKE              | % (any seq) and _ (one char)     | WHERE name LIKE 'A%'            | ✅ SQL std |
+| ILIKE             | LIKE but case-insensitive        | WHERE name ILIKE 'alice'        | ❌ PG only |
+| ~ (tilde)         | POSIX regular expression match   | WHERE email ~ '^a.*\\.com$'     | ❌ PG only |
+| ~*                | Case-insensitive regex match     | WHERE name ~* '^john'           | ❌ PG only |
+| !~ / !~*          | Negated regex match              | WHERE email !~ '^test'          | ❌ PG only |
+| regexp_match()    | Extract first regex match        | regexp_match(email, '@(.+)$')   | ❌ PG only |
+| regexp_replace()  | Replace using regex              | regexp_replace(text, '\d+', '#')| ❌ PG only |
 
-Comparison of approaches:
-- LIKE: Simple wildcard matching (% for any sequence, _ for single char)
-- ILIKE: Case-insensitive LIKE (PostgreSQL extension)
-- ~ : POSIX regex match (PostgreSQL)
-- regexp_match() / regexp_replace(): Regex functions (PostgreSQL)
+── LIKE Wildcards ──
+| Pattern    | Meaning                        | Matches                     |
+|------------|--------------------------------|-----------------------------|
+| 'A%'       | Starts with A                  | 'Alice', 'Andrew'           |
+| '%son'     | Ends with "son"                | 'Johnson', 'Stevenson'      |
+| '%Data%'   | Contains "Data" anywhere       | 'Database', 'Data Mining'   |
+| '_r%'      | Any char then 'r'              | 'Oracle', 'Arabi**c**' (if 'c' was 'r'...) |
+| '___'      | Exactly 3 chars                | 'ABC', '123'                |
+| '%[0-9]%'  | Contains digit                 | ❌ NOT LIKE — SQL doesn't support char classes |
+| '%\%%'     | Literal % sign                 | ESCAPE '\\' or 'ESCAPE' clause |
 
-The examples below use LIKE and INSTR which work in all SQL databases. PostgreSQL also supports POSIX regex operators (~, ~*) and regexp_* functions for more advanced use cases.`,
+── LIKE vs Regex: When to Use ──
+- LIKE: Simple wildcards, starts-with/ends-with/contains — fast, portable
+- Regex: Complex patterns, alternation (cat|dog), quantifiers {2,5}, character classes [A-Z0-9]
+- Default: use LIKE unless you NEED regex power`,
     syntax: `-- LIKE wildcards
 SELECT * FROM users WHERE email LIKE '%@gmail.com';
 SELECT * FROM products WHERE sku LIKE 'ABC_'; -- _ = single char
@@ -5263,14 +5398,34 @@ ORDER BY price DESC;`
     difficulty: 'intermediate',
     prerequisites: ['select'],
     topics: ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT', 'set operations'],
-    explanation: `Set operations combine results from multiple SELECT queries into a single result set. Each SELECT must have the same number of columns with compatible data types.
+    explanation: `── Set Operation Comparison ──
+| Operation   | Result                          | Duplicates? | Use Case                         |
+|-------------|---------------------------------|-------------|----------------------------------|
+| UNION       | Rows from query1 OR query2      | No          | Combine distinct results         |
+| UNION ALL   | Rows from query1 OR query2      | Yes         | Combine all results (faster)     |
+| INTERSECT   | Rows in BOTH query1 AND query2  | No          | "In both tables"                 |
+| EXCEPT      | Rows in query1 BUT NOT query2   | No          | "In one but not the other"       |
 
-UNION: Combines results, removing duplicates (slower due to sort/distinct).
-UNION ALL: Combines results, keeping all duplicates (faster).
-INTERSECT: Returns rows that appear in both result sets.
-EXCEPT: Returns rows from the first result set that are NOT in the second.
+── UNION vs JOIN ──
+JOIN combines columns HORIZONTALLY → more columns, same or fewer rows
+UNION combines rows VERTICALLY → same columns, more rows
 
-Unlike JOINs which combine columns from different tables horizontally, set operations stack results vertically.`,
+── Set Operation Rules ──
+- Each SELECT must have the SAME NUMBER of columns
+- Corresponding columns must have COMPATIBLE data types
+- Column names come from the FIRST SELECT
+- Only ONE ORDER BY at the very END (applies to the whole result)
+- ORDER BY must use column names from the first SELECT (or position)
+- INTERSECT and EXCEPT are NOT supported in MySQL (use IN/NOT IN instead)
+
+── INTERSECT vs INNER JOIN ──
+INTERSECT: "Which cities have both customers AND suppliers?"
+  SELECT city FROM customers INTERSECT SELECT city FROM suppliers
+  → Returns city names (result has one column from each query)
+
+INNER JOIN: "Show me customers and their supplier cities"
+  SELECT c.*, s.city FROM customers c JOIN suppliers s ON c.city = s.city
+  → Returns combined rows (result has columns from both tables)`,
     syntax: `-- UNION (removes duplicates)
 SELECT city FROM customers
 UNION
@@ -5659,19 +5814,41 @@ ORDER BY e1.salary;`
     difficulty: 'beginner',
     prerequisites: [],
     topics: ['CREATE TABLE', 'data types', 'PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'NOT NULL', 'DEFAULT', 'CHECK', 'IDENTITY', 'composite key', 'ON DELETE', 'ON UPDATE'],
-    explanation: `CREATE TABLE defines a new table's structure: column names, data types, and constraints.
+    explanation: `── Data Types (Common) ──
+| Type              | What It Stores              | Example                     |
+|-------------------|-----------------------------|-----------------------------|
+| INT / INTEGER     | Whole numbers               | id INT                      |
+| VARCHAR(n)        | Variable text (up to n)     | name VARCHAR(100)           |
+| CHAR(n)           | Fixed-length text           | code CHAR(3)                |
+| FLOAT / REAL      | Approximate decimal         | gpa FLOAT                   |
+| DECIMAL(p,s)      | Exact decimal (p digits, s scale) | price DECIMAL(10,2)   |
+| DATE              | Date (no time)              | birth_date DATE             |
+| BOOLEAN           | True/false                  | is_active BOOLEAN           |
+| TEXT              | Unlimited text              | description TEXT             |
 
-Data types: INT, VARCHAR(n), CHAR(n), FLOAT, DECIMAL(p,s), DATE, BOOLEAN, TEXT.
+── Constraint Reference ──
+| Constraint     | Purpose                              | Column-level | Table-level  |
+|----------------|--------------------------------------|:------------:|:------------:|
+| NOT NULL       | Column cannot be NULL                | ✅           | ❌           |
+| UNIQUE         | All values must differ               | ✅           | ✅ (composite) |
+| PRIMARY KEY    | NOT NULL + UNIQUE (row identifier)   | ✅           | ✅ (composite) |
+| FOREIGN KEY    | References PK in another table       | ✅           | ✅           |
+| CHECK          | Validates against boolean expression | ✅           | ✅           |
+| DEFAULT        | Fallback value when none provided    | ✅           | ❌           |
 
-Constraints enforce rules on your data:
-- NOT NULL — column cannot store NULL
-- UNIQUE — all values in column must be different
-- PRIMARY KEY — NOT NULL + UNIQUE (identifies each row)
-- FOREIGN KEY — references a column in another table
-- CHECK — validates values against a boolean expression
-- DEFAULT — sets a fallback value when none is provided
+── Column-Level vs Table-Level ──
+Column-level: written right after the column's data type
+  id INT PRIMARY KEY
 
-Column-level constraints apply to one column. Table-level constraints can span multiple columns (e.g., composite PRIMARY KEY).`,
+Table-level: written after all columns, can reference multiple columns
+  PRIMARY KEY (order_id, product_id)     -- composite PK
+  FOREIGN KEY (dept_id) REFERENCES departments(id)
+
+── Common Patterns ──
+- Surrogate PK: id INT PRIMARY KEY or id INT GENERATED ALWAYS AS IDENTITY
+- Natural PK: ssn VARCHAR(11) PRIMARY KEY (use when data naturally unique)
+- FK with delete: FOREIGN KEY (dept_id) REFERENCES departments(id) ON DELETE CASCADE
+- Multiple FKs: a table can reference MANY different parent tables`,
     syntax: `CREATE TABLE table_name (
   column1 data_type constraint,
   column2 data_type constraint,
@@ -5895,18 +6072,40 @@ void insertEmployee(Employee e) {
     difficulty: 'beginner',
     prerequisites: ['select', 'ddl-create'],
     topics: ['INSERT', 'UPDATE', 'DELETE', 'INSERT INTO SELECT', 'TRUNCATE vs DELETE vs DROP'],
-    explanation: `DML (Data Manipulation Language) modifies the data stored in tables.
+    explanation: `── DML Operations ──
+| Operation | SQL Keyword | What It Does                     | WHERE Clause? |
+|-----------|-------------|----------------------------------|:-------------:|
+| Create    | INSERT      | Adds new rows                    | ❌ N/A        |
+| Read      | SELECT      | Retrieves rows (technically DQL) | ✅ Optional   |
+| Update    | UPDATE      | Modifies existing rows           | ⚠ Necessary! |
+| Delete    | DELETE      | Removes existing rows            | ⚠ Necessary! |
 
-INSERT adds new rows. Three forms: all columns, named columns, and INSERT INTO SELECT.
+── INSERT Variants ──
+INSERT INTO table VALUES (val1, val2);                 -- all columns (positional)
+INSERT INTO table (col1, col2) VALUES (val1, val2);    -- named columns (safer)
+INSERT INTO table (col1) SELECT col1 FROM other;       -- insert from query
 
-UPDATE modifies existing rows. Always use a WHERE clause unless you intend to update every row.
+── UPDATE Rules ──
+- WITHOUT WHERE → updates EVERY row (dangerous!)
+- SET can include expressions: SET salary = salary * 1.1
+- Can reference other columns: SET full_name = first_name || ' ' || last_name
 
-DELETE removes rows. Always use a WHERE clause unless you intend to empty the table.
+── DELETE Rules ──
+- WITHOUT WHERE → deletes EVERY row (dangerous!)
+- DELETE does NOT reset identity/auto-increment counters
+- Use TRUNCATE instead to reset counters and free storage
 
-Key difference between DROP, TRUNCATE, and DELETE:
-- DELETE: removes rows, can use WHERE, fires triggers, can be rolled back
-- TRUNCATE: removes all rows, cannot use WHERE, resets identity/auto-increment, minimal logging
-- DROP: removes the entire table structure and all data`,
+── DELETE vs TRUNCATE vs DROP ──
+| Operation | Removes | Structure? | Can WHERE? | Triggers? | Rollback? | Identity Reset? |
+|-----------|---------|:----------:|:----------:|:---------:|:---------:|:---------------:|
+| DELETE    | Rows    | ✅ Kept    | ✅ Yes     | ✅ Fires  | ✅ Yes    | ❌ No           |
+| TRUNCATE  | Rows    | ✅ Kept    | ❌ No      | ❌ No     | ⚠ Depends | ✅ Yes          |
+| DROP      | Rows+Table | ❌ Gone | ❌ No      | ❌ No     | ⚠ Depends | N/A             |
+
+── Golden Rules ──
+- Always test UPDATE/DELETE with SELECT first to see which rows match
+- Use transactions: BEGIN; UPDATE ...; ROLLBACK; to test safely
+- INSERT INTO SELECT is the most efficient way to copy data between tables`,
     syntax: `-- INSERT all columns (values in column order)
 INSERT INTO table_name
 VALUES (val1, val2, val3);
@@ -6060,19 +6259,39 @@ WHERE order_date < '2024-01-01';`
     difficulty: 'intermediate',
     prerequisites: ['ddl-create', 'dml-crud'],
     topics: ['ALTER TABLE', 'ADD COLUMN', 'DROP COLUMN', 'ALTER COLUMN', 'ADD CONSTRAINT', 'DROP CONSTRAINT', 'DROP TABLE', 'TRUNCATE TABLE'],
-    explanation: `ALTER TABLE modifies an existing table's structure without losing the data inside it.
+    explanation: `── ALTER TABLE Operations ──
+| Operation         | SQL Syntax                                          | What It Does                         |
+|-------------------|-----------------------------------------------------|--------------------------------------|
+| ADD COLUMN        | ALTER TABLE t ADD COLUMN c type constraint          | Adds a new column                    |
+| DROP COLUMN       | ALTER TABLE t DROP COLUMN c                         | Removes an existing column           |
+| ALTER TYPE        | ALTER TABLE t ALTER COLUMN c TYPE new_type          | Changes column data type             |
+| SET DEFAULT       | ALTER TABLE t ALTER COLUMN c SET DEFAULT value      | Sets a default value                 |
+| DROP DEFAULT      | ALTER TABLE t ALTER COLUMN c DROP DEFAULT           | Removes the default                  |
+| SET NOT NULL      | ALTER TABLE t ALTER COLUMN c SET NOT NULL           | Makes column required                |
+| DROP NOT NULL     | ALTER TABLE t ALTER COLUMN c DROP NOT NULL          | Makes column optional                |
+| RENAME COLUMN     | ALTER TABLE t RENAME COLUMN old TO new              | Renames a column                     |
+| ADD CONSTRAINT    | ALTER TABLE t ADD CONSTRAINT name PRIMARY KEY (c)   | Adds a table-level constraint        |
+| DROP CONSTRAINT   | ALTER TABLE t DROP CONSTRAINT name                  | Removes a constraint by name         |
 
-Common operations:
-- ADD COLUMN: adds a new column
-- DROP COLUMN: removes an existing column
-- ALTER COLUMN: changes a column's data type or default value
-- ADD CONSTRAINT: adds a constraint (PK, FK, UNIQUE, CHECK, DEFAULT)
-- DROP CONSTRAINT: removes a constraint
+── ALTER TABLE Caveats ──
+- Adding NOT NULL: fails if existing rows have NULLs in that column
+- Changing type: fails if existing data can't be cast to the new type
+- Dropping column: cascades to any views or FKs referencing it
+- Adding FK: fails if existing rows violate the reference
+- CONSTRAINT names must be UNIQUE within the schema
 
-DROP TABLE removes the table and all its data permanently.
-TRUNCATE TABLE removes all rows but keeps the table structure.
+── ALTER vs CREATE vs DROP vs TRUNCATE ──
+| Command       | What Changes                       | Data Preserved? |
+|---------------|------------------------------------|:---------------:|
+| CREATE TABLE  | Creates structure from scratch     | N/A (new)       |
+| ALTER TABLE   | Modifies existing structure        | ✅ Yes          |
+| TRUNCATE      | Removes all rows                   | ❌ No           |
+| DROP TABLE    | Removes everything (structure + rows) | ❌ No        |
 
-Unlike CREATE TABLE, ALTER TABLE works on tables that already contain data — constraints are checked against existing rows.`,
+── Named Constraints ──
+Always name your constraints explicitly — makes ALTER/DROP much easier:
+  CREATE TABLE t (id INT CONSTRAINT pk_id PRIMARY KEY);
+  -- Later: ALTER TABLE t DROP CONSTRAINT pk_id;`,
     syntax: `-- Add a column
 ALTER TABLE table_name
 ADD COLUMN column_name data_type constraint;
@@ -6563,14 +6782,13 @@ WHERE EXISTS (
     difficulty: 'advanced',
     prerequisites: ['exists-not-exists', 'subqueries', 'set-operations', 'select', 'where'],
     topics: ['DIVISION', 'double negation', 'NOT EXISTS', 'EXCEPT', 'for all', 'relational division'],
-    explanation: `Relational division answers "for all" queries: find entities that are related to ALL items in a set.
+    explanation: `── What Division Answers ──
+Division finds entities related to ALL items in a set: "employees who ordered EVERY product", "students who took ALL courses".
 
-The core insight is double negation. "Employee is assigned to ALL projects of dept X" translates to "There is NO project of dept X that this employee is NOT on."
+── Core Insight: Double Negation ──
+"Employee is assigned to ALL projects" = "There is NO project the employee is NOT on"
 
-In SQL, this is expressed as:
-  NOT EXISTS (set of all targets EXCEPT set of targets the entity has)
-
-Or with nested NOT EXISTS:
+SQL doesn't have a DIVISION operator — express it via double NOT EXISTS:
   NOT EXISTS (
     SELECT target FROM targets
     WHERE condition AND NOT EXISTS (
@@ -6579,12 +6797,20 @@ Or with nested NOT EXISTS:
     )
   )
 
-Mental model: The outer NOT EXISTS asks "Does a counterexample exist?" If no counterexample exists (there is no project the employee has not been assigned to), then the employee is assigned to ALL projects.
+Mental model: the outer NOT EXISTS asks "Does a counterexample exist?"
+If NO counterexample → the employee IS assigned to ALL projects.
 
-Three approaches:
-1. Double NOT EXISTS (most common, NULL-safe)
-2. EXCEPT inside NOT EXISTS (more readable)
-3. HAVING COUNT = total count (requires join table)`,
+── Three Approaches ──
+| Approach                     | How It Works                              | Pros                     | Cons                     |
+|------------------------------|-------------------------------------------|--------------------------|--------------------------|
+| Double NOT EXISTS            | Nested NOT EXISTS (standard)              | NULL-safe, portable      | Harder to read           |
+| EXCEPT inside NOT EXISTS     | NOT EXISTS (SELECT ... EXCEPT SELECT ...) | More readable            | Not in MySQL             |
+| HAVING COUNT = total         | GROUP BY + HAVING COUNT = subquery COUNT  | Simple query structure   | Requires JOIN, COUNT mismatch risk |
+
+── When to Use Which ──
+- Double NOT EXISTS: default choice, works everywhere, NULL-safe
+- EXCEPT approach: more intuitive if you know set operations
+- HAVING COUNT: simpler for single-table relationships (e.g., students → enrollments → courses)`,
     syntax: `-- Division: double NOT EXISTS (standard form)
 SELECT e.name
 FROM employees e
