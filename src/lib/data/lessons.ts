@@ -36,13 +36,39 @@ export const lessons: Lesson[] = [
     difficulty: 'beginner',
     prerequisites: [],
     topics: ['SELECT', 'FROM', 'AS', 'DISTINCT', 'LIMIT'],
-    explanation: `SELECT is the most fundamental SQL operation. It retrieves rows and columns from a table.
+    explanation: `── Real-World Analogy ──
+Imagine a library catalog. The table is the catalog, each row is a book, each column is a property (title, author, year).
+SELECT is you saying: "Show me only the titles and authors, not the ISBN or shelf number."
 
-The basic structure: SELECT columns FROM table.
+── How SQL Executes Your Query (Pipeline) ──
+Every SQL query follows this exact execution order. Memorize this — it's the most important concept in SQL:
 
-You can select specific columns by name, use * for all columns, create aliases with AS, remove duplicates with DISTINCT, and limit results with LIMIT.
+  FROM / JOIN     →  WHERE       →  GROUP BY    →  HAVING      →  SELECT      →  ORDER BY    →  LIMIT
+  (which tables)    (filter rows)   (group rows)   (filter grps)  (pick columns)  (sort)        (slice pages)
 
-── Full SELECT Clause Order (MUST be in this exact order!) ──
+  ── Step-by-step example ──
+  Query: SELECT department, AVG(salary) AS avg_sal FROM employees WHERE salary > 0 GROUP BY department HAVING COUNT(*) > 1 ORDER BY avg_sal DESC LIMIT 3;
+
+  1. FROM employees        →  Start with ALL rows in the employees table
+  2. WHERE salary > 0      →  Remove rows with salary ≤ 0
+  3. GROUP BY department   →  Group remaining rows by department
+  4. HAVING COUNT(*) > 1   →  Keep only groups with more than 1 employee
+  5. SELECT dept, AVG(...) →  For each group, compute the average salary
+  6. ORDER BY avg_sal DESC →  Sort from highest to lowest average
+  7. LIMIT 3              →  Show only the top 3
+
+  ⚠ You MUST write clauses in this order: SELECT → FROM → WHERE → GROUP BY → HAVING → ORDER BY → LIMIT
+  But the DATABASE executes them in the pipeline order above. These are DIFFERENT orders!
+
+── What SELECT Does ──
+SELECT picks which COLUMNS to show and lets you:
+- Choose specific columns: SELECT name, salary
+- Show ALL columns: SELECT *
+- Rename with alias: SELECT salary * 12 AS annual_salary
+- Remove duplicates: SELECT DISTINCT department
+- Limit rows shown: SELECT ... LIMIT 10
+
+── Full SELECT Syntax Order ──
 | Clause       | Purpose                  | Example                           |
 |--------------|--------------------------|-----------------------------------|
 | SELECT       | What to show             | SELECT name, salary * 12 AS annual|
@@ -328,7 +354,20 @@ LIMIT 5;`
     difficulty: 'beginner',
     prerequisites: ['select'],
     topics: ['WHERE', 'AND', 'OR', 'IN', 'BETWEEN', 'LIKE', 'IS NULL'],
-    explanation: `The WHERE clause filters rows based on specified conditions. Only rows that satisfy the condition are returned.
+    explanation: `── Real-World Analogy ──
+WHERE is like a sieve/strainer. You pour all rows in, and only the ones that pass the test come out the other side.
+  Raw rows → [ SIEVE: WHERE condition ] → Only matching rows
+
+── Visual: How WHERE Filters ──
+  employees table (ALL rows):           After WHERE department = 'IT':
+  ┌──────────┬──────────┬────────┐      ┌──────────┬──────────┬────────┐
+  │ name     │ dept     │ salary │      │ name     │ dept     │ salary │
+  ├──────────┼──────────┼────────┤      ├──────────┼──────────┼────────┤
+  │ Alice    │ IT       │ 100K   │      │ Alice    │ IT       │ 100K   │  ✅
+  │ Bob      │ Sales    │ 80K    │  ──►  │ Charlie  │ IT       │ 90K    │  ✅
+  │ Charlie  │ IT       │ 90K    │      └──────────┴──────────┴────────┘
+  │ David    │ HR       │ 70K    │      Bob, David removed (not in IT)
+  └──────────┴──────────┴────────┘
 
 ── All WHERE Operators ──
 | Operator           | Meaning                  | Example                           |
@@ -346,6 +385,14 @@ LIMIT 5;`
 | OR                 | Either must be true      | WHERE City='Cairo' OR City='Giza' |
 | NOT                | Negate condition         | WHERE NOT City = 'Cairo'          |
 
+── Logic Truth Table (AND / OR / NOT) ──
+| Condition A | Condition B | A AND B  | A OR B   | NOT A    |
+|:-----------:|:-----------:|:--------:|:--------:|:--------:|
+| TRUE        | TRUE        | ✅ TRUE  | ✅ TRUE  | ❌ FALSE |
+| TRUE        | FALSE       | ❌ FALSE | ✅ TRUE  | ❌ FALSE |
+| FALSE       | TRUE        | ❌ FALSE | ✅ TRUE  | ✅ TRUE  |
+| FALSE       | FALSE       | ❌ FALSE | ❌ FALSE | ✅ TRUE  |
+
 ── LIKE Patterns Quick Reference ──
 | Pattern    | Meaning             | Matches                        |
 |------------|---------------------|--------------------------------|
@@ -355,14 +402,14 @@ LIMIT 5;`
 | '_r%'      | 2nd char is 'r'     | Oracle, Arabic                  |
 | 'IS%'      | Starts with IS      | IS221, IS312                    |
 
-── Operator Precedence ──
-1. Parentheses ()
-2. Comparison operators (=, <>, <, >)
-3. NOT
-4. AND
-5. OR
+── Operator Precedence (Order of Evaluation) ──
+1. Parentheses ()     → highest priority
+2. Comparison ops     → =, <>, <, >, <=, >=
+3. NOT               → negates the next condition
+4. AND               → both sides must be true
+5. OR                → at least one side must be true
 
-Use parentheses to make precedence explicit!`,
+Use parentheses to make precedence explicit: WHERE (City = 'Cairo' OR City = 'Giza') AND Age > 18`,
     syntax: `SELECT column1, column2
 FROM table_name
 WHERE condition;
@@ -725,14 +772,38 @@ WHERE (name LIKE 'A%' OR name LIKE 'B%' OR name LIKE 'C%' OR name LIKE 'D%' OR n
     difficulty: 'beginner',
     prerequisites: ['select'],
     topics: ['ORDER BY', 'ASC', 'DESC', 'multiple columns'],
-    explanation: `ORDER BY sorts the result set. You can sort by one or more columns, ascending (ASC, default) or descending (DESC).
+    explanation: `── Real-World Analogy ──
+ORDER BY is like sorting a deck of cards. You can sort by suit first, then by rank within each suit (multi-key sort).
+
+── Visual: Before and After Sorting ──
+  Without ORDER BY (insertion order):     ORDER BY salary DESC (highest first):
+  ┌──────┬────────┐                       ┌──────┬────────┐
+  │ name │ salary │                       │ name │ salary │
+  ├──────┼────────┤                       ├──────┼────────┤
+  │ Bob  │ 90K    │  ──►                  │ Alice│ 100K   │  ← highest
+  │ Alice│ 100K   │                       │ Bob  │ 90K    │
+  │ Carol│ 80K    │                       │ Carol│ 80K    │  ← lowest
+  └──────┴────────┘                       └──────┴────────┘
+
+── Visual: Multi-Key Sort ──
+  ORDER BY department ASC, salary DESC:
+  ┌──────────┬──────┬────────┐
+  │ dept     │ name │ salary │  ← Sorted by dept A-Z, then by salary high-low within each dept
+  ├──────────┼──────┼────────┤
+  │ HR       │ Bob  │ 75K    │
+  │ HR       │ Ann  │ 70K    │
+  │ IT       │ Alice│ 100K   │
+  │ IT       │ Chad │ 85K    │
+  │ Sales    │ Dave │ 90K    │
+  └──────────┴──────┴────────┘
 
 ── ORDER BY Rules ──
-- Can sort by column NAME, ALIAS, or numeric POSITION (ORDER BY 3, 2 DESC)
+- Default order: ASC (ascending). Use DESC for descending: ORDER BY salary DESC
+- Can sort by column NAME, ALIAS, or numeric POSITION: ORDER BY 3, 2 DESC (col3 primary, col2 secondary)
 - Multiple keys: ORDER BY col1 ASC, col2 DESC (col1 = primary sort, col2 = tiebreaker)
-- In UNION: only ONE ORDER BY at the very END
+- In UNION: only ONE ORDER BY at the very END (applies to whole result)
 - Can use expressions: ORDER BY LENGTH(name) DESC, CASE WHEN status='active' THEN 1 ELSE 2 END
-- Execution order: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY → LIMIT
+- Execution order: FROM → WHERE → GROUP BY → HAVING → SELECT → **ORDER BY** → LIMIT
 
 ── NULLs Sorting ──
 | Database     | NULLs First? | Override              |
@@ -1147,28 +1218,43 @@ LIMIT 10;`
     difficulty: 'beginner',
     prerequisites: ['select', 'where'],
     topics: ['GROUP BY', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX'],
-    explanation: `GROUP BY groups rows that have the same values in specified columns into summary rows.
+    explanation: `── Real-World Analogy ──
+You have a pile of sticky notes with names and departments. GROUP BY is like sorting them into separate piles by department.
+Then you can COUNT how many are in each pile, or SUM their salaries per pile.
 
-It is used with aggregate functions (COUNT, SUM, AVG, MIN, MAX) to produce summary statistics for each group.
+── Visual: How GROUP BY Works ──
+  employees table (ALL rows):           After GROUP BY department:
+  ┌──────────┬────────┐                 ┌──────────┬──────────┐
+  │ name     │ dept   │  salary         │ dept     │ COUNT(*) │  ← one row per group
+  ├──────────┼────────┤                 ├──────────┼──────────┤
+  │ Alice    │ IT     │  100K           │ IT       │    2     │  ← 2 people in IT
+  │ Bob      │ IT     │   80K           │ HR       │    1     │  ← 1 person in HR
+  │ Carol    │ HR     │   70K           └──────────┴──────────┘
+  │ Dave     │ IT     │   90K
+  └──────────┴────────┘
 
-Every column in SELECT must either be in GROUP BY or be wrapped in an aggregate function.
+  Visual pipeline:
+  Raw rows → GROUP BY department → [{IT: [Alice, Bob, Dave]}, {HR: [Carol]}] → COUNT/SUM/AVG per group
+
+── The Golden Rule (MOST IMPORTANT!) ──
+Every column in SELECT must either be in GROUP BY OR inside an aggregate function.
+  ✅ CORRECT:  SELECT department, COUNT(*) FROM employees GROUP BY department
+  ❌ WRONG:    SELECT department, name FROM employees GROUP BY department
+               → Error: "name" must appear in GROUP BY or be used in an aggregate function
+
+── Execution Pipeline ──
+WHERE (filter rows) → **GROUP BY** (create groups) → HAVING (filter groups) → SELECT (compute aggregates) → ORDER BY
 
 ── Aggregate Functions Reference ──
-| Function               | Purpose                  | Numeric Only? | NULLs count? | Example                    |
-|------------------------|--------------------------|---------------|--------------|----------------------------|
-| COUNT(*)               | Count ALL rows           | No            | Yes          | COUNT(*) → total rows      |
-| COUNT(col)             | Count non-NULL values    | No            | No           | COUNT(City)                |
-| COUNT(DISTINCT col)    | Count unique non-NULL    | No            | No           | COUNT(DISTINCT City)       |
-| SUM(col)               | Total of column values   | **YES**       | No           | SUM(Salary)                |
-| AVG(col)               | Average of values        | **YES**       | No           | AVG(GPA)                   |
-| MIN(col)               | Smallest value           | No            | No           | MIN(BirthDate)             |
-| MAX(col)               | Largest value            | No            | No           | MAX(GPA)                   |
-
-── GROUP BY Golden Rule ──
-Every column in the SELECT that is NOT inside an aggregate function MUST appear in the GROUP BY clause. Otherwise → SQL error!
-
-── Execution Order ──
-WHERE filters rows BEFORE grouping → GROUP BY groups → HAVING filters groups AFTER grouping → ORDER BY sorts final result`,
+| Function               | Purpose                  | Numeric? | NULLs count? | Example output          |
+|------------------------|--------------------------|:--------:|:------------:|-------------------------|
+| COUNT(*)               | Count ALL rows           | No       | ✅ Yes       | COUNT(*) → 4 (total rows) |
+| COUNT(col)             | Count non-NULL values    | No       | ❌ No        | COUNT(City) → 3 (if one NULL) |
+| COUNT(DISTINCT col)    | Count unique non-NULL    | No       | ❌ No        | COUNT(DISTINCT dept) → 2 |
+| SUM(col)               | Total of column values   | **YES**  | ❌ No        | SUM(Salary) → 340K      |
+| AVG(col)               | Average of values        | **YES**  | ❌ No        | AVG(Salary) → 85K       |
+| MIN(col)               | Smallest value           | No       | ❌ No        | MIN(Salary) → 70K       |
+| MAX(col)               | Largest value            | No       | ❌ No        | MAX(Salary) → 100K      |`,
     syntax: `SELECT column, AGGREGATE_FUNC(column)
 FROM table_name
 WHERE condition
@@ -1709,24 +1795,47 @@ ORDER BY total_potential_revenue DESC;`
     difficulty: 'beginner',
     prerequisites: ['group-by'],
     topics: ['HAVING', 'filtering groups'],
-    explanation: `HAVING filters groups created by GROUP BY, similar to how WHERE filters individual rows.
+    explanation: `── Real-World Analogy ──
+WHERE is like checking IDs at the door BEFORE people enter the stadium (filter individuals).
+HAVING is like checking section capacity AFTER everyone is seated (filter groups).
+
+── Visual: WHERE vs HAVING Pipeline ──
+  ┌────────┐    ┌────────────────┐    ┌─────────┐    ┌────────────────┐    ┌──────────┐
+  │  ALL   │    │ WHERE: filter  │    │ GROUP   │    │ HAVING: filter │    │ FINAL    │
+  │  ROWS  │──► │ individual     │──► │ BY      │──► │ groups by      │──► │ RESULT   │
+  │        │    │ rows           │    │ (create │    │ aggregate      │    │ (groups) │
+  │ 100    │    │ → 80 rows pass │    │ groups) │    │ → 2 depts pass │    │          │
+  └────────┘    └────────────────┘    │ IT:40   │    └────────────────┘    └──────────┘
+                                       │ HR:20   │
+                                       │ Sales:40│
+                                       └─────────┘
+
+── Visual: WHERE vs HAVING with Real Data ──
+  SELECT department, COUNT(*) AS emp_count, AVG(salary) AS avg_sal
+  FROM employees
+  WHERE salary > 50000          ← remove low earners FIRST
+  GROUP BY department
+  HAVING COUNT(*) >= 3;         ← then keep only depts with 3+ employees
+
+  Step 1 - WHERE: remove rows where salary ≤ 50000
+  Step 2 - GROUP BY: group remaining rows by department
+  Step 3 - HAVING: keep only departments with ≥3 employees
+  Step 4 - SELECT: for those groups, show dept, count, and avg salary
 
 ── WHERE vs HAVING Comparison ──
 | Aspect           | WHERE                          | HAVING                          |
 |------------------|--------------------------------|---------------------------------|
 | When it runs     | BEFORE GROUP BY (filters rows) | AFTER GROUP BY (filters groups) |
 | Aggregate fns    | ❌ Cannot use                  | ✅ Can use COUNT, SUM, AVG etc  |
-| Column aliases   | ✅ Can use                     | ❌ Cannot use (standard SQL — MySQL allows it) |
-| Without GROUP BY | ✅ Works fine                  | ⚠ Possible but rarely correct  |
+| Column aliases   | ✅ Can use                     | ❌ Cannot use (standard SQL)    |
+| Without GROUP BY | ✅ Works fine                  | ⚠ Rarely correct               |
 
-The key difference: WHERE filters BEFORE grouping, HAVING filters AFTER grouping.
+── Quick Rule ──
+"Can I check this BEFORE grouping?"  →  WHERE (row-level filter)
+"Does this need the GROUP to exist?"  →  HAVING (group-level filter)
 
-HAVING can reference aggregate functions (COUNT, SUM, AVG, etc.), which WHERE cannot.
-
-── Execution Order ──
-FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY
-
-Remember: WHERE runs first to remove unwanted rows, then GROUP BY groups, then HAVING filters the groups.`,
+  WHERE salary > 50000  ✅  (each row has its own salary)
+  HAVING AVG(salary) > 70000  ✅  (needs the group to compute average)`,
     syntax: `SELECT column, AGGREGATE_FUNC(column)
 FROM table_name
 WHERE condition
@@ -2214,7 +2323,42 @@ FROM employees;`
     difficulty: 'intermediate',
     prerequisites: ['where', 'select'],
     topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN'],
-    explanation: `Joins combine rows from two or more tables based on a related column between them.
+    explanation: `── Real-World Analogy ──
+Two tables are like two separate lists. INNER JOIN = "show me items that appear in BOTH lists."
+LEFT JOIN = "show me everything from list A, and add info from list B if available."
+
+Think of two puzzle pieces — the key column is the interlocking tab that connects them.
+
+── Visual: JOINs with Real Data ──
+  students table (LEFT):            registrations table (RIGHT):
+  ┌────┬────────┐                   ┌────┬────────────┐
+  │ id │ name   │                   │ id │ student_id │
+  ├────┼────────┤                   ├────┼────────────┤
+  │ 1  │ Alice  │                   │ 1  │ 1          │  ← Alice registered
+  │ 2  │ Bob    │                   │ 2  │ 3          │  ← Charlie registered
+  │ 3  │ Charlie│                   │ 3  │ 1          │  ← Alice registered again
+  │ 4  │ Diana  │                   └────┴────────────┘  ← Diana never registered
+  └────┴────────┘
+
+  INNER JOIN ON students.id = registrations.student_id:
+  ┌────┬─────────┬────────────┐
+  │ id │ name    │ student_id │  → Only students who HAVE registrations (Alice, Charlie)
+  ├────┼─────────┼────────────┤    Bob and Diana excluded (no matches on RIGHT)
+  │ 1  │ Alice   │ 1          │
+  │ 1  │ Alice   │ 3          │
+  │ 3  │ Charlie │ 2          │
+  └────┴─────────┴────────────┘
+
+  LEFT JOIN ON students.id = registrations.student_id:
+  ┌────┬─────────┬────────────┐
+  │ id │ name    │ student_id │  → ALL students, even without registrations
+  ├────┼─────────┼────────────┤    Diana shows up with NULL for registration
+  │ 1  │ Alice   │ 1          │
+  │ 1  │ Alice   │ 3          │
+  │ 2  │ Bob     │ NULL       │  ← Bob: no registration → NULLs on right side
+  │ 3  │ Charlie │ 2          │
+  │ 4  │ Diana   │ NULL       │  ← Diana: no registration → NULLs on right side
+  └────┴─────────┴────────────┘
 
 ── JOIN Types Quick Comparison ──
 | Join Type      | Returns                                | Use When                         |
@@ -2226,12 +2370,30 @@ FROM employees;`
 | CROSS JOIN     | Cartesion product (|A| × |B| rows)     | "Get all combinations"           |
 | SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
 
+── INNER JOIN Visual (Venn Diagram) ──
+        ┌─────────┐         ┌─────────┐
+        │  LEFT   │         │  RIGHT  │
+        │  TABLE  │  ┌───┐  │  TABLE  │
+        │         │  │ X │  │         │
+        └─────────┘  └───┘  └─────────┘
+                     ↑
+           INNER JOIN returns only
+           the overlapping region (X)
+
+── LEFT JOIN Visual ──
+        ┌─────────┐
+        │  LEFT   │  ┌───┐
+        │  TABLE  │  │ X │  ┌─────────┐
+        │  (ALL)  │  │   │  │  RIGHT  │
+        └─────────┘  └───┘  │  TABLE  │
+                            │ (partial)│
+                            └─────────┘
+
 ── Key Rules ──
-- INNER JOIN requires matching keys (NOT union compatibility — that's SET ops!)
-- LEFT JOIN = RIGHT JOIN with tables swapped
+- LEFT JOIN = RIGHT JOIN with tables swapped (just reverse the order)
 - To join N tables: need N-1 join conditions
 - FK always goes on the N-side (1:N relationship)
-- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (implicit syntax)`,
+- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old syntax)`,
     syntax: `-- INNER JOIN
 SELECT a.col, b.col
 FROM table_a a
@@ -2816,7 +2978,33 @@ ORDER BY total_spent DESC;`
     difficulty: 'intermediate',
     prerequisites: ['where', 'select', 'group-by'],
     topics: ['scalar subquery', 'correlated subquery', 'EXISTS', 'IN', 'ANY', 'ALL'],
-    explanation: `A subquery is a query nested inside another query. Subqueries can be used in SELECT, FROM, WHERE, and HAVING clauses.
+    explanation: `── Real-World Analogy ──
+A subquery is like a Russian nesting doll (matryoshka): a query inside another query.
+The inner doll (subquery) is solved FIRST, then its answer is used by the outer doll.
+
+  "Show me employees who earn MORE than the company average"
+  → Step 1 (inner):  WHAT is the company average?  → 85K
+  → Step 2 (outer):  WHICH employees earn > 85K?
+
+── Visual: Non-Correlated Subquery (runs ONCE) ──
+  Outer: SELECT * FROM employees WHERE salary > (INNER)
+                                                   │
+                                                   ▼
+  Inner: SELECT AVG(salary) FROM employees  ──►  Returns: 85K
+                                                   │
+                                                   ▼
+  Outer continues: WHERE salary > 85K  ──►  Returns high earners
+
+  Flow: Inner runs ONCE → result cached → outer uses it for every row
+
+── Visual: Correlated Subquery (runs PER ROW) ──
+  Outer: SELECT * FROM employees e WHERE salary > (INNER that depends on e.department)
+                                                   │
+  For EACH employee row in the outer query:        ▼
+  Inner runs AGAIN with THAT employee's department:
+    Alice (IT)      → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 100K > 90K? ✅
+    Bob (Sales)     → SELECT AVG(salary) WHERE dept = 'Sales'   → 80K → 70K > 80K? ❌
+    Charlie (IT)    → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 92K > 90K? ✅
 
 ── Subquery Types Comparison ──
 | Type               | Returns            | Used In              | Example                                |
@@ -2826,28 +3014,13 @@ ORDER BY total_spent DESC;`
 | Table subquery     | Multiple rows/cols | FROM (derived table)  | FROM (SELECT ...) AS sub               |
 | Correlated subquery| Varies             | WHERE, SELECT, EXISTS | WHERE col > (SELECT ... FROM outer)    |
 
-── When to Use ──
-- Scalar subquery: Returns a single value (one row, one column)
-- Row subquery: Returns a single row
-- Table subquery: Returns a table, MUST have an alias
-- Correlated subquery: References columns from the outer query, runs per row
-
 ── Golden Rules ──
-- EXISTS is typically more efficient than IN for large result sets
-- Use EXISTS over IN when NULLs are possible (NULL-safe)
-- Subqueries in FROM MUST have an alias
-- If a JOIN can do the job, prefer JOIN for efficiency
-
-── Correlated vs Non-Correlated Subqueries ──
-A **non-correlated** subquery runs ONCE, the result is cached, and the outer query uses it:
-  SELECT * FROM employees WHERE salary > (SELECT AVG(salary) FROM employees);
-  → The inner AVG runs once, returns a single value.
-
-A **correlated** subquery runs ONCE PER ROW of the outer query:
-  SELECT * FROM employees e WHERE salary > (SELECT AVG(salary) FROM employees WHERE department = e.department);
-  → The inner AVG runs separately for EACH employee (filtered by their department).
-
-Correlated subqueries are slower but more powerful — use them when the inner query needs data from the current outer row.`,
+- Subqueries in parentheses: (SELECT ...)
+- Subqueries in FROM MUST have an alias: FROM (SELECT ...) AS t
+- Scalar subquery must return EXACTLY one value (or NULL)
+- EXISTS checks for row EXISTENCE, not data — use SELECT 1 inside
+- Non-correlated runs ONCE (fast). Correlated runs PER ROW (potentially slow)
+- If a JOIN can do the job, prefer JOIN for efficiency`,
     syntax: `-- Scalar subquery in SELECT
 SELECT 
   name,
@@ -3191,17 +3364,56 @@ LIMIT 1;`
     difficulty: 'intermediate',
     prerequisites: ['select', 'where'],
     topics: ['CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'conditional aggregation'],
-    explanation: `── Two Forms of CASE ──
+    explanation: `── Real-World Analogy ──
+CASE is like a teacher grading: "IF score ≥ 90 THEN 'A', ELSE IF score ≥ 80 THEN 'B', ELSE 'F'."
+It's SQL's version of if/else if/else — or a switch/case statement in programming.
+
+── Visual: CASE as a Decision Flowchart ──
+  For each row, SQL walks through the WHEN conditions TOP TO BOTTOM:
+
+       ┌──────────────────┐
+       │  Start: check    │
+       │  this row's data │
+       └────────┬─────────┘
+                │
+       ┌────────▼─────────┐   YES   ┌──────────────────┐
+       │ WHEN score >= 90? │────────►│ Return 'A' (DONE)│
+       └────────┬─────────┘         └──────────────────┘
+                │ NO
+       ┌────────▼─────────┐   YES   ┌──────────────────┐
+       │ WHEN score >= 80? │────────►│ Return 'B' (DONE)│
+       └────────┬─────────┘         └──────────────────┘
+                │ NO
+       ┌────────▼─────────┐   YES   ┌──────────────────┐
+       │ WHEN score >= 70? │────────►│ Return 'C' (DONE)│
+       └────────┬─────────┘         └──────────────────┘
+                │ NO
+       ┌────────▼─────────┐
+       │ ELSE (default)   │────────► Return 'F' (DONE)
+       └──────────────────┘
+
+── Visual: CASE with Real Data ──
+  Input rows:                        After SELECT with CASE:
+  ┌──────┬───────┐                   ┌──────┬───────┬───────┐
+  │ name │ score │                   │ name │ score │ grade │
+  ├──────┼───────┤                   ├──────┼───────┼───────┤
+  │ Alice│  95   │  ──► CASE ──►     │ Alice│  95   │ A     │
+  │ Bob  │  82   │                   │ Bob  │  82   │ B     │
+  │ Carol│  67   │                   │ Carol│  67   │ F     │
+  └──────┴───────┘                   └──────┴───────┴───────┘
+
+── Two Forms of CASE ──
 | Form          | Syntax                                          | Use When                                |
 |---------------|-------------------------------------------------|-----------------------------------------|
-| Simple CASE   | CASE expr WHEN val1 THEN ... WHEN val2 THEN ... | Comparing ONE expression to many values |
-| Searched CASE | CASE WHEN condition1 THEN ... WHEN condition2   | Evaluating different boolean conditions |
+| Simple CASE   | CASE expr WHEN val1 THEN ... WHEN val2 THEN ... | Switch-like: compare ONE column to many values |
+| Searched CASE | CASE WHEN condition1 THEN ... WHEN condition2   | If/else if: evaluate different boolean conditions |
 
-Simple CASE = switch/case on a single expression. Searched CASE = if/else if with arbitrary boolean logic.
+  Simple:   CASE status WHEN 'a' THEN 1 WHEN 'b' THEN 2 ELSE 3 END
+  Searched: CASE WHEN score >= 90 THEN 'A' WHEN score >= 80 THEN 'B' ELSE 'F' END
 
 ── How CASE Evaluates ──
-- Conditions evaluate TOP TO BOTTOM
-- Returns the value from the FIRST matching WHEN
+- Conditions evaluated TOP TO BOTTOM
+- Returns the FIRST matching WHEN (short-circuit)
 - If no WHEN matches and no ELSE → returns NULL
 - ELSE is optional but recommended
 
@@ -3557,40 +3769,67 @@ ORDER BY grand_total DESC;`
     difficulty: 'intermediate',
     prerequisites: ['subqueries', 'select'],
     topics: ['WITH', 'CTE', 'readability', 'multiple CTEs'],
-    explanation: `── What a CTE Is ──
-A CTE (Common Table Expression) is a named temporary result set defined with WITH.
-It exists only for the duration of the query — like a view that lives for one statement.
+    explanation: `── Real-World Analogy ──
+A CTE is like a SCRATCHPAD or temporary sticky note.
+You compute an intermediate result, write it on the sticky note, then use it in your final query.
+Unlike a subquery (which is hidden inside parentheses), a CTE sits visibly at the TOP.
+
+── Visual: CTE Step-by-Step ──
+  WITHOUT CTE (nested, hard to read):           WITH CTE (linear, easy to read):
+  SELECT *                                       WITH high_earners AS (
+  FROM employees                                 │ SELECT *
+  WHERE salary > (                               │ FROM employees
+    SELECT AVG(salary) * 1.5                     │ WHERE salary > 80000
+    FROM employees                               │ )
+    WHERE department = 'IT'                      │
+  );                                             │ SELECT * FROM high_earners
+                                                 │ WHERE ...  (reuse the CTE!)
+  Problem: inner query is buried inside
+  the WHERE clause — hard to understand
+
+── Visual: Multiple CTEs as a Pipeline ──
+  WITH
+    step1 AS (           ───┐
+      SELECT ...            │ Step 1: get raw data
+    ),                      │
+    step2 AS (           ───┤
+      SELECT ...            │ Step 2: filter/aggregate
+      FROM step1 ...        │ (references step1)
+    ),                      │
+    step3 AS (           ───┤
+      SELECT ...            │ Step 3: further process
+      FROM step2 ...        │ (references step2)
+    )                       │
+  SELECT * FROM step3;   ───┘ Step 4: final result
+
+  Each step builds on the previous one — like an assembly line.
 
 ── CTE vs Subquery ──
 | Aspect             | CTE                                      | Subquery                                |
 |--------------------|------------------------------------------|-----------------------------------------|
 | Syntax             | WITH name AS (...) SELECT ...            | SELECT ... FROM (SELECT ...)            |
 | Reusable           | ✅ Can reference the CTE MULTIPLE times  | ❌ Must rewrite or nest again           |
-| Readability        | ✅ Read top-to-bottom (linear flow)      | ❌ Nested inside-out (harder to follow) |
+| Readability        | ✅ Top-to-bottom (linear flow)           | ❌ Inside-out (must read from inside out) |
 | Recursive          | ✅ WITH RECURSIVE                        | ❌ Cannot be recursive                  |
 | Scope              | Defined once, used in subsequent query   | Exists only inside the enclosing query  |
 
-── Multiple CTEs ──
-WITH
-  cte1 AS (SELECT ...),
-  cte2 AS (SELECT ... FROM cte1 ...)   -- cte2 can reference cte1
-SELECT * FROM cte2;
-
 ── CTE Rules ──
 - CTEs must come BEFORE the main query
-- Separate multiple CTEs with commas (no WITH keyword after the first)
+- Separate multiple CTEs with commas (NO comma before the main SELECT)
 - A CTE can reference previously defined CTEs (chaining)
-- CTEs are NOT materialized by default (PostgreSQL) — they re-execute each time they're referenced
-- Use CTEs for readability; use temp tables for performance if referenced multiple times
+- CTEs are NOT materialized by default (PostgreSQL) — they re-execute each time referenced
+- Use CTEs for READABILITY; use temp tables for PERFORMANCE if referenced multiple times
 
-── WITH RECURSIVE ──
-Recursive CTEs reference themselves to process hierarchical data (org charts, categories, tree structures):
-  WITH RECURSIVE cte AS (
-    SELECT ... WHERE parent IS NULL    -- anchor: start with root
+── WITH RECURSIVE (Hierarchical Data) ──
+Recursive CTEs reference themselves to process tree structures (org charts, categories, folder trees):
+  WITH RECURSIVE org_tree AS (
+    SELECT id, name, manager_id, 1 AS level     -- anchor: top-level managers
+    FROM employees WHERE manager_id IS NULL
     UNION ALL
-    SELECT ... FROM cte JOIN ...       -- recursive: join back to cte
+    SELECT e.id, e.name, e.manager_id, t.level + 1  -- recursive: their reports
+    FROM employees e JOIN org_tree t ON e.manager_id = t.id
   )
-  SELECT * FROM cte;`,
+  SELECT * FROM org_tree ORDER BY level;`,
     syntax: `-- Basic CTE
 WITH sales_summary AS (
   SELECT 
@@ -4078,41 +4317,77 @@ ORDER BY percentage DESC;`
     difficulty: 'advanced',
     prerequisites: ['group-by', 'order-by'],
     topics: ['OVER', 'PARTITION BY', 'ORDER BY in window', 'frame clause', 'ROWS', 'RANGE'],
-    explanation: `── What a Window Function Does ──
-A window function calculates a value across a set of rows related to the current row,
-but WITHOUT collapsing rows — every original row is preserved with the window result added.
+    explanation: `── Real-World Analogy ──
+GROUP BY is like saying "Give me the average salary per department" — you only see the department, not the individual people.
+A Window Function is like "Show me EACH employee AND their department's average salary in the same row."
+
+Window = a "sliding frame" of rows that moves as you go through the data.
+
+── Visual: GROUP BY vs Window Function ──
+  Raw data:                          GROUP BY department:       Window AVG OVER(PARTITION BY dept):
+  ┌──────┬────────┬────────┐         ┌────────┬────────┐       ┌──────┬────────┬────────┬──────────┐
+  │ name │ dept   │ salary │         │ dept   │ AVG    │       │ name │ dept   │ salary │ dept_avg │
+  ├──────┼────────┼────────┤         ├────────┼────────┤       ├──────┼────────┼────────┼──────────┤
+  │ Alice│ IT     │ 100K   │         │ IT     │  90K   │       │ Alice│ IT     │ 100K   │  90K     │  ← preserved!
+  │ Bob  │ IT     │  80K   │  ──►    │ HR     │  70K   │       │ Bob  │ IT     │  80K   │  90K     │  ← preserved!
+  │ Carol│ HR     │  70K   │         └────────┴────────┘       │ Carol│ HR     │  70K   │  70K     │  ← preserved!
+  └──────┴────────┴────────┘         GROUP BY COLLAPSED         └──────┴────────┴────────┴──────────┘
+                                    rows (lost details)         Window PRESERVES every row + adds the average
+
+── Visual: Sliding Window (Running Total) ──
+  OVER (ORDER BY date) with default frame:
+  ┌──────────┬────────┬───────────────────────────────────────────────┐
+  │ date     │ amount │ Window Frame (rows included in SUM)           │
+  ├──────────┼────────┤                                               │
+  │ Jan 1    │ 100    │ [Jan 1] → running total = 100                 │
+  │ Jan 2    │ 150    │ [Jan 1, Jan 2] → running total = 250          │
+  │ Jan 3    │ 200    │ [Jan 1, Jan 2, Jan 3] → running total = 450   │
+  │ Jan 4    │ 50     │ [Jan 1..4] → running total = 500              │
+  └──────────┴────────┴───────────────────────────────────────────────┘
+  The window GROWS as we move forward — "all rows from start to current"
+
+── Visual: Moving Average (ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) ──
+  ┌──────────┬────────┬─────────────────────────────────────────┐
+  │ date     │ amount │ Frame                                   │
+  ├──────────┼────────┤                                         │
+  │ Jan 1    │ 100    │ [Jan 1] → avg = 100                     │
+  │ Jan 2    │ 150    │ [Jan 1, Jan 2] → avg = 125              │
+  │ Jan 3    │ 200    │ [Jan 2, Jan 3] → avg = 175              │
+  │ Jan 4    │ 50     │ [Jan 3, Jan 4] → avg = 125              │
+  └──────────┴────────┴─────────────────────────────────────────┘
+  Each row sees only itself and the previous row — the window SLIDES.
+
+── Window Function Parts ──
+function_name() OVER (
+  PARTITION BY col    -- groups (optional) — like GROUP BY for the window
+  ORDER BY col        -- ordering within each partition
+  frame_clause        — defines the sliding window
+)
+
+── The Frame Clause ──
+ROWS BETWEEN start AND end (RANGE for logical offset)
+| Frame Boundary       | Meaning                              |
+|----------------------|--------------------------------------|
+| UNBOUNDED PRECEDING  | From the first row of the partition  |
+| n PRECEDING          | n rows before the current row        |
+| CURRENT ROW          | The current row                      |
+| n FOLLOWING          | n rows after the current row         |
+| UNBOUNDED FOLLOWING  | To the last row of the partition     |
+
+Default frame (with ORDER BY): RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+Default frame (without ORDER BY): entire partition
 
 ── Window Function vs GROUP BY ──
 | Aspect         | GROUP BY                          | Window Function                          |
 |----------------|-----------------------------------|------------------------------------------|
 | Row count      | Collapses groups → fewer rows     | Preserves all rows                       |
-| Per-row detail | Lost (only group-level remains)   | Retained (individual + aggregate shown)  |
+| Per-row detail | Lost (only group-level remains)   | Retained (individual + aggregate)        |
 | Use case       | "Total sales per department"      | "Each employee + their dept average"     |
 
-── Window Function Parts ──
-function_name() OVER (
-  PARTITION BY col1, col2     -- groups (optional) — like GROUP BY for the window
-  ORDER BY col3               -- ordering within each partition
-  frame_clause                — defines the sliding window (ROWS/RANGE BETWEEN)
-)
-
-── The Frame Clause ──
-ROWS BETWEEN start AND end (or RANGE for logical offset)
-| Frame Boundary  | Meaning                              |
-|-----------------|--------------------------------------|
-| UNBOUNDED PRECEDING | From the first row of the partition |
-| n PRECEDING     | n rows before the current row        |
-| CURRENT ROW     | The current row                      |
-| n FOLLOWING     | n rows after the current row         |
-| UNBOUNDED FOLLOWING | To the last row of the partition |
-
-Default frame (with ORDER BY): RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-Default frame (without ORDER BY): entire partition
-
 ── Execution Order ──
-FROM → WHERE → GROUP BY → HAVING → WINDOW FUNCTIONS → SELECT (projection) → ORDER BY
+FROM → WHERE → GROUP BY → HAVING → **WINDOW FUNCTIONS** → SELECT → ORDER BY
 
-Window functions run AFTER WHERE and GROUP BY but BEFORE ORDER BY.
+Window functions run AFTER WHERE/GROUP BY but BEFORE ORDER BY.
 That's why you CANNOT use window results in WHERE — they don't exist yet.
 
 ── Common Window Functions ──
@@ -4979,7 +5254,31 @@ ORDER BY customer, order_date;`
     difficulty: 'intermediate',
     prerequisites: ['select'],
     topics: ['CONCAT', 'SUBSTRING', 'REPLACE', 'TRIM', 'UPPER', 'LOWER', 'LENGTH', 'POSITION'],
-    explanation: `── String Function Reference ──
+    explanation: `── Real-World Analogy ──
+String functions are like a text editor's tools: find & replace, trim spaces, change case, pad numbers.
+They let you CLEAN and TRANSFORM messy text data into a consistent format.
+
+── Visual: How String Functions Transform Data ──
+  Raw messy data:                     After cleaning with string functions:
+  ┌──────────────────┐                ┌──────────────────┬───────────┬───────────┐
+  │  "  JOHN DOE  "  │                │  "John Doe"      │ john.doe  │ JOHN DOE │
+  │  "  jane smith " │   ──► CLEAN ──►│  "Jane Smith"    │ jane.smith│ JANE SMITH│
+  │  "  BOB   "      │                │  "Bob"            │ bob       │ BOB       │
+  └──────────────────┘                └──────────────────┴───────────┴───────────┘
+                                      ↑ TRIM + proper case  ↑ LOWER +   ↑ UPPER
+                                                            REPLACE spaces
+
+── Visual: Function Chaining (Pipe) ──
+  Input: "  Hello World  "
+
+  Step 1: TRIM → "Hello World"      (remove outer spaces)
+  Step 2: UPPER → "HELLO WORLD"     (convert to uppercase)
+  Step 3: REPLACE ' ' WITH '_' → "HELLO_WORLD"
+
+  In SQL: SELECT REPLACE(UPPER(TRIM('  Hello World  ')), ' ', '_');
+  → Reads INSIDE OUT: TRIM first → then UPPER → then REPLACE
+
+── String Function Reference ──
 | Function              | What It Does                  | Input Example               | Output                    |
 |-----------------------|-------------------------------|-----------------------------|---------------------------|
 | CONCAT(a, b) / a \|\| b | Join strings                | CONCAT('Hello', ' World')   | 'Hello World'             |
@@ -4996,11 +5295,11 @@ ORDER BY customer, order_date;`
 | RIGHT(str, n)         | Last n characters            | RIGHT('Hello', 2)           | 'lo'                      |
 
 ── Golden Rules ──
-- Functions CAN be nested: UPPER(TRIM(column)) works naturally
-- LENGTH counts characters, not bytes (in PostgreSQL)
-- POSITION is case-sensitive; use LOWER() for case-insensitive search
-- || is the SQL standard concatenation operator; CONCAT() is also standard
-- TRIM by default removes spaces; use TRIM(LEADING/TRAILING char FROM str) for custom chars`,
+- Functions CAN be nested (chain them): UPPER(TRIM(column)) — reads from innermost outward
+- LENGTH counts CHARACTERS (not bytes) in PostgreSQL
+- POSITION is case-sensitive; use LOWER() for case-insensitive: POSITION('john' IN LOWER(name))
+- || is SQL standard for concatenation; CONCAT() also standard
+- TRIM removes spaces by default; use TRIM(LEADING/TRAILING char FROM str) for custom chars`,
     syntax: `-- Concatenation
 SELECT CONCAT(first_name, ' ', last_name) AS full_name;
 -- or using ||
@@ -5210,7 +5509,32 @@ ORDER BY id;`
     difficulty: 'intermediate',
     prerequisites: ['where'],
     topics: ['LIKE', 'ILIKE', 'SIMILAR TO', 'regex', '~', '~*', 'regexp_replace', 'regexp_match'],
-    explanation: `── Pattern Matching Methods ──
+    explanation: `── Real-World Analogy ──
+LIKE is like using wildcards in a file search: "find all files starting with 'report_' (*.pdf)".
+In SQL: "find all customers whose name starts with 'A' or contains 'son'."
+
+── Visual: How LIKE Wildcards Match Data ──
+  Pattern: 'A%'  (starts with A)
+  ┌────────────┬───────┐
+  │ name       │ Match │
+  ├────────────┼───────┤
+  │ Alice      │ ✅    │  ← starts with A
+  │ Andrew     │ ✅    │  ← starts with A
+  │ Bob        │ ❌    │  ← starts with B
+  │ Barbara    │ ✅    │  ← starts with B... wait, no - she'd also match but LOWER() affects
+  └────────────┴───────┘
+
+  ── Visual Wildcard Guide ──
+  Pattern: '%son'     → Ends with "son"     → Johnson ✅, Stevenson ✅, Alice ❌
+  Pattern: 'A%'       → Starts with "A"     → Alice ✅, Bob ❌
+  Pattern: '%Data%'   → Contains "Data"     → Database ✅, Data Mining ✅, SQL ❌
+  Pattern: '_r%'      → 2nd char is "r"     → Oracle ✅ (O-r), Arabic ✅ (A-r), SQL ❌
+  Pattern: '___'      → Exactly 3 chars     → ABC ✅, Bob ✅, Alice ❌ (5 chars)
+
+  Key: % = "any sequence of characters (including zero)"
+       _ = "exactly ONE character"
+
+── Pattern Matching Methods ──
 | Method            | What It Does                     | Example                         | Standard?  |
 |-------------------|----------------------------------|---------------------------------|------------|
 | LIKE              | % (any seq) and _ (one char)     | WHERE name LIKE 'A%'            | ✅ SQL std |
@@ -5221,21 +5545,10 @@ ORDER BY id;`
 | regexp_match()    | Extract first regex match        | regexp_match(email, '@(.+)$')   | ❌ PG only |
 | regexp_replace()  | Replace using regex              | regexp_replace(text, '\d+', '#')| ❌ PG only |
 
-── LIKE Wildcards ──
-| Pattern    | Meaning                        | Matches                     |
-|------------|--------------------------------|-----------------------------|
-| 'A%'       | Starts with A                  | 'Alice', 'Andrew'           |
-| '%son'     | Ends with "son"                | 'Johnson', 'Stevenson'      |
-| '%Data%'   | Contains "Data" anywhere       | 'Database', 'Data Mining'   |
-| '_r%'      | Any char then 'r'              | 'Oracle', 'Arabi**c**' (if 'c' was 'r'...) |
-| '___'      | Exactly 3 chars                | 'ABC', '123'                |
-| '%[0-9]%'  | Contains digit                 | ❌ NOT LIKE — SQL doesn't support char classes |
-| '%\%%'     | Literal % sign                 | ESCAPE '\\' or 'ESCAPE' clause |
-
 ── LIKE vs Regex: When to Use ──
-- LIKE: Simple wildcards, starts-with/ends-with/contains — fast, portable
-- Regex: Complex patterns, alternation (cat|dog), quantifiers {2,5}, character classes [A-Z0-9]
-- Default: use LIKE unless you NEED regex power`,
+- LIKE: Simple wildcards, starts-with/ends-with/contains — fast, portable (works in ALL databases)
+- Regex: Complex patterns, alternation (cat|dog), quantifiers {2,5}, character classes [A-Z0-9] — PostgreSQL only
+- Default: use LIKE unless you NEED regex power (regex is 10x slower than LIKE for simple cases)`,
     syntax: `-- LIKE wildcards
 SELECT * FROM users WHERE email LIKE '%@gmail.com';
 SELECT * FROM products WHERE sku LIKE 'ABC_'; -- _ = single char
@@ -5398,34 +5711,68 @@ ORDER BY price DESC;`
     difficulty: 'intermediate',
     prerequisites: ['select'],
     topics: ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT', 'set operations'],
-    explanation: `── Set Operation Comparison ──
-| Operation   | Result                          | Duplicates? | Use Case                         |
-|-------------|---------------------------------|-------------|----------------------------------|
-| UNION       | Rows from query1 OR query2      | No          | Combine distinct results         |
-| UNION ALL   | Rows from query1 OR query2      | Yes         | Combine all results (faster)     |
-| INTERSECT   | Rows in BOTH query1 AND query2  | No          | "In both tables"                 |
-| EXCEPT      | Rows in query1 BUT NOT query2   | No          | "In one but not the other"       |
+    explanation: `── Real-World Analogy ──
+Set operations work like Venn diagrams from math class:
+- UNION = everything in EITHER circle (combined)
+- INTERSECT = only the OVERLAP (in both)
+- EXCEPT = left circle MINUS the overlap (in one but not the other)
 
-── UNION vs JOIN ──
-JOIN combines columns HORIZONTALLY → more columns, same or fewer rows
-UNION combines rows VERTICALLY → same columns, more rows
+Key difference from JOIN: JOIN combines columns HORIZONTALLY (adds columns).
+Set operations combine rows VERTICALLY (adds rows). They STACK results.
+
+── Visual: Set Operations with Real Data ──
+  Query A: cities with customers       Query B: cities with suppliers
+  ┌──────────┐                         ┌──────────┐
+  │ city     │                         │ city     │
+  ├──────────┤                         ├──────────┤
+  │ Cairo    │                         │ Cairo    │
+  │ Giza     │                         │ Alex     │
+  │ Luxor    │                         │ Luxor    │
+  └──────────┘                         └──────────┘
+
+  UNION:                          INTERSECT:                    EXCEPT (A - B):
+  ┌──────────┐                    ┌──────────┐                  ┌──────────┐
+  │ Cairo    │  ← in both (once)  │ Cairo    │  ← in A AND B   │ Giza     │  ← in A but NOT B
+  │ Giza     │  ← only in A       │ Luxor    │                  └──────────┘
+  │ Luxor    │  ← in both (once)  └──────────┘
+  │ Alex     │  ← only in B
+  └──────────┘
+
+── Set Operation Comparison ──
+| Operation   | Result                          | Duplicates? | SQL Keyword    | Venn Diagram             |
+|-------------|---------------------------------|:-----------:|----------------|--------------------------|
+| UNION       | Rows from query1 OR query2      | ❌ Removed  | UNION          | Both circles combined    |
+| UNION ALL   | Rows from query1 OR query2      | ✅ Kept     | UNION ALL      | Both circles + overlaps  |
+| INTERSECT   | Rows in BOTH query1 AND query2  | ❌ Removed  | INTERSECT      | Only the overlap          |
+| EXCEPT      | Rows in query1 BUT NOT query2   | ❌ Removed  | EXCEPT         | Left minus the overlap    |
 
 ── Set Operation Rules ──
 - Each SELECT must have the SAME NUMBER of columns
-- Corresponding columns must have COMPATIBLE data types
-- Column names come from the FIRST SELECT
-- Only ONE ORDER BY at the very END (applies to the whole result)
-- ORDER BY must use column names from the first SELECT (or position)
-- INTERSECT and EXCEPT are NOT supported in MySQL (use IN/NOT IN instead)
+- Corresponding columns must have COMPATIBLE data types (you can't UNION text with numbers)
+- Column names in the result come from the FIRST SELECT
+- Only ONE ORDER BY at the very END of the entire UNION/INTERSECT/EXCEPT
+- ORDER BY must use column names from the first SELECT (or numeric position)
+
+── UNION vs JOIN Visual ──
+  UNION (adds ROWS):                           JOIN (adds COLUMNS):
+  ┌─────────────┐                              ┌──────────┬──────────┐
+  │ customers   │                              │ city     │ has_supp │
+  ├─────────────┤                              ├──────────┼──────────┤
+  │ Cairo       │  ← from customers            │ Cairo    │ YES      │  ← combined row
+  │ Giza        │  ← from customers            │ Giza     │ NO       │
+  │ Alex        │  ← from suppliers            │ Luxor    │ YES      │
+  │ Luxor       │  ← from suppliers            └──────────┴──────────┘
+  └─────────────┘                              JOIN: more columns, same rows
+  UNION: more rows, same columns
 
 ── INTERSECT vs INNER JOIN ──
-INTERSECT: "Which cities have both customers AND suppliers?"
+INTERSECT: "Which cities have BOTH customers AND suppliers?"
   SELECT city FROM customers INTERSECT SELECT city FROM suppliers
-  → Returns city names (result has one column from each query)
+  → JUST the city names (single column)
 
-INNER JOIN: "Show me customers and their supplier cities"
-  SELECT c.*, s.city FROM customers c JOIN suppliers s ON c.city = s.city
-  → Returns combined rows (result has columns from both tables)`,
+INNER JOIN: "Show me customers AND their supplier info for matching cities"
+  SELECT c.city, s.name FROM customers c JOIN suppliers s ON c.city = s.city
+  → Combined rows with columns from BOTH tables`,
     syntax: `-- UNION (removes duplicates)
 SELECT city FROM customers
 UNION
@@ -5814,39 +6161,58 @@ ORDER BY e1.salary;`
     difficulty: 'beginner',
     prerequisites: [],
     topics: ['CREATE TABLE', 'data types', 'PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'NOT NULL', 'DEFAULT', 'CHECK', 'IDENTITY', 'composite key', 'ON DELETE', 'ON UPDATE'],
-    explanation: `── Data Types (Common) ──
-| Type              | What It Stores              | Example                     |
-|-------------------|-----------------------------|-----------------------------|
-| INT / INTEGER     | Whole numbers               | id INT                      |
-| VARCHAR(n)        | Variable text (up to n)     | name VARCHAR(100)           |
-| CHAR(n)           | Fixed-length text           | code CHAR(3)                |
-| FLOAT / REAL      | Approximate decimal         | gpa FLOAT                   |
-| DECIMAL(p,s)      | Exact decimal (p digits, s scale) | price DECIMAL(10,2)   |
-| DATE              | Date (no time)              | birth_date DATE             |
-| BOOLEAN           | True/false                  | is_active BOOLEAN           |
-| TEXT              | Unlimited text              | description TEXT             |
+    explanation: `── Real-World Analogy ──
+CREATE TABLE is like designing a spreadsheet template BEFORE entering any data.
+You decide: what columns do I need? What TYPE of data goes in each column? What RULES should the data follow?
+
+  Before CREATE TABLE (nothing):      After CREATE TABLE (empty structure):
+  ┌──────────────────────────┐        ┌──────┬──────────┬────────────┬────────┐
+  │   No table exists yet    │        │ id   │ name     │ email      │ salary │
+  │                          │  ──►   ├──────┼──────────┼────────────┼────────┤
+  │   CREATE TABLE builds    │        │ INT  │ VARCHAR  │ VARCHAR    │ DECIMAL│
+  │   the empty skeleton     │        │ PK   │ NOT NULL │ UNIQUE     │ CHECK>0│
+  └──────────────────────────┘        └──────┴──────────┴────────────┴────────┘
+                                      ↑ column names       ↑ constraints
+                                      ↑ data types
+
+── Visual: Anatomy of a CREATE TABLE Statement ──
+  CREATE TABLE employees (                         ← table name
+    id        INT             PRIMARY KEY,          │
+    name      VARCHAR(100)    NOT NULL,               ├── column definitions
+    email     VARCHAR(255)    UNIQUE NOT NULL,       │   (name + type + constraints)
+    salary    DECIMAL(10,2)   CHECK (salary > 0),   │
+    dept_id   INT             REFERENCES departments(id),  ← FK reference
+    hired     DATE            DEFAULT CURRENT_DATE   │
+  );
+
+── Data Types (Common) ──
+| Type              | What It Stores              | Example                     | Use For                |
+|-------------------|-----------------------------|-----------------------------|------------------------|
+| INT / INTEGER     | Whole numbers               | id INT                      | IDs, counters, ages     |
+| VARCHAR(n)        | Variable text (up to n)     | name VARCHAR(100)           | Names, descriptions     |
+| CHAR(n)           | Fixed-length text           | code CHAR(3)                | Country codes, initials |
+| DECIMAL(p,s)      | Exact decimal (p digits, s) | price DECIMAL(10,2)         | Money, precise values   |
+| DATE              | Calendar date               | birth_date DATE             | Birthdays, events       |
+| BOOLEAN           | True/false                  | is_active BOOLEAN           | Yes/no flags            |
+| TEXT              | Unlimited text              | description TEXT            | Long paragraphs         |
 
 ── Constraint Reference ──
 | Constraint     | Purpose                              | Column-level | Table-level  |
 |----------------|--------------------------------------|:------------:|:------------:|
-| NOT NULL       | Column cannot be NULL                | ✅           | ❌           |
-| UNIQUE         | All values must differ               | ✅           | ✅ (composite) |
-| PRIMARY KEY    | NOT NULL + UNIQUE (row identifier)   | ✅           | ✅ (composite) |
-| FOREIGN KEY    | References PK in another table       | ✅           | ✅           |
-| CHECK          | Validates against boolean expression | ✅           | ✅           |
-| DEFAULT        | Fallback value when none provided    | ✅           | ❌           |
+| NOT NULL       | Column CANNOT be empty               | ✅           | ❌           |
+| UNIQUE         | All values must be DIFFERENT         | ✅           | ✅ (composite) |
+| PRIMARY KEY    | Row identifier (NOT NULL + UNIQUE)   | ✅           | ✅ (composite) |
+| FOREIGN KEY    | References a PK in another table     | ✅           | ✅           |
+| CHECK          | Validates a boolean expression       | ✅           | ✅           |
+| DEFAULT        | Fallback value if none provided      | ✅           | ❌           |
 
-── Column-Level vs Table-Level ──
-Column-level: written right after the column's data type
-  id INT PRIMARY KEY
-
-Table-level: written after all columns, can reference multiple columns
-  PRIMARY KEY (order_id, product_id)     -- composite PK
-  FOREIGN KEY (dept_id) REFERENCES departments(id)
-
-── Common Patterns ──
-- Surrogate PK: id INT PRIMARY KEY or id INT GENERATED ALWAYS AS IDENTITY
-- Natural PK: ssn VARCHAR(11) PRIMARY KEY (use when data naturally unique)
+── Quick Tips for Beginners ──
+- Every table should have a PRIMARY KEY (a way to uniquely identify each row)
+- Use INT for IDs, VARCHAR for text, DECIMAL for money, DATE for dates
+- NOT NULL means "this column CANNOT be left empty"
+- DEFAULT means "if user doesn't provide a value, use this instead"
+- FOREIGN KEY means "this value MUST exist in the parent table"
+- You can write constraints on the SAME LINE as the column (column-level) or AFTER all columns (table-level for composite/combining multiple columns)
 - FK with delete: FOREIGN KEY (dept_id) REFERENCES departments(id) ON DELETE CASCADE
 - Multiple FKs: a table can reference MANY different parent tables`,
     syntax: `CREATE TABLE table_name (
@@ -6447,40 +6813,69 @@ INSERT INTO product_tags VALUES (1, 2);  -- product 1, tag 'new'
     difficulty: 'beginner',
     prerequisites: ['select', 'ddl-create', 'sql-keys'],
     topics: ['INSERT', 'UPDATE', 'DELETE', 'INSERT INTO SELECT', 'TRUNCATE vs DELETE vs DROP'],
-    explanation: `── DML Operations ──
+    explanation: `── Real-World Analogy ──
+DML is how you CHANGE the data in your tables. Think of a table like a whiteboard:
+- INSERT = writing NEW entries on the board
+- UPDATE = ERASING and rewriting existing entries
+- DELETE = ERASING entries entirely
+- SELECT = READING what's on the board (the "R" in CRUD)
+
+── Visual: How DML Changes Table State ──
+  Initial table "employees":        After INSERT ... VALUES ('Diana', 60K):
+  ┌──────┬────────┐                 ┌──────┬────────┐
+  │ name │ salary │                 │ name │ salary │
+  ├──────┼────────┤                 ├──────┼────────┤
+  │ Alice│ 100K   │                 │ Alice│ 100K   │
+  │ Bob  │ 80K    │  ──► INSERT ──► │ Bob  │ 80K    │
+  │ Carol│ 70K    │                 │ Carol│ 70K    │
+  └──────┴────────┘                 │ Diana│ 60K    │  ← NEW row added
+                                    └──────┴────────┘
+
+  After UPDATE SET salary = salary * 1.1    After DELETE WHERE name = 'Bob':
+       WHERE name = 'Bob':                  ┌──────┬────────┐
+  ┌──────┬────────┐                        │ name │ salary │
+  │ name │ salary │                        ├──────┼────────┤
+  ├──────┼────────┤                        │ Alice│ 100K   │
+  │ Alice│ 100K   │  ← unchanged           │ Carol│ 77K    │  ← 70K * 1.1
+  │ Bob  │ 88K    │  ← 80K → 88K (MODIFIED)│ Diana│ 60K    │
+  │ Carol│ 77K    │  ← 70K → 77K           └──────┴────────┘
+  │ Diana│ 60K    │  ← unchanged                      Bob REMOVED
+  └──────┴────────┘
+
+── DML Operations ──
 | Operation | SQL Keyword | What It Does                     | WHERE Clause? |
 |-----------|-------------|----------------------------------|:-------------:|
-| Create    | INSERT      | Adds new rows                    | ❌ N/A        |
+| Create    | INSERT      | Adds new rows (list or subquery) | ❌ N/A        |
 | Read      | SELECT      | Retrieves rows (technically DQL) | ✅ Optional   |
-| Update    | UPDATE      | Modifies existing rows           | ⚠ Necessary! |
-| Delete    | DELETE      | Removes existing rows            | ⚠ Necessary! |
+| Update    | UPDATE      | Modifies existing rows           | ⚠ REQUIRED!  |
+| Delete    | DELETE      | Removes existing rows            | ⚠ REQUIRED!  |
 
 ── INSERT Variants ──
-INSERT INTO table VALUES (val1, val2);                 -- all columns (positional)
-INSERT INTO table (col1, col2) VALUES (val1, val2);    -- named columns (safer)
-INSERT INTO table (col1) SELECT col1 FROM other;       -- insert from query
+INSERT INTO table VALUES (val1, val2);              -- ALL columns (by position)
+INSERT INTO table (col1, col2) VALUES (val1, val2); -- named columns (SAFER)
+INSERT INTO table (col1) SELECT col1 FROM other;    -- copy from another table
 
 ── UPDATE Rules ──
-- WITHOUT WHERE → updates EVERY row (dangerous!)
-- SET can include expressions: SET salary = salary * 1.1
-- Can reference other columns: SET full_name = first_name || ' ' || last_name
+- WITHOUT WHERE → updates EVERY row (DANGEROUS! Always double-check)
+- SET can include math: SET salary = salary * 1.1 (10% raise for everyone)
+- Can combine columns: SET full_name = first_name || ' ' || last_name
 
 ── DELETE Rules ──
-- WITHOUT WHERE → deletes EVERY row (dangerous!)
-- DELETE does NOT reset identity/auto-increment counters
-- Use TRUNCATE instead to reset counters and free storage
+- WITHOUT WHERE → deletes EVERY row (DANGEROUS! The table becomes empty)
+- DELETE does NOT reset auto-increment counters
+- DELETE fires triggers, TRUNCATE does not
 
 ── DELETE vs TRUNCATE vs DROP ──
-| Operation | Removes | Structure? | Can WHERE? | Triggers? | Rollback? | Identity Reset? |
-|-----------|---------|:----------:|:----------:|:---------:|:---------:|:---------------:|
-| DELETE    | Rows    | ✅ Kept    | ✅ Yes     | ✅ Fires  | ✅ Yes    | ❌ No           |
-| TRUNCATE  | Rows    | ✅ Kept    | ❌ No      | ❌ No     | ⚠ Depends | ✅ Yes          |
-| DROP      | Rows+Table | ❌ Gone | ❌ No      | ❌ No     | ⚠ Depends | N/A             |
+| Operation | Removes   | Structure? | Can WHERE? | Triggers? | Rollback?  | Resets ID? |
+|-----------|-----------|:----------:|:----------:|:---------:|:----------:|:----------:|
+| DELETE    | Rows only | ✅ Kept   | ✅ Yes    | ✅ Fires | ✅ Yes    | ❌ No      |
+| TRUNCATE  | Rows only | ✅ Kept   | ❌ No     | ❌ No    | ⚠ Depends | ✅ Yes     |
+| DROP      | Everything| ❌ Gone   | ❌ No     | ❌ No    | ⚠ Depends | N/A        |
 
 ── Golden Rules ──
-- Always test UPDATE/DELETE with SELECT first to see which rows match
-- Use transactions: BEGIN; UPDATE ...; ROLLBACK; to test safely
-- INSERT INTO SELECT is the most efficient way to copy data between tables`,
+- ALWAYS test UPDATE/DELETE with SELECT first: SELECT * FROM employees WHERE ... (see what matches)
+- Use transactions for safety: BEGIN; UPDATE ... ; ROLLBACK; (undo if mistake)
+- INSERT INTO SELECT is the fastest way to copy rows between tables`,
     syntax: `-- INSERT all columns (values in column order)
 INSERT INTO table_name
 VALUES (val1, val2, val3);
