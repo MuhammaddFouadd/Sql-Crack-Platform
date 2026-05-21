@@ -6670,7 +6670,7 @@ ORDER BY e1.salary;`
     icon: '🏗️',
     difficulty: 'beginner',
     prerequisites: [],
-    topics: ['CREATE TABLE', 'data types', 'PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'NOT NULL', 'DEFAULT', 'CHECK', 'IDENTITY', 'composite key', 'ON DELETE', 'ON UPDATE'],
+    topics: ['CREATE TABLE', 'data types', 'PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE', 'NOT NULL', 'DEFAULT', 'CHECK', 'AUTOINCREMENT', 'IF NOT EXISTS', 'TEMPORARY TABLE', 'composite key', 'ON DELETE', 'ON UPDATE'],
     explanation: `── Real-World Analogy ──
 CREATE TABLE is like designing a spreadsheet template BEFORE entering any data.
 You decide: what columns do I need? What TYPE of data goes in each column? What RULES should the data follow?
@@ -6724,7 +6724,41 @@ You decide: what columns do I need? What TYPE of data goes in each column? What 
 - FOREIGN KEY means "this value MUST exist in the parent table"
 - You can write constraints on the SAME LINE as the column (column-level) or AFTER all columns (table-level for composite/combining multiple columns)
 - FK with delete: FOREIGN KEY (dept_id) REFERENCES departments(id) ON DELETE CASCADE
-- Multiple FKs: a table can reference MANY different parent tables`,
+- Multiple FKs: a table can reference MANY different parent tables
+
+── IF NOT EXISTS ──
+Add IF NOT EXISTS to prevent errors when creating a table that already exists:
+  CREATE TABLE IF NOT EXISTS employees (id INT PRIMARY KEY, name VARCHAR(100));
+If employees already exists, the statement is silently ignored (no error).
+
+── TEMPORARY TABLE ──
+TEMPORARY (or TEMP) tables exist only for the current database session:
+  CREATE TEMP TABLE temp_results (id INT, score INT);
+Useful for intermediate results, caching, or staging data. They are automatically dropped when the session ends. Multiple sessions can have TEMP tables with the same name without conflict.
+
+── DEFAULT with Functions ──
+DEFAULT can use function calls, not just literal values:
+  hired DATE DEFAULT CURRENT_DATE,           -- today's date
+  created_at TEXT DEFAULT (datetime('now')),  -- current timestamp
+  updated_at TEXT DEFAULT CURRENT_TIME       -- current time
+Each new row gets the function's result at insertion time.
+
+── Multi-Column Table-Level CHECK ──
+Table-level CHECK can reference MULTIPLE columns:
+  CREATE TABLE tasks (
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    CHECK (end_date > start_date)             -- compares two columns
+  );
+This ensures end_date is always after start_date — impossible with a column-level CHECK.
+
+── ON UPDATE Behavior ──
+Like ON DELETE, ON UPDATE controls what happens when a parent PK is updated:
+  FOREIGN KEY (dept_id) REFERENCES departments(id) ON UPDATE CASCADE
+- CASCADE: update child FKs to match the new parent PK value
+- SET NULL: set child FK to NULL
+- SET DEFAULT: set child FK to its default value
+- NO ACTION: prevent the parent update if child rows exist`,
     syntax: `CREATE TABLE table_name (
   column1 data_type constraint,
   column2 data_type constraint,
@@ -6745,6 +6779,26 @@ CREATE TABLE enrollments (
   course_id INT,
   PRIMARY KEY (student_id, course_id),
   FOREIGN KEY (student_id) REFERENCES students(id)
+);
+
+-- IF NOT EXISTS (no error if table already exists)
+CREATE TABLE IF NOT EXISTS employees (
+  id INT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL
+);
+
+-- TEMPORARY TABLE (exists only for current session)
+CREATE TEMP TABLE temp_log (
+  event TEXT,
+  logged_at DATE DEFAULT CURRENT_DATE
+);
+
+-- Table-level multi-column CHECK
+CREATE TABLE tasks (
+  id INT PRIMARY KEY,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  CHECK (end_date > start_date)
 );`,
     examples: [
       {
@@ -6844,16 +6898,16 @@ void insertProduct(Product p) {
 }`
       },
       {
-        title: 'IDENTITY / auto-increment column',
+        title: 'AUTOINCREMENT / auto-increment column',
         sql: `CREATE TABLE products (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(200) NOT NULL,
   category VARCHAR(50),
   price DECIMAL(10,2) CHECK (price >= 0),
   stock INT DEFAULT 0
 );`,
-        explanation: 'GENERATED ALWAYS AS IDENTITY auto-increments the id column. You cannot manually insert into an identity column — the database assigns the next value.',
-        cppRepresentation: `// Intuitive C++ representation of: GENERATED ALWAYS AS IDENTITY
+        explanation: 'INTEGER PRIMARY KEY AUTOINCREMENT auto-increments the id column. In SQLite, INTEGER PRIMARY KEY creates a rowid alias that auto-increments; AUTOINCREMENT guarantees IDs never reuse values from deleted rows.',
+        cppRepresentation: `// Intuitive C++ representation of: INTEGER PRIMARY KEY AUTOINCREMENT
 struct Product { int id; string name; string category; double price; int stock; };
 int nextId = 1;
 Product createProduct(string name, string cat, double price, int stock) {
@@ -6864,7 +6918,7 @@ Product createProduct(string name, string cat, double price, int stock) {
       {
         title: 'All constraints combined',
         sql: `CREATE TABLE employees (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(100) NOT NULL,
   department VARCHAR(50) NOT NULL DEFAULT 'General',
   salary DECIMAL(10,2) CHECK (salary >= 0),
@@ -6876,7 +6930,7 @@ Product createProduct(string name, string cat, double price, int stock) {
     FOREIGN KEY (manager_id) REFERENCES employees(id)
     ON DELETE SET NULL
 );`,
-        explanation: 'Combines IDENTITY, PRIMARY KEY, NOT NULL, DEFAULT, CHECK, UNIQUE, and a self-referencing FOREIGN KEY with ON DELETE SET NULL.',
+        explanation: 'Combines AUTOINCREMENT, PRIMARY KEY, NOT NULL, DEFAULT, CHECK, UNIQUE, and a self-referencing FOREIGN KEY with ON DELETE SET NULL.',
         cppRepresentation: `// Intuitive C++ representation of: CREATE TABLE employees with all constraints
 struct Employee {
     int id; string name; string department; double salary;
@@ -6893,6 +6947,60 @@ void insertEmployee(Employee e) {
         throw "FK: manager does not exist";
     e.id = nextId++; employees[empCount++] = e;
 }`
+      },
+      {
+        title: 'IF NOT EXISTS and TEMPORARY TABLE',
+        sql: `-- Create only if table doesn't exist yet
+CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name VARCHAR(200) NOT NULL,
+  price DECIMAL(10,2)
+);
+
+-- Temporary table for session-scoped data
+CREATE TEMP TABLE sales_summary AS
+SELECT category, COUNT(*) AS cnt, SUM(price) AS total
+FROM products
+GROUP BY category;`,
+        explanation: 'IF NOT EXISTS silently skips creation if the table already exists (no error). TEMPORARY TABLE creates a session-scoped table that auto-drops when the connection closes — useful for intermediate results.',
+        cppRepresentation: `// Intuitive C++ representation of: IF NOT EXISTS and TEMP TABLE
+// IF NOT EXISTS: check before creating
+if (!tableExists("products"))
+    createProductsTable();
+
+// TEMP TABLE: like a local variable scoped to a function
+// Normal table = global variable (persists)
+// Temp table  = local variable (gone after session)`
+      },
+      {
+        title: 'DEFAULT with functions and multi-column CHECK',
+        sql: `CREATE TABLE project_milestones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_name VARCHAR(200) NOT NULL,
+  planned_start DATE NOT NULL DEFAULT CURRENT_DATE,
+  planned_end DATE NOT NULL,
+  actual_start DATE,
+  actual_end DATE,
+  status VARCHAR(20) DEFAULT 'planning',
+  CHECK (planned_end > planned_start),
+  CHECK (actual_end IS NULL OR actual_end >= actual_start),
+  CHECK (status IN ('planning', 'active', 'completed', 'delayed'))
+);`,
+        explanation: 'DEFAULT CURRENT_DATE sets today\'s date automatically. The table-level CHECK constraints compare multiple columns: planned_end must be after planned_start, and if actual_end is provided it must be >= actual_start.',
+        cppRepresentation: `// Intuitive C++ representation of: DEFAULT with functions + multi-column CHECK
+struct Milestone {
+    int id; string project; string planned_start; string planned_end;
+    string actual_start; string actual_end; string status;
+};
+void insertMilestone(Milestone m) {
+    if (m.planned_start.empty()) m.planned_start = today(); // DEFAULT
+    if (m.planned_end <= m.planned_start) throw "CHECK: end > start";
+    if (!m.actual_end.empty() && m.actual_end < m.actual_start)
+        throw "CHECK: actual end >= actual start";
+    if (m.status != "planning" && m.status != "active" /*...*/)
+        throw "CHECK: invalid status";
+    milestones[count++] = m;
+}`
       }
     ],
     commonMistakes: [
@@ -6900,7 +7008,9 @@ void insertEmployee(Employee e) {
       'Using TEXT for short strings (VARCHAR is more efficient for bounded lengths)',
       'Adding a FOREIGN KEY without an index on the referencing column (performance killer)',
       'Using ON DELETE CASCADE without understanding the ripple effect on child tables',
-      'Forgetting NOT NULL on columns that are part of a PRIMARY KEY (PK already implies it)'
+      'Forgetting NOT NULL on columns that are part of a PRIMARY KEY (PK already implies it)',
+      'Using PostgreSQL IDENTITY syntax (GENERATED ALWAYS AS IDENTITY) in SQLite — use INTEGER PRIMARY KEY AUTOINCREMENT instead',
+      'Forgetting IF NOT EXISTS when running scripts that may be re-run, causing errors on duplicate tables'
     ],
     practiceQuestions: [
       {
@@ -6910,9 +7020,9 @@ Write a CREATE TABLE statement for the "products" table with: id (auto-increment
 
 Return columns: (DDL statement — no columns returned)
 Order by: N/A (DDL).`,
-        hint: 'Use GENERATED ALWAYS AS IDENTITY for id, VARCHAR(200) NOT NULL for name, CHECK constraints for price and stock.',
+        hint: 'Use INTEGER PRIMARY KEY AUTOINCREMENT for id, VARCHAR(200) NOT NULL for name, CHECK constraints for price and stock.',
         solution: `CREATE TABLE products (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(200) NOT NULL,
   category VARCHAR(50),
   price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
@@ -6940,9 +7050,9 @@ Order by: N/A (DDL).`,
 
 Return columns: (DDL statement — no columns returned)
 Order by: N/A (DDL).`,
-        hint: 'Use GENERATED ALWAYS AS IDENTITY, UNIQUE on name, DEFAULT CURRENT_DATE, and CHECK (LENGTH(name) >= 3).',
+        hint: 'Use INTEGER PRIMARY KEY AUTOINCREMENT, UNIQUE on name, DEFAULT CURRENT_DATE, and CHECK (LENGTH(name) >= 3).',
         solution: `CREATE TABLE projects (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name VARCHAR(200) NOT NULL UNIQUE,
   budget DECIMAL(12,2) NOT NULL CHECK (budget >= 1000),
   start_date DATE DEFAULT CURRENT_DATE,
@@ -6954,9 +7064,9 @@ Order by: N/A (DDL).`,
 
 Return columns: (DDL statement — no columns returned)
 Order by: N/A (DDL).`,
-        hint: 'Use GENERATED ALWAYS AS IDENTITY for enrollment_id. Use VARCHAR(1) CHECK (grade IN (\'A\',\'B\',\'C\',\'D\',\'F\')) for grade. Add FOREIGN KEY constraints and UNIQUE(student_id, course_id).',
+        hint: 'Use INTEGER PRIMARY KEY AUTOINCREMENT for enrollment_id. Use VARCHAR(1) CHECK (grade IN (\'A\',\'B\',\'C\',\'D\',\'F\')) for grade. Add FOREIGN KEY constraints and UNIQUE(student_id, course_id).',
         solution: `CREATE TABLE course_enrollments (
-  enrollment_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  enrollment_id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id INT NOT NULL,
   course_id INT NOT NULL,
   enrollment_date DATE DEFAULT CURRENT_DATE,
@@ -7052,7 +7162,7 @@ CREATE TABLE orders (
 
 -- Surrogate PK (recommended)
 CREATE TABLE users (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   email VARCHAR(255) NOT NULL UNIQUE     -- natural key as alternate
 );
 
@@ -7080,7 +7190,7 @@ CREATE TABLE course_enrollments (
 
 -- Surrogate PK + Natural Key as UNIQUE
 CREATE TABLE products (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   sku VARCHAR(50) NOT NULL UNIQUE,       -- natural key
   name VARCHAR(200) NOT NULL,
   category_id INT REFERENCES categories(id)
@@ -7252,7 +7362,7 @@ CREATE TABLE books_natural (
 
 -- Design B: Surrogate key + Natural key as UNIQUE (robust)
 CREATE TABLE books_surrogate (
-  id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   isbn VARCHAR(13) NOT NULL UNIQUE,      -- natural key as alternate
   title VARCHAR(200) NOT NULL,
   author VARCHAR(100)
@@ -7356,9 +7466,9 @@ INSERT INTO product_tags VALUES (1, 2);  -- product 1, tag 'new'
 
 Return columns: (DDL statement — no columns returned)
 Order by: N/A (DDL).`,
-        hint: 'Use GENERATED ALWAYS AS IDENTITY for the surrogate PK. Add UNIQUE(supplier_code) for the natural key. The surrogate key (supplier_id) is the PK since it\'s artificial and stable.',
+        hint: 'Use INTEGER PRIMARY KEY AUTOINCREMENT for the surrogate PK. Add UNIQUE(supplier_code) for the natural key. The surrogate key (supplier_id) is the PK since it\'s artificial and stable.',
         solution: `CREATE TABLE suppliers (
-  supplier_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  supplier_id INTEGER PRIMARY KEY AUTOINCREMENT,
   supplier_code VARCHAR(20) NOT NULL UNIQUE,
   name VARCHAR(200) NOT NULL,
   contact_email VARCHAR(255),
@@ -7375,7 +7485,7 @@ Order by: N/A (DDL).`,
     icon: '✏️',
     difficulty: 'beginner',
     prerequisites: ['select', 'ddl-create', 'sql-keys'],
-    topics: ['INSERT', 'UPDATE', 'DELETE', 'INSERT INTO SELECT', 'TRUNCATE vs DELETE vs DROP'],
+    topics: ['INSERT', 'multi-row INSERT', 'INSERT with DEFAULT', 'INSERT INTO SELECT', 'INSERT OR REPLACE', 'UPDATE', 'UPDATE with CASE', 'DELETE', 'DELETE with subquery', 'TRUNCATE vs DELETE vs DROP'],
     explanation: `── Real-World Analogy ──
 DML is how you CHANGE the data in your tables. Think of a table like a whiteboard:
 - INSERT = writing NEW entries on the board
@@ -7418,6 +7528,52 @@ INSERT INTO table VALUES (val1, val2);              -- ALL columns (by position)
 INSERT INTO table (col1, col2) VALUES (val1, val2); -- named columns (SAFER)
 INSERT INTO table (col1) SELECT col1 FROM other;    -- copy from another table
 
+── Multi-Row INSERT ──
+Insert MULTIPLE rows in a single statement (faster than separate INSERTs):
+  INSERT INTO employees (id, name, dept)
+  VALUES (1, 'Alice', 'Engineering'),
+         (2, 'Bob', 'Marketing'),
+         (3, 'Carol', 'Sales');
+Each row is enclosed in (...) and separated by commas.
+
+── INSERT with DEFAULT ──
+Use the DEFAULT keyword to explicitly use a column's default value:
+  INSERT INTO employees (id, name, status)
+  VALUES (4, 'Dave', DEFAULT);   -- status gets its DEFAULT value (e.g., 'active')
+You can also omit the column entirely (same effect if a DEFAULT exists).
+
+── INSERT OR REPLACE / INSERT OR IGNORE (SQLite) ──
+SQLite-specific upsert behavior:
+  INSERT OR REPLACE INTO products (id, name, price)
+  VALUES (1, 'Laptop Pro', 1199.99);
+  -- If id=1 exists, REPLACE it (DELETE + INSERT). If not, INSERT.
+  INSERT OR IGNORE INTO products (id, name, price)
+  VALUES (99, 'Old Product', 9.99);
+  -- If id=99 exists, silently skip. If not, INSERT.
+- OR REPLACE = upsert (insert or update)
+- OR IGNORE = skip on conflict (no error)
+
+── UPDATE with CASE ──
+Use CASE inside SET for conditional updates:
+  UPDATE employees
+  SET salary = CASE
+    WHEN department = 'Engineering' THEN salary * 1.15
+    WHEN department = 'Sales' THEN salary * 1.10
+    ELSE salary * 1.05
+  END;
+Different departments get different raise percentages in ONE statement.
+
+── DELETE with Subquery ──
+DELETE can use a subquery in WHERE to target rows based on another table:
+  DELETE FROM products
+  WHERE id IN (
+    SELECT product_id
+    FROM order_items
+    GROUP BY product_id
+    HAVING SUM(quantity) < 5
+  );
+Deletes products that have sold fewer than 5 total units.
+
 ── UPDATE Rules ──
 - WITHOUT WHERE → updates EVERY row (DANGEROUS! Always double-check)
 - SET can include math: SET salary = salary * 1.1 (10% raise for everyone)
@@ -7451,14 +7607,40 @@ VALUES (val1, val2);
 INSERT INTO table_name (col1, col2)
 SELECT col1, col2 FROM other_table;
 
+-- Multi-row INSERT
+INSERT INTO table_name (col1, col2)
+VALUES (val1, val2),
+       (val3, val4),
+       (val5, val6);
+
+-- INSERT with DEFAULT keyword
+INSERT INTO table_name (col1, col2, col3)
+VALUES (val1, DEFAULT, val3);
+
+-- INSERT OR REPLACE (SQLite upsert)
+INSERT OR REPLACE INTO table_name (id, col1)
+VALUES (1, 'value');
+
 -- UPDATE
 UPDATE table_name
 SET column1 = value1, column2 = value2
 WHERE condition;
 
+-- UPDATE with CASE
+UPDATE table_name
+SET column1 = CASE
+  WHEN condition1 THEN value1
+  WHEN condition2 THEN value2
+  ELSE default_value
+  END;
+
 -- DELETE
 DELETE FROM table_name
-WHERE condition;`,
+WHERE condition;
+
+-- DELETE with subquery
+DELETE FROM table_name
+WHERE id IN (SELECT id FROM other_table WHERE condition);`,
     examples: [
       {
         title: 'INSERT — all columns (positional)',
@@ -7548,13 +7730,71 @@ employeeCount = writePos;
 
 // DELETE FROM employees (no WHERE):
 // employeeCount = 0;`
+      },
+      {
+        title: 'Multi-row INSERT',
+        sql: `INSERT INTO employees (id, name, department, salary, status, city, email)
+VALUES (11, 'Iris Chen', 'Engineering', 87000, 'active', 'Austin', 'iris@company.com'),
+       (12, 'Jake Rivera', 'Sales', 63000, 'active', 'Denver', 'jake@company.com'),
+       (13, 'Kara Singh', 'Marketing', 71000, 'active', 'Portland', 'kara@company.com');`,
+        explanation: 'Inserts three employees in a single atomic statement. Multi-row INSERT is faster than separate INSERTs and guarantees all rows are added or none (transactional).',
+        sourceTables: ['employees'],
+        cppRepresentation: `// Intuitive C++ representation of: multi-row INSERT
+Employee newEmps[] = {
+    {11, "Iris Chen", "Engineering", 87000, "active", "Austin", "iris@company.com"},
+    {12, "Jake Rivera", "Sales", 63000, "active", "Denver", "jake@company.com"},
+    {13, "Kara Singh", "Marketing", 71000, "active", "Portland", "kara@company.com"}
+};
+for (int i = 0; i < 3; i++)
+    employees[employeeCount++] = newEmps[i];`
+      },
+      {
+        title: 'UPDATE with CASE and DELETE with subquery',
+        sql: `-- Give raises based on department (CASE)
+UPDATE employees
+SET salary = CASE
+  WHEN department = 'Engineering' THEN salary * 1.15
+  WHEN department = 'Sales' THEN salary * 1.10
+  ELSE salary * 1.05
+END;
+
+-- Delete products with low sales (subquery)
+DELETE FROM products
+WHERE id IN (
+  SELECT product_id
+  FROM order_items
+  GROUP BY product_id
+  HAVING SUM(quantity) < 3
+);`,
+        explanation: 'The CASE expression gives different raise percentages per department in a single UPDATE. Then, a subquery finds products with fewer than 3 total units sold and deletes them from products.',
+        sourceTables: ['employees', 'products', 'order_items'],
+        cppRepresentation: `// Intuitive C++ representation of: UPDATE with CASE
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering")
+        employees[i].salary *= 1.15;
+    else if (employees[i].department == "Sales")
+        employees[i].salary *= 1.10;
+    else
+        employees[i].salary *= 1.05;
+}
+// DELETE with subquery:
+int soldLow[100], lowCount = 0;
+// First subquery: find products with low sales
+for (int i = 0; i < orderItemCount; i++)
+    soldLow[orderItems[i].product_id] += orderItems[i].quantity;
+for (int i = 0; i < productCount; i++)
+    if (soldLow[products[i].id] < 3)
+        markForDeletion(i);
+// Delete marked products...`
       }
     ],
     commonMistakes: [
       'Forgetting the WHERE clause in UPDATE/DELETE (modifies/removes ALL rows)',
       'Using INSERT with positional VALUES that don\'t match the column order',
       'Assuming INSERT INTO SELECT preserves source data order (no ORDER BY needed)',
-      'Confusing TRUNCATE with DELETE: TRUNCATE cannot use WHERE, resets identity, is DDL not DML'
+      'Confusing TRUNCATE with DELETE: TRUNCATE cannot use WHERE, resets identity, is DDL not DML',
+      'Using separate INSERT statements instead of multi-row INSERT (slower, more verbose)',
+      'Forgetting commas between rows in multi-row INSERT (easy syntax error)'
     ],
     practiceQuestions: [
       {
@@ -7582,20 +7822,25 @@ SET salary = salary * 1.05,
 WHERE department = 'Marketing';`
       },
       {
-        question: `Table: orders, archived_orders
+        question: `Table: employees
 
-Challenge: Insert all orders before 2024 into "archived_orders" (same columns), then delete them from orders.
+Medium: Insert three new employees in a single statement, then delete all employees in the 'HR' department.
+
+New employees (in order):
+  (11, 'Nancy Adams', 'nancy@company.com', NULL, 58000, 'Engineering', 1, 1, '2024-06-01', 'Boston'),
+  (12, 'Oscar Lee', 'oscar@company.com', '555-1012', 74000, 'Marketing', 3, 3, '2024-06-15', 'Chicago'),
+  (13, 'Patricia Wu', 'patricia@company.com', NULL, 92000, 'Engineering', 1, 1, '2024-07-01', 'New York')
 
 Return columns: (DML statements — no columns returned)
 Order by: N/A (DML).`,
-        hint: 'First INSERT INTO archived_orders SELECT * FROM orders WHERE order_date < \'2024-01-01\'. Then DELETE FROM orders WHERE order_date < \'2024-01-01\'.',
-        solution: `INSERT INTO archived_orders (id, customer, product_id, quantity, total, order_date)
-SELECT id, customer, product_id, quantity, total, order_date
-FROM orders
-WHERE order_date < '2024-01-01';
+        hint: 'Use multi-row INSERT: INSERT INTO employees (columns) VALUES (...), (...), (...). Then DELETE FROM employees WHERE department = \'HR\'.',
+        solution: `INSERT INTO employees (id, name, email, phone, salary, department, department_id, manager_id, hire_date, city)
+VALUES (11, 'Nancy Adams', 'nancy@company.com', NULL, 58000, 'Engineering', 1, 1, '2024-06-01', 'Boston'),
+       (12, 'Oscar Lee', 'oscar@company.com', '555-1012', 74000, 'Marketing', 3, 3, '2024-06-15', 'Chicago'),
+       (13, 'Patricia Wu', 'patricia@company.com', NULL, 92000, 'Engineering', 1, 1, '2024-07-01', 'New York');
 
-DELETE FROM orders
-WHERE order_date < '2024-01-01';`
+DELETE FROM employees
+WHERE department = 'HR';`
       },
       {
         question: `Table: products
