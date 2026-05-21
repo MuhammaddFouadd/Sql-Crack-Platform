@@ -7,7 +7,7 @@ import { useSmartStudyStore } from '@/lib/smart-study/store'
 import { formatSQL } from '@/lib/sql-format'
 import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
 import { cn } from '@/lib/utils'
-import { Shuffle, Lightbulb, CheckCircle2, XCircle, ChevronDown, ChevronUp, Code2, Wand2, Check, X, Database, Eye, EyeOff, HelpCircle } from 'lucide-react'
+import { Shuffle, Lightbulb, CheckCircle2, XCircle, ChevronDown, ChevronUp, Code2, Wand2, Check, X, Database, Eye, EyeOff, HelpCircle, TableIcon } from 'lucide-react'
 
 const SCHEMA_INFO: { table: string; columns: string[] }[] = [
   { table: 'customers', columns: ['id', 'name', 'email', 'phone', 'city', 'signup_date'] },
@@ -17,6 +17,40 @@ const SCHEMA_INFO: { table: string; columns: string[] }[] = [
   { table: 'orders', columns: ['id', 'customer_id', 'customer_name', 'product_id', 'quantity', 'total', 'order_date'] },
   { table: 'order_items', columns: ['id', 'order_id', 'product_id', 'quantity'] },
 ]
+
+function parseTables(question: string): string[] {
+  const match = question.match(/^Table:\s*(.+)$/m)
+  if (!match) return []
+  const raw = match[1].toLowerCase().trim()
+  if (raw.includes('(no table') || raw.includes('new table') || raw.includes('ddl') || raw.includes('dml') || raw.includes('explanatory') || raw === 'n/a (ddl)' || raw === 'n/a (dml)') return []
+  return raw.split(',').map(t => t.trim()).filter(t => SCHEMA_INFO.some(s => s.table === t))
+}
+
+function TablePreview({ columns, values }: { columns: string[]; values: string[][] }) {
+  if (columns.length === 0) return <p className="text-xs text-text-muted italic">No data</p>
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs font-mono border-collapse">
+        <thead>
+          <tr>
+            {columns.map((col, i) => (
+              <th key={i} className="px-2.5 py-1.5 text-left font-bold text-text bg-cream-darker border-b border-border whitespace-nowrap">{col}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {values.map((row, ri) => (
+            <tr key={ri} className="border-b border-border/40 last:border-0">
+              {row.map((cell, ci) => (
+                <td key={ci} className={`px-2.5 py-1 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 const difficultyOrder = ['easy', 'medium', 'hard'] as const
 type Difficulty = (typeof difficultyOrder)[number]
@@ -88,6 +122,8 @@ export default function InterleavedPractice() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
+  const [rawData, setRawData] = useState<{ table: string; columns: string[]; values: string[][] }[] | null>(null)
+  const [loadingRaw, setLoadingRaw] = useState(false)
 
   const topics = useMemo(() => {
     return [...new Set(practiceProblems.map((p) => p.topic))].sort()
@@ -101,6 +137,25 @@ export default function InterleavedPractice() {
   }, [topicFilter, difficultyFilter])
 
   const current = filtered[index] ?? null
+
+  const loadRawData = useCallback(async () => {
+    if (rawData || loadingRaw || !current) return
+    const tables = parseTables(current.question)
+    if (tables.length === 0) return
+    setLoadingRaw(true)
+    try {
+      const SQL = await getSqlJs()
+      const db = new SQL.Database()
+      db.run(PRACTICE_SCHEMA_SQL)
+      const results = tables.map((table) => {
+        const res = execQuery(db, `SELECT * FROM \`${table}\``)
+        return { table, columns: res?.columns ?? [], values: res?.values ?? [] }
+      })
+      setRawData(results)
+      db.close()
+    } catch { setRawData([]) }
+    setLoadingRaw(false)
+  }, [current, rawData, loadingRaw])
 
   const resetInputs = useCallback(() => {
     setUserSql('')
@@ -310,6 +365,30 @@ export default function InterleavedPractice() {
             </div>
           </details>
 
+          <details className="group text-xs" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) loadRawData() }}>
+            <summary className="flex items-center gap-1.5 text-green font-medium cursor-pointer hover:opacity-80 transition-opacity list-none">
+              <TableIcon size={13} className="shrink-0" />
+              <span>Raw Table Data</span>
+              <ChevronDown size={12} className="ml-auto group-open:rotate-180 transition-transform text-text-muted" />
+            </summary>
+            <div className="mt-2 bg-cream-dark border-2 border-green/20 rounded-xl p-4 space-y-4">
+              {loadingRaw && <p className="text-xs text-text-muted italic">Loading data...</p>}
+              {!loadingRaw && rawData === null && <p className="text-xs text-text-muted italic">Open to view raw data from tables used in this question.</p>}
+              {!loadingRaw && rawData !== null && rawData.length === 0 && <p className="text-xs text-text-muted italic">No table data available for this question type.</p>}
+              {!loadingRaw && rawData !== null && rawData.map(({ table, columns, values }) => (
+                <div key={table}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-bold text-text font-mono">{table}</span>
+                    <span className="text-[10px] text-text-muted">({values.length} rows)</span>
+                  </div>
+                  <div className="bg-white/50 dark:bg-black/10 border border-border rounded-lg">
+                    <TablePreview columns={columns} values={values} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+
           <div className="space-y-3">
             <textarea
               value={userSql}
@@ -363,12 +442,12 @@ export default function InterleavedPractice() {
                     <span className="text-xs font-bold text-text">Your Result</span>
                     <span className="text-[10px] text-text-muted">({userResult.values.length} rows)</span>
                   </div>
-                  <div className="bg-cream-dark border-2 border-border rounded-xl overflow-hidden">
+                  <div className="bg-cream-dark border-2 border-border rounded-xl overflow-x-auto">
                     <table className="w-full text-xs font-mono">
                       <thead>
                         <tr>
                           {userResult.columns.map((col, i) => (
-                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-cream-darker border-b border-border">{col}</th>
+                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-cream-darker border-b border-border whitespace-nowrap">{col}</th>
                           ))}
                         </tr>
                       </thead>
@@ -376,7 +455,7 @@ export default function InterleavedPractice() {
                         {userResult.values.slice(0, 10).map((row, ri) => (
                           <tr key={ri} className="border-b border-border/50 last:border-0">
                             {row.map((cell, ci) => (
-                              <td key={ci} className={`px-3 py-1.5 ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+                              <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
                             ))}
                           </tr>
                         ))}
@@ -390,12 +469,12 @@ export default function InterleavedPractice() {
                     <span className="text-xs font-bold text-text">Expected Result</span>
                     <span className="text-[10px] text-text-muted">({expectedResult.values.length} rows)</span>
                   </div>
-                  <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-hidden">
+                  <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-x-auto">
                     <table className="w-full text-xs font-mono">
                       <thead>
                         <tr>
                           {expectedResult.columns.map((col, i) => (
-                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-green-light/50 border-b border-green/20">{col}</th>
+                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-green-light/50 border-b border-green/20 whitespace-nowrap">{col}</th>
                           ))}
                         </tr>
                       </thead>
@@ -403,7 +482,7 @@ export default function InterleavedPractice() {
                         {expectedResult.values.slice(0, 10).map((row, ri) => (
                           <tr key={ri} className="border-b border-green/10 last:border-0">
                             {row.map((cell, ci) => (
-                              <td key={ci} className={`px-3 py-1.5 ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+                              <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
                             ))}
                           </tr>
                         ))}
