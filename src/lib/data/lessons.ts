@@ -3107,20 +3107,68 @@ LEFT JOIN orders o ON p.id = o.product_id
 WHERE o.id IS NULL;`
       },
       {
-        question: `Table: orders
+        question: `Table: employees, orders, products
 
-Challenge: Find customers who have placed orders totaling more than $200.
+Use INNER JOIN across three tables to show each employee's name, the products they ordered, quantities, and order dates.
 
-Return columns: customer, order_count, total_spent
-Order by: total_spent DESC.`,
-        hint: 'First aggregate in a subquery or CTE: GROUP BY customer with SUM(total) and COUNT(*). Then JOIN or filter with WHERE.',
-        solution: `SELECT o.customer,
-  COUNT(*) AS order_count,
-  ROUND(SUM(o.total), 2) AS total_spent
+Return columns: employee_name, product_name, quantity, order_date
+Order by: order_date ASC, employee_name ASC.`,
+        hint: 'Chain two JOINs: FROM employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. Select the relevant columns.',
+        solution: `SELECT e.name AS employee_name,
+  p.name AS product_name,
+  o.quantity,
+  o.order_date
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+ORDER BY o.order_date, e.name;`
+      },
+      {
+        question: `Table: products, departments
+
+Use CROSS JOIN to pair every product with every department, showing all possible combinations.
+
+Return columns: product_name, category, department_name
+Order by: product_name ASC, department_name ASC.`,
+        hint: 'Use SELECT p.name, p.category, d.name FROM products p CROSS JOIN departments d. No ON clause needed — CROSS JOIN produces a Cartesian product.',
+        solution: `SELECT p.name AS product_name,
+  p.category,
+  d.name AS department_name
+FROM products p
+CROSS JOIN departments d
+ORDER BY p.name, d.name;`
+      },
+      {
+        question: `Table: customers, orders
+
+Use FULL OUTER JOIN to show all customers and all orders, including customers with no orders and orders with no matching customer.
+
+Return columns: customer_name, order_id, total, order_date
+Order by: customer_name ASC NULLS LAST, order_date ASC.`,
+        hint: 'Use FULL JOIN ... ON customers.name = orders.customer_name. SQLite supports FULL JOIN since version 3.39.0.',
+        solution: `SELECT c.name AS customer_name,
+  o.id AS order_id,
+  o.total,
+  o.order_date
+FROM customers c
+FULL JOIN orders o ON c.name = o.customer_name
+ORDER BY c.name NULLS LAST, o.order_date;`
+      },
+      {
+        question: `Table: products, orders
+
+Simulate RIGHT JOIN using LEFT JOIN. Show all orders and their product info, including orders whose product_id has no match in products.
+
+Return columns: order_id, product_name, quantity, total
+Order by: order_id ASC.`,
+        hint: 'SQLite does not support RIGHT JOIN. Simulate it by swapping table order: SELECT ... FROM orders o LEFT JOIN products p ON o.product_id = p.id.',
+        solution: `SELECT o.id AS order_id,
+  p.name AS product_name,
+  o.quantity,
+  o.total
 FROM orders o
-GROUP BY o.customer
-HAVING SUM(o.total) > 200
-ORDER BY total_spent DESC;`
+LEFT JOIN products p ON o.product_id = p.id
+ORDER BY o.id;`
       }
     ]
   },
