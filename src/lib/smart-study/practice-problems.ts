@@ -1,0 +1,31 @@
+export interface PracticeProblem {
+  id: string
+  topic: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  question: string
+  hint: string
+  solution: string
+}
+
+export const practiceProblems: PracticeProblem[] = [
+  { id: 'pp-1', topic: 'SELECT', difficulty: 'easy', question: 'Write a query to select all employees from the employees table, showing only name and salary columns.', hint: 'Use SELECT column1, column2 FROM table', solution: 'SELECT name, salary FROM employees;' },
+  { id: 'pp-2', topic: 'WHERE', difficulty: 'easy', question: 'Find all products with a price greater than 100.', hint: 'Use WHERE price > 100', solution: 'SELECT * FROM products WHERE price > 100;' },
+  { id: 'pp-3', topic: 'ORDER BY', difficulty: 'easy', question: 'List all departments sorted by name in reverse alphabetical order.', hint: 'Use ORDER BY name DESC', solution: 'SELECT * FROM departments ORDER BY name DESC;' },
+  { id: 'pp-4', topic: 'JOINs', difficulty: 'medium', question: 'Find the names of employees along with their department names.', hint: 'JOIN employees and departments on department_id = id', solution: 'SELECT e.name, d.name AS department FROM employees e JOIN departments d ON e.department_id = d.id;' },
+  { id: 'pp-5', topic: 'GROUP BY', difficulty: 'medium', question: 'Count how many employees are in each department.', hint: 'Use GROUP BY department_id with COUNT(*)', solution: 'SELECT department_id, COUNT(*) AS emp_count FROM employees GROUP BY department_id;' },
+  { id: 'pp-6', topic: 'HAVING', difficulty: 'medium', question: 'Find departments that have more than 3 employees.', hint: 'Use GROUP BY then HAVING COUNT(*) > 3', solution: 'SELECT department_id, COUNT(*) AS emp_count FROM employees GROUP BY department_id HAVING COUNT(*) > 3;' },
+  { id: 'pp-7', topic: 'Subqueries', difficulty: 'medium', question: 'Find employees who earn more than the average salary.', hint: 'Use WHERE salary > (SELECT AVG(salary) FROM employees)', solution: 'SELECT * FROM employees WHERE salary > (SELECT AVG(salary) FROM employees);' },
+  { id: 'pp-8', topic: 'CASE WHEN', difficulty: 'medium', question: 'Categorize employees as "High", "Medium", or "Low" based on their salary (>70000 High, >40000 Medium, else Low).', hint: 'Use CASE WHEN salary > 70000 THEN \'High\' ... END', solution: 'SELECT name, salary, CASE WHEN salary > 70000 THEN \'High\' WHEN salary > 40000 THEN \'Medium\' ELSE \'Low\' END AS category FROM employees;' },
+  { id: 'pp-9', topic: 'CTEs', difficulty: 'hard', question: 'Use a CTE to find the department with the highest average salary.', hint: 'WITH dept_avg AS (SELECT department_id, AVG(salary) AS avg_sal FROM employees GROUP BY department_id) SELECT ...', solution: 'WITH dept_avg AS (SELECT department_id, AVG(salary) AS avg_sal FROM employees GROUP BY department_id) SELECT d.name, da.avg_sal FROM dept_avg da JOIN departments d ON da.department_id = d.id ORDER BY da.avg_sal DESC LIMIT 1;' },
+  { id: 'pp-10', topic: 'Window Functions', difficulty: 'hard', question: 'Rank employees by salary within each department.', hint: 'Use RANK() OVER (PARTITION BY department_id ORDER BY salary DESC)', solution: 'SELECT name, department_id, salary, RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) AS salary_rank FROM employees;' },
+  { id: 'pp-11', topic: 'Set Operations', difficulty: 'medium', question: 'Find all unique cities that are either locations of departments or addresses of employees.', hint: 'Use UNION between two SELECT queries on cities', solution: 'SELECT city FROM departments UNION SELECT city FROM employees;' },
+  { id: 'pp-12', topic: 'EXISTS / NOT EXISTS', difficulty: 'hard', question: 'Find departments that have no employees assigned.', hint: 'Use NOT EXISTS with a correlated subquery', solution: 'SELECT * FROM departments d WHERE NOT EXISTS (SELECT 1 FROM employees e WHERE e.department_id = d.id);' },
+  { id: 'pp-13', topic: 'String Functions', difficulty: 'easy', question: 'Display employee names in uppercase.', hint: 'Use UPPER() function', solution: 'SELECT UPPER(name) AS name_upper FROM employees;' },
+  { id: 'pp-14', topic: 'Pattern Matching', difficulty: 'easy', question: 'Find all employees whose name starts with "J".', hint: "Use WHERE name LIKE 'J%'", solution: "SELECT * FROM employees WHERE name LIKE 'J%';" },
+  { id: 'pp-15', topic: 'DML', difficulty: 'medium', question: 'Give a 10% raise to all employees in department 3.', hint: 'Use UPDATE ... SET salary = salary * 1.1 WHERE department_id = 3', solution: 'UPDATE employees SET salary = salary * 1.1 WHERE department_id = 3;' },
+  { id: 'pp-16', topic: 'DDL', difficulty: 'medium', question: 'Create a table called "projects" with columns id (INTEGER PK), name (TEXT NOT NULL), and budget (REAL).', hint: 'Use CREATE TABLE with column definitions and PRIMARY KEY', solution: 'CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT NOT NULL, budget REAL);' },
+  { id: 'pp-17', topic: 'Division', difficulty: 'hard', question: 'Find employees who work on ALL projects (assuming a projects table and employee_projects junction table).', hint: 'Use double NOT EXISTS or GROUP BY with COUNT and HAVING', solution: "SELECT * FROM employees e WHERE NOT EXISTS (SELECT 1 FROM projects p WHERE NOT EXISTS (SELECT 1 FROM employee_projects ep WHERE ep.employee_id = e.id AND ep.project_id = p.id));" },
+  { id: 'pp-18', topic: 'Keys', difficulty: 'medium', question: 'What constraint ensures a column cannot have NULL values?', hint: 'It is part of the column definition in CREATE TABLE', solution: 'NOT NULL constraint. Add it after the column type: column_name TYPE NOT NULL' },
+  { id: 'pp-19', topic: 'Relational Algebra', difficulty: 'hard', question: 'Which relational algebra operation corresponds to SQL\'s WHERE clause?', hint: 'Think about the Greek letter used.', solution: 'SELECT (σ / sigma). It filters tuples (rows) based on a predicate.' },
+  { id: 'pp-20', topic: 'JOINs', difficulty: 'medium', question: 'Find employees who do not belong to any department.', hint: 'Use LEFT JOIN and check for NULL on the department side', solution: 'SELECT e.* FROM employees e LEFT JOIN departments d ON e.department_id = d.id WHERE d.id IS NULL;' },
+]

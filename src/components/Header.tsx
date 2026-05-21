@@ -12,6 +12,7 @@ const links = [
   { href: '/', label: 'Home' },
   { href: '/lessons', label: 'Lessons' },
   { href: '/playground', label: 'Playground' },
+  { href: '/smart-study', label: 'Smart Study' },
 ]
 
 export default function Header() {

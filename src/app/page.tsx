@@ -34,6 +34,14 @@ const sections = [
     color: 'border-rose bg-rose-light',
     count: 'saved locally'
   },
+  {
+    title: 'Smart Study',
+    description: 'Spaced repetition, active recall, interleaved practice — backed by cognitive science research from top universities.',
+    href: '/smart-study',
+    icon: '🧠',
+    color: 'border-purple bg-purple-light',
+    count: '4 pillars'
+  },
 ]
 
 const topics = [
