@@ -2506,32 +2506,29 @@ Think of two puzzle pieces — the key column is the interlocking tab that conne
 | SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
 
 ── Set Visual: What Each JOIN Returns ──
-  Two overlapping sets A and B:
+  Think of two overlapping circles:
+  - Circle A = all rows from the LEFT table  (students)
+  - Circle B = all rows from the RIGHT table (registrations)
+  - Overlap  = rows that MATCH (students who have registrations)
 
-         ┌───────────┐
-         │     A     │
-         │  ┌─────┐  │
-         │  │  ∩  │  │
-         │  └─────┘  │
-         └───────────┘
-         ┌───────────┐
-         │     B     │
-         └───────────┘
+                      ┌─────┐
+          ┌─────┐     │  2  │     ┌─────┐
+          │     │     │ reg │     │     │
+          │  1  │     │  ids│     │  3  │
+          │ stu │     │  1  │     │ reg │
+          │ 2,4 │ ──► │  3  │ ◄── │ ids │
+          │ (no │     │     │     │ (no │
+          │ reg) │     │ stu │     │ stu)│
+          └─────┘     │ 1,3 │     └─────┘
+                      └─────┘
+        LEFT side            OVERLAP           RIGHT side
+      (only from A)     (A ∩ B = matched)   (only from B)
 
-  INNER JOIN A ∩ B  :  │███│  ── only the overlapping intersection
-  LEFT JOIN          :  │████████│  ── all of A + matching B parts
-  RIGHT JOIN         :     │████████│  ── all of B + matching A parts
-  FULL JOIN A ∪ B   :  │██████████│  ── everything from both sets
-  CROSS JOIN        :  A × B (every row of A paired with every row of B)
-
-  Example with our students / registrations data:
-  ┌────────────────────────────────────────────────────────────────┐
-  │ INNER JOIN: 3 rows (Alice×2 + Charlie×1)   ∩ region only      │
-  │ LEFT JOIN:  5 rows (all 4 students + NULLs for Bob & Diana)   │
-  │ RIGHT JOIN: 3 rows (same as INNER — no orphan registrations)  │
-  │ FULL JOIN:  5 rows (same as LEFT — no orphan registrations)   │
-  │ CROSS JOIN: 12 rows (4 students × 3 registrations)            │
-  └────────────────────────────────────────────────────────────────┘
+  INNER = overlap only:       │Alice×2, Charlie│  (3 rows)
+  LEFT  = left + overlap:     │Alice×2, Bob, Charlie, Diana│  (5 rows)
+  RIGHT = overlap + right:    │Alice×2, Charlie│  (3 rows — no orphan regs)
+  FULL  = everything:         │Alice×2, Bob, Charlie, Diana│  (5 rows)
+  CROSS = A × B:              │4 students × 3 registrations = 12 rows│
 
 ── ON vs USING vs WHERE in JOINs ──
 
@@ -2566,6 +2563,20 @@ Think of two puzzle pieces — the key column is the interlocking tab that conne
     - ON   → "which rows from the RIGHT table should I attempt to match?"
     - WHERE → "which rows from the COMBINED result should I KEEP?"
 
+── Named Patterns: Semi-Join & Anti-Join ──
+  These aren't separate SQL keywords — they're patterns built from other JOINs:
+
+  Anti-join  = rows in A with NO match in B:
+    SELECT A.* FROM A LEFT JOIN B ON ... WHERE B.id IS NULL;
+    → "Products never ordered" (Example 3 above)
+
+  Semi-join  = rows in A that HAVE at least one match in B
+    (usually written with EXISTS or IN subquery, not with JOIN)
+    → "Customers who have placed orders"
+    ──
+    Note: INNER JOIN with DISTINCT on A's columns achieves the same
+    result, but EXISTS/IN is often clearer and avoids the DISTINCT.
+
 ── Key Rules ──
 - LEFT JOIN = RIGHT JOIN with tables swapped (reverse table order to convert)
 - RIGHT JOIN mirrors LEFT JOIN; always rewritable as LEFT JOIN by swapping tables
@@ -2573,7 +2584,8 @@ Think of two puzzle pieces — the key column is the interlocking tab that conne
 - A meaningful N-table JOIN typically needs N-1 join conditions; fewer conditions → Cartesian product between unconnected tables
 - Always qualify column names with table aliases when joining (table.column) to avoid ambiguity
 - INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old implicit syntax) — but this is error-prone; use explicit JOIN
-- In LEFT JOIN, putting a right-table filter in WHERE instead of ON turns it into INNER JOIN (NULLs from failed matches are filtered out)`,
+- In LEFT JOIN, putting a right-table filter in WHERE instead of ON turns it into INNER JOIN (NULLs from failed matches are filtered out)
+- Anti-join pattern (LEFT JOIN + WHERE IS NULL) finds rows with NO match — essential for data quality checks`,
     syntax: `-- INNER JOIN
 SELECT a.col, b.col
 FROM table_a a
@@ -2610,7 +2622,7 @@ FROM employees e1
 LEFT JOIN employees e2 ON e1.manager_id = e2.id;
 
 -- Multiple JOINs
-SELECT o.id, c.name, p.product_name
+SELECT o.id, c.name AS customer, p.name AS product
 FROM orders o
 JOIN customers c ON o.customer_id = c.id
 JOIN products p ON o.product_id = p.id;`,
@@ -2661,10 +2673,10 @@ for (int i = 0; i < resultSize - 1; i++)
         sql: `SELECT p.name,
   p.price,
   o.id AS order_id,
-  o.customer
+  o.customer_name
 FROM products p
 LEFT JOIN orders o ON p.id = o.product_id;`,
-        explanation: 'Shows all products, even ones never ordered. Products without orders get NULL for order_id and customer. INNER JOIN would exclude them.',
+        explanation: 'Shows all products, even ones never ordered. Products without orders get NULL for order_id and customer_name. INNER JOIN would exclude them.',
         sourceTables: ['products', 'orders'],
         cppRepresentation: `string names[100];
 double prices[100];
@@ -2858,15 +2870,21 @@ ORDER BY e1.name, e2.salary;`,
       },
       {
         title: 'CROSS JOIN — all combinations',
-        sql: `SELECT e.name AS employee,
-  e.department,
-  p.name AS product
+        sql: `-- Every employee paired with every product (cartesian product)
+SELECT e.name AS employee, e.department, p.name AS product
+FROM employees e
+CROSS JOIN products p
+ORDER BY e.name, p.name
+LIMIT 15;
+
+-- CROSS JOIN with a filter = restricting one table BEFORE crossing
+-- This is NOT a join condition — it filters rows before the cross
+SELECT e.name, p.name
 FROM employees e
 CROSS JOIN products p
 WHERE e.department = 'Engineering'
-ORDER BY e.name, p.name
-LIMIT 15;`,
-        explanation: 'CROSS JOIN produces every combination of rows (cartesian product). Engineering employees matched with every product. Use cautiously — results grow exponentially.',
+LIMIT 10;`,
+        explanation: 'CROSS JOIN produces every combination of rows (|A| × |B|). The first query pairs ALL 10 employees with ALL 8 products = 80 rows (limited to 15). The second filters Engineering employees FIRST (3 employees), THEN crosses with 8 products = 24 rows. Use cautiously — results grow exponentially.',
         sourceTables: ['employees', 'products'],
         cppRepresentation: `string resNames[100];
 string resDepts[100];
