@@ -77,6 +77,7 @@ function sortRows(rows: string[][]): string[][] {
 }
 
 function resultsEqual(user: { columns: string[]; values: string[][] }, solution: { columns: string[]; values: string[][] }): boolean {
+  if (user.columns.length === 0 && solution.columns.length === 0) return true
   if (user.columns.length !== solution.columns.length) return false
   for (let i = 0; i < user.columns.length; i++) {
     if (user.columns[i] !== solution.columns[i]) return false
@@ -103,7 +104,12 @@ function execQuery(db: SqlJsDatabase, sql: string): { columns: string[]; values:
     stmt.free()
     return { columns, values }
   } catch {
-    return null
+    try {
+      db.run(sql)
+      return { columns: [], values: [] }
+    } catch {
+      return null
+    }
   }
 }
 
@@ -436,61 +442,67 @@ export default function InterleavedPractice() {
                 <p className="text-sm text-text font-semibold">Not quite right. Compare your result with the expected output below.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-bold text-text">Your Result</span>
-                    <span className="text-[10px] text-text-muted">({userResult.values.length} rows)</span>
-                  </div>
-                  <div className="bg-cream-dark border-2 border-border rounded-xl overflow-x-auto">
-                    <table className="w-full text-xs font-mono">
-                      <thead>
-                        <tr>
-                          {userResult.columns.map((col, i) => (
-                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-cream-darker border-b border-border whitespace-nowrap">{col}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {userResult.values.slice(0, 10).map((row, ri) => (
-                          <tr key={ri} className="border-b border-border/50 last:border-0">
-                            {row.map((cell, ci) => (
-                              <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+              {userResult.columns.length === 0 ? (
+                <div className="bg-cream-dark border-2 border-border rounded-xl px-4 py-3">
+                  <p className="text-xs text-text-muted italic">DDL/DML statement executed (no result set to compare).</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-text">Your Result</span>
+                      <span className="text-[10px] text-text-muted">({userResult.values.length} rows)</span>
+                    </div>
+                    <div className="bg-cream-dark border-2 border-border rounded-xl overflow-x-auto">
+                      <table className="w-full text-xs font-mono">
+                        <thead>
+                          <tr>
+                            {userResult.columns.map((col, i) => (
+                              <th key={i} className="px-3 py-2 text-left font-bold text-text bg-cream-darker border-b border-border whitespace-nowrap">{col}</th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {userResult.values.slice(0, 10).map((row, ri) => (
+                            <tr key={ri} className="border-b border-border/50 last:border-0">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-bold text-text">Expected Result</span>
-                    <span className="text-[10px] text-text-muted">({expectedResult.values.length} rows)</span>
-                  </div>
-                  <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-x-auto">
-                    <table className="w-full text-xs font-mono">
-                      <thead>
-                        <tr>
-                          {expectedResult.columns.map((col, i) => (
-                            <th key={i} className="px-3 py-2 text-left font-bold text-text bg-green-light/50 border-b border-green/20 whitespace-nowrap">{col}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {expectedResult.values.slice(0, 10).map((row, ri) => (
-                          <tr key={ri} className="border-b border-green/10 last:border-0">
-                            {row.map((cell, ci) => (
-                              <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-text">Expected Result</span>
+                      <span className="text-[10px] text-text-muted">({expectedResult.values.length} rows)</span>
+                    </div>
+                    <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-x-auto">
+                      <table className="w-full text-xs font-mono">
+                        <thead>
+                          <tr>
+                            {expectedResult.columns.map((col, i) => (
+                              <th key={i} className="px-3 py-2 text-left font-bold text-text bg-green-light/50 border-b border-green/20 whitespace-nowrap">{col}</th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {expectedResult.values.slice(0, 10).map((row, ri) => (
+                            <tr key={ri} className="border-b border-green/10 last:border-0">
+                              {row.map((cell, ci) => (
+                                <td key={ci} className={`px-3 py-1.5 whitespace-nowrap ${cell === '' ? 'text-text-muted italic' : 'text-text'}`}>{cell || 'NULL'}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
