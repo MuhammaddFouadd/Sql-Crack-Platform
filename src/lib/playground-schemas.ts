@@ -28,19 +28,20 @@ CREATE TABLE employees (
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   salary REAL,
+  department TEXT,
   department_id INTEGER REFERENCES departments(id),
   hire_date TEXT
 );
-INSERT INTO employees VALUES (1, 'Alice Johnson', 'alice@company.com', 95000, 1, '2022-03-15');
-INSERT INTO employees VALUES (2, 'Bob Smith', 'bob@company.com', 82000, 1, '2023-01-10');
-INSERT INTO employees VALUES (3, 'Carol Williams', 'carol@company.com', 75000, 2, '2022-06-20');
-INSERT INTO employees VALUES (4, 'Dave Brown', 'dave@company.com', 68000, 2, '2024-02-01');
-INSERT INTO employees VALUES (5, 'Eve Davis', 'eve@company.com', 90000, 1, '2021-11-01');
-INSERT INTO employees VALUES (6, 'Frank Miller', 'frank@company.com', 55000, 3, '2023-09-15');
-INSERT INTO employees VALUES (7, 'Grace Wilson', 'grace@company.com', 62000, 3, '2024-01-20');
-INSERT INTO employees VALUES (8, 'Henry Taylor', 'henry@company.com', 48000, 4, '2023-04-10');
-INSERT INTO employees VALUES (9, 'Ivy Anderson', 'ivy@company.com', 72000, 4, '2022-08-05');
-INSERT INTO employees VALUES (10, 'Jack Thomas', 'jack@company.com', 88000, 1, '2023-06-12');
+INSERT INTO employees VALUES (1, 'Alice Johnson', 'alice@company.com', 95000, 'Engineering', 1, '2022-03-15');
+INSERT INTO employees VALUES (2, 'Bob Smith', 'bob@company.com', 82000, 'Engineering', 1, '2023-01-10');
+INSERT INTO employees VALUES (3, 'Carol Williams', 'carol@company.com', 75000, 'Sales', 2, '2022-06-20');
+INSERT INTO employees VALUES (4, 'Dave Brown', 'dave@company.com', 68000, 'Sales', 2, '2024-02-01');
+INSERT INTO employees VALUES (5, 'Eve Davis', 'eve@company.com', 90000, 'Engineering', 1, '2021-11-01');
+INSERT INTO employees VALUES (6, 'Frank Miller', 'frank@company.com', 55000, 'Marketing', 3, '2023-09-15');
+INSERT INTO employees VALUES (7, 'Grace Wilson', 'grace@company.com', 62000, 'Marketing', 3, '2024-01-20');
+INSERT INTO employees VALUES (8, 'Henry Taylor', 'henry@company.com', 48000, 'HR', 4, '2023-04-10');
+INSERT INTO employees VALUES (9, 'Ivy Anderson', 'ivy@company.com', 72000, 'HR', 4, '2022-08-05');
+INSERT INTO employees VALUES (10, 'Jack Thomas', 'jack@company.com', 88000, 'Engineering', 1, '2023-06-12');
 
 CREATE TABLE products (
   id INTEGER PRIMARY KEY,
