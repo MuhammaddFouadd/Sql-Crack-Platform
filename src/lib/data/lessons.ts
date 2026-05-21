@@ -11,6 +11,7 @@ export interface PracticeQuestion {
   hint: string
   solution: string
   tablesUsed?: string[]
+  difficulty?: 'easy' | 'medium' | 'hard'
 }
 
 export interface Lesson {
@@ -3169,6 +3170,57 @@ Order by: order_id ASC.`,
 FROM orders o
 LEFT JOIN products p ON o.product_id = p.id
 ORDER BY o.id;`
+      },
+      {
+        question: `Table: employees, products, orders
+
+Medium: Find departments where the total value of products ordered by employees in that department exceeds $500. Use JOINs across all three tables.
+
+Return columns: department, total_order_value, employee_count
+Order by: total_order_value DESC.`,
+        hint: 'JOIN employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. GROUP BY department. Use SUM(o.total) and COUNT(DISTINCT e.name). Add HAVING SUM(o.total) > 500.',
+        solution: `SELECT e.department,
+  ROUND(SUM(o.total), 2) AS total_order_value,
+  COUNT(DISTINCT e.name) AS employee_count
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+GROUP BY e.department
+HAVING SUM(o.total) > 500
+ORDER BY total_order_value DESC;`
+      },
+      {
+        question: `Table: employees, orders
+
+Medium: Show each employee with their total order value. Use a LEFT JOIN so employees with zero orders also appear (show 0 instead of NULL). Label them "Active" if they have > 0 total.
+
+Return columns: name, department, total_spent, status
+Order by: total_spent DESC, name ASC.`,
+        hint: 'LEFT JOIN employees e LEFT JOIN orders o ON e.name = o.customer_name. GROUP BY e.name. Use COALESCE(SUM(o.total), 0). Use CASE for the status label.',
+        solution: `SELECT e.name, e.department,
+  COALESCE(ROUND(SUM(o.total), 2), 0) AS total_spent,
+  CASE WHEN SUM(o.total) > 0 THEN 'Active' ELSE 'Inactive' END AS status
+FROM employees e
+LEFT JOIN orders o ON e.name = o.customer_name
+GROUP BY e.name, e.department
+ORDER BY total_spent DESC, e.name;`
+      },
+      {
+        question: `Table: employees
+
+Advanced: Use a SELF JOIN on manager_id to find managers who earn less than at least one of their direct reports. Show manager name, manager salary, report name, and report salary.
+
+Return columns: manager, manager_salary, report, report_salary
+Order by: manager ASC, report_salary DESC.`,
+        hint: 'JOIN employees m (manager) JOIN employees r (report) ON m.id = r.manager_id. Filter WHERE m.salary < r.salary. Manager is the one whose id matches the report\'s manager_id.',
+        solution: `SELECT m.name AS manager,
+  m.salary AS manager_salary,
+  r.name AS report,
+  r.salary AS report_salary
+FROM employees m
+JOIN employees r ON m.id = r.manager_id
+WHERE m.salary < r.salary
+ORDER BY m.name, r.salary DESC;`
       }
     ]
   },
@@ -5121,6 +5173,23 @@ Order by: department, salary DESC.`,
   ROUND(salary * 100.0 / SUM(salary) OVER (PARTITION BY department), 2) AS pct_of_dept
 FROM employees
 ORDER BY department, salary DESC;`
+      },
+      {
+        question: `Table: orders
+
+Advanced: Show each order for each customer alongside a running total of their spending over time using a window frame clause.
+
+Return columns: customer, order_date, total, running_total
+Order by: customer ASC, order_date ASC.`,
+        hint: 'Use SUM(total) OVER (PARTITION BY customer ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW). The frame clause accumulates the running total.',
+        solution: `SELECT customer, order_date, total,
+  ROUND(SUM(total) OVER (
+    PARTITION BY customer
+    ORDER BY order_date
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ), 2) AS running_total
+FROM orders
+ORDER BY customer, order_date;`
       }
     ]
   },
@@ -5837,8 +5906,23 @@ Order by: id ASC.`,
     || PRINTF('%03d', id) AS product_code
 FROM products
 ORDER BY id;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Create a display_name by concatenating each employee's name with their department in parentheses. Also create a sanitized_email by replacing '@company.com' with '@example.com'. Use CONCAT (||) and REPLACE.
+
+Return columns: name, display_name, sanitized_email
+Order by: name ASC.`,
+        hint: 'Use name || \' (\' || department || \')\' for display_name. Use REPLACE(email, \'@company.com\', \'@example.com\') for sanitized_email.',
+        solution: `SELECT name,
+  name || ' (' || department || ')' AS display_name,
+  REPLACE(email, '@company.com', '@example.com') AS sanitized_email
+FROM employees
+ORDER BY name;`
       }
     ]
+
   },
   {
     id: 'pattern-matching',
@@ -6054,8 +6138,24 @@ Order by: price DESC.`,
 FROM products
 WHERE CAST(price AS TEXT) LIKE '%.00'
 ORDER BY price DESC;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Find employees whose email follows a valid pattern: starts with a lowercase letter, contains only lowercase letters, numbers, dots, or hyphens before the @, and ends with '@company.com'.
+
+Return columns: name, email
+Order by: name ASC.`,
+        hint: 'Use email LIKE \'[a-z]%\' OR email GLOB \'[a-z]*@company.com\' - since LIKE doesn\'t support character classes in SQLite, use multiple conditions: email LIKE \'%@company.com\' AND email GLOB \'[a-z]*\' and ensure no uppercase via email = LOWER(email).',
+        solution: `SELECT name, email
+FROM employees
+WHERE email = LOWER(email)
+  AND email LIKE '%@company.com'
+  AND SUBSTR(email, 1, 1) BETWEEN 'a' AND 'z'
+ORDER BY name;`
       }
     ]
+
   },
   {
     id: 'set-operations',
@@ -6440,7 +6540,23 @@ SELECT name, 'Product' AS type, price AS value
 FROM products
 ORDER BY name;`
       },
+      {
+        question: `Table: employees, departments
+
+Medium: Use UNION to list all unique cities from both the employees table and the departments table. Label the source of each city.
+
+Return columns: city, source
+Order by: city ASC.`,
+        hint: 'First SELECT: SELECT DISTINCT city, \'Employee\' FROM employees. Second: SELECT DISTINCT city, \'Department\' FROM departments. Use UNION (not UNION ALL) to remove duplicate cities.',
+        solution: `SELECT DISTINCT city, 'Employee' AS source
+FROM employees
+UNION
+SELECT DISTINCT city, 'Department' AS source
+FROM departments
+ORDER BY city;`
+      }
     ]
+
   },
   {
     id: 'intermediate-practice',
@@ -6832,8 +6948,26 @@ Order by: N/A (DDL).`,
   start_date DATE DEFAULT CURRENT_DATE,
   CHECK (LENGTH(name) >= 3)
 );`
+      },
+      {
+        question: `Medium: Create a "course_enrollments" table with columns: enrollment_id (auto-increment PK), student_id (required), course_id (required), enrollment_date (defaults to current date), grade (optional, must be A/B/C/D/F). Add a composite UNIQUE constraint on (student_id, course_id) and FKs referencing students(id) and courses(id).
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
+        hint: 'Use GENERATED ALWAYS AS IDENTITY for enrollment_id. Use VARCHAR(1) CHECK (grade IN (\'A\',\'B\',\'C\',\'D\',\'F\')) for grade. Add FOREIGN KEY constraints and UNIQUE(student_id, course_id).',
+        solution: `CREATE TABLE course_enrollments (
+  enrollment_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  student_id INT NOT NULL,
+  course_id INT NOT NULL,
+  enrollment_date DATE DEFAULT CURRENT_DATE,
+  grade VARCHAR(1) CHECK (grade IN ('A','B','C','D','F')),
+  UNIQUE (student_id, course_id),
+  FOREIGN KEY (student_id) REFERENCES students(id),
+  FOREIGN KEY (course_id) REFERENCES courses(id)
+);`
       }
     ]
+
   },
   {
     id: 'sql-keys',
@@ -7216,6 +7350,21 @@ INSERT INTO product_tags VALUES (1, 2);  -- product 1, tag 'new'
 -- This fails: same product + same tag again
 -- INSERT INTO product_tags VALUES (1, 1);
 -- ERROR: duplicate key violates primary key constraint`
+      },
+      {
+        question: `Medium: Design a "suppliers" table with a surrogate PK (supplier_id, auto-increment) and a natural key (supplier_code, unique). Include name, contact_email, phone, and a FK to a "countries" table (country_id). Explain which key type is the PK.
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
+        hint: 'Use GENERATED ALWAYS AS IDENTITY for the surrogate PK. Add UNIQUE(supplier_code) for the natural key. The surrogate key (supplier_id) is the PK since it\'s artificial and stable.',
+        solution: `CREATE TABLE suppliers (
+  supplier_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  supplier_code VARCHAR(20) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  contact_email VARCHAR(255),
+  phone VARCHAR(20),
+  country_id INT NOT NULL REFERENCES countries(id)
+);`
       }
     ]
   },
@@ -7447,6 +7596,18 @@ WHERE order_date < '2024-01-01';
 
 DELETE FROM orders
 WHERE order_date < '2024-01-01';`
+      },
+      {
+        question: `Table: products
+
+Medium: Create a "product_backup" table using CREATE TABLE ... AS to copy all products that cost more than $50, including all their columns.
+
+Return columns: (DML statements — no columns returned)
+Order by: N/A (DML).`,
+        hint: 'Use CREATE TABLE product_backup AS SELECT * FROM products WHERE price > 50. This creates and populates the table in one statement.',
+        solution: `CREATE TABLE product_backup AS
+SELECT * FROM products
+WHERE price > 50;`
       }
     ]
   },
@@ -7740,6 +7901,20 @@ ALTER TABLE orders
 ADD CONSTRAINT fk_orders_products
 FOREIGN KEY (product_id) REFERENCES products(id)
 ON DELETE CASCADE;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Add a UNIQUE constraint named "uq_employee_email" on the email column of employees. Then RENAME the "city" column to "location".
+
+Return columns: (DDL statements — no columns returned)
+Order by: N/A (DDL).`,
+        hint: 'Use ALTER TABLE employees ADD CONSTRAINT uq_employee_email UNIQUE (email). Then ALTER TABLE employees RENAME COLUMN city TO location.',
+        solution: `ALTER TABLE employees
+ADD CONSTRAINT uq_employee_email UNIQUE (email);
+
+ALTER TABLE employees
+RENAME COLUMN city TO location;`
       }
     ]
   },
@@ -8301,6 +8476,24 @@ HAVING COUNT(DISTINCT o.product_id) = (
   SELECT COUNT(*) FROM products WHERE price > 50
 )
 ORDER BY o.customer;`
+      },
+      {
+        question: `Table: products, orders
+
+Advanced: Using the HAVING COUNT approach, find employees who have ordered at least one product from EVERY category that exists in products.
+
+Return columns: name, categories_ordered
+Order by: name ASC.`,
+        hint: 'First compute total categories: (SELECT COUNT(DISTINCT category) FROM products). Then JOIN employees → orders → products, GROUP BY employee, and HAVING COUNT(DISTINCT p.category) = total categories.',
+        solution: `SELECT e.name, COUNT(DISTINCT p.category) AS categories_ordered
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+GROUP BY e.name
+HAVING COUNT(DISTINCT p.category) = (
+  SELECT COUNT(DISTINCT category) FROM products
+)
+ORDER BY e.name;`
       }
     ]
   },
@@ -8568,6 +8761,26 @@ EXCEPT
 SELECT department
 FROM employees
 WHERE salary <= 50000;`
+      },
+      {
+        question: `Table: employees, products, orders
+
+Advanced: Write an RA expression and SQL for: "Find employees who have ordered products in EVERY category." Use relational division (double NOT EXISTS or EXCEPT pattern).
+
+Return columns: name
+Order by: any order.`,
+        hint: 'RA uses division: \u03C0_{name}(employees) \u00F7 \u03C0_{category}(products). SQL: Use double NOT EXISTS: find employees where no category exists that they haven\'t ordered from.',
+        solution: `SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.category FROM products p
+  EXCEPT
+  SELECT DISTINCT p2.category
+  FROM orders o
+  JOIN products p2 ON o.product_id = p2.id
+  WHERE o.customer_name = e.name
+)
+ORDER BY e.name;`
       }
     ]
   },
