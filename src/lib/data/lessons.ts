@@ -2457,7 +2457,7 @@ FROM employees;`
     icon: '🔗',
     difficulty: 'intermediate',
     prerequisites: ['where', 'select'],
-    topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN'],
+    topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN', 'USING clause', 'ON vs WHERE', 'join predicate', 'filter predicate'],
     explanation: `── Real-World Analogy ──
 Two tables are like two separate lists. INNER JOIN = "show me items that appear in BOTH lists."
 LEFT JOIN = "show me everything from list A, and add info from list B if available."
@@ -2472,28 +2472,28 @@ Think of two puzzle pieces — the key column is the interlocking tab that conne
   │ 1  │ Alice  │                   │ 1  │ 1          │  ← Alice registered
   │ 2  │ Bob    │                   │ 2  │ 3          │  ← Charlie registered
   │ 3  │ Charlie│                   │ 3  │ 1          │  ← Alice registered again
-  │ 4  │ Diana  │                   └────┴────────────┘  ← Diana never registered
+  │ 4  │ Diana  │                   └────┴────────────┘  Diana never registered
   └────┴────────┘
 
   INNER JOIN ON students.id = registrations.student_id:
-  ┌────┬─────────┬────────────┐
-  │ id │ name    │ student_id │  → Only students who HAVE registrations (Alice, Charlie)
-  ├────┼─────────┼────────────┤    Bob and Diana excluded (no matches on RIGHT)
-  │ 1  │ Alice   │ 1          │
-  │ 1  │ Alice   │ 3          │
-  │ 3  │ Charlie │ 2          │
-  └────┴─────────┴────────────┘
+  ┌────┬─────────┬───────┐
+  │ id │ name    │ reg_id│  → Only students WITH registrations: Alice (2 regs), Charlie (1)
+  ├────┼─────────┼───────┤    Bob and Diana excluded (no match on the RIGHT)
+  │ 1  │ Alice   │ 1     │  ← registration id=1 links student 1 to course
+  │ 1  │ Alice   │ 3     │  ← registration id=3 links student 1 again
+  │ 3  │ Charlie │ 2     │  ← registration id=2 links student 3
+  └────┴─────────┴───────┘
 
   LEFT JOIN ON students.id = registrations.student_id:
-  ┌────┬─────────┬────────────┐
-  │ id │ name    │ student_id │  → ALL students, even without registrations
-  ├────┼─────────┼────────────┤    Diana shows up with NULL for registration
-  │ 1  │ Alice   │ 1          │
-  │ 1  │ Alice   │ 3          │
-  │ 2  │ Bob     │ NULL       │  ← Bob: no registration → NULLs on right side
-  │ 3  │ Charlie │ 2          │
-  │ 4  │ Diana   │ NULL       │  ← Diana: no registration → NULLs on right side
-  └────┴─────────┴────────────┘
+  ┌────┬─────────┬───────┐
+  │ id │ name    │ reg_id│  → ALL students, even without registrations
+  ├────┼─────────┼───────┤    Bob and Diana show with NULL on the right-side columns
+  │ 1  │ Alice   │ 1     │
+  │ 1  │ Alice   │ 3     │
+  │ 2  │ Bob     │ NULL  │  ← Bob never registered → NULL for right-side columns
+  │ 3  │ Charlie │ 2     │
+  │ 4  │ Diana   │ NULL  │  ← Diana never registered → NULL for right-side columns
+  └────┴─────────┴───────┘
 
 ── JOIN Types Quick Comparison ──
 | Join Type      | Returns                                | Use When                         |
@@ -2505,30 +2505,75 @@ Think of two puzzle pieces — the key column is the interlocking tab that conne
 | CROSS JOIN     | Cartesion product (|A| × |B| rows)     | "Get all combinations"           |
 | SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
 
-── INNER JOIN Visual (Venn Diagram) ──
-        ┌─────────┐         ┌─────────┐
-        │  LEFT   │         │  RIGHT  │
-        │  TABLE  │  ┌───┐  │  TABLE  │
-        │         │  │ X │  │         │
-        └─────────┘  └───┘  └─────────┘
-                     ↑
-           INNER JOIN returns only
-           the overlapping region (X)
+── Set Visual: What Each JOIN Returns ──
+  Two overlapping sets A and B:
 
-── LEFT JOIN Visual ──
-        ┌─────────┐
-        │  LEFT   │  ┌───┐
-        │  TABLE  │  │ X │  ┌─────────┐
-        │  (ALL)  │  │   │  │  RIGHT  │
-        └─────────┘  └───┘  │  TABLE  │
-                            │ (partial)│
-                            └─────────┘
+         ┌───────────┐
+         │     A     │
+         │  ┌─────┐  │
+         │  │  ∩  │  │
+         │  └─────┘  │
+         └───────────┘
+         ┌───────────┐
+         │     B     │
+         └───────────┘
+
+  INNER JOIN A ∩ B  :  │███│  ── only the overlapping intersection
+  LEFT JOIN          :  │████████│  ── all of A + matching B parts
+  RIGHT JOIN         :     │████████│  ── all of B + matching A parts
+  FULL JOIN A ∪ B   :  │██████████│  ── everything from both sets
+  CROSS JOIN        :  A × B (every row of A paired with every row of B)
+
+  Example with our students / registrations data:
+  ┌────────────────────────────────────────────────────────────────┐
+  │ INNER JOIN: 3 rows (Alice×2 + Charlie×1)   ∩ region only      │
+  │ LEFT JOIN:  5 rows (all 4 students + NULLs for Bob & Diana)   │
+  │ RIGHT JOIN: 3 rows (same as INNER — no orphan registrations)  │
+  │ FULL JOIN:  5 rows (same as LEFT — no orphan registrations)   │
+  │ CROSS JOIN: 12 rows (4 students × 3 registrations)            │
+  └────────────────────────────────────────────────────────────────┘
+
+── ON vs USING vs WHERE in JOINs ──
+
+  ON     → specifies the JOIN condition (how rows MATCH between tables)
+  USING  → shorthand when the FK column has the SAME name in both tables
+  WHERE  → filters the result AFTER the JOIN is complete
+
+  -- ON: explicit, works with any column names
+  SELECT * FROM orders o
+  JOIN products p ON o.product_id = p.id;
+
+  -- USING: concise, columns must have identical names in both tables
+  SELECT * FROM orders
+  JOIN products USING (product_id);        -- only if both have "product_id"
+
+  -- WHERE (old implicit syntax, easy to forget condition → CROSS JOIN)
+  SELECT * FROM orders o, products p
+  WHERE o.product_id = p.id;               -- same as INNER JOIN
+
+── Critical: ON vs WHERE in OUTER JOINs ──
+  In LEFT/RIGHT/FULL JOINs, putting a right-table condition in WHERE
+  instead of ON can silently convert your outer join to an inner join:
+
+    LEFT JOIN products p ON o.product_id = p.id
+      AND p.category = 'Electronics'     ← ON: filters BEFORE join, keeps all orders
+      
+    LEFT JOIN products p ON o.product_id = p.id
+      WHERE p.category = 'Electronics'  ← WHERE: filters AFTER join, DROPS orders
+                                           with NULL products → acts like INNER JOIN
+
+    Rule of thumb:
+    - ON   → "which rows from the RIGHT table should I attempt to match?"
+    - WHERE → "which rows from the COMBINED result should I KEEP?"
 
 ── Key Rules ──
-- LEFT JOIN = RIGHT JOIN with tables swapped (just reverse the order)
-- To join N tables: need N-1 join conditions
-- FK always goes on the N-side (1:N relationship)
-- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old syntax)`,
+- LEFT JOIN = RIGHT JOIN with tables swapped (reverse table order to convert)
+- RIGHT JOIN mirrors LEFT JOIN; always rewritable as LEFT JOIN by swapping tables
+- RIGHT JOIN is not natively supported in SQLite before v3.39.0 — simulate with swapped LEFT JOIN
+- A meaningful N-table JOIN typically needs N-1 join conditions; fewer conditions → Cartesian product between unconnected tables
+- Always qualify column names with table aliases when joining (table.column) to avoid ambiguity
+- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old implicit syntax) — but this is error-prone; use explicit JOIN
+- In LEFT JOIN, putting a right-table filter in WHERE instead of ON turns it into INNER JOIN (NULLs from failed matches are filtered out)`,
     syntax: `-- INNER JOIN
 SELECT a.col, b.col
 FROM table_a a
@@ -2549,6 +2594,11 @@ SELECT a.col, b.col
 FROM table_a a
 FULL JOIN table_b b ON a.id = b.a_id;
 
+-- USING (shorthand when column name is identical)
+SELECT a.col, b.col
+FROM table_a a
+JOIN table_b b USING (shared_column);
+
 -- CROSS JOIN
 SELECT a.col, b.col
 FROM table_a a
@@ -2568,7 +2618,7 @@ JOIN products p ON o.product_id = p.id;`,
       {
         title: 'INNER JOIN — matching rows only',
         sql: `SELECT o.id AS order_id,
-  o.customer,
+  o.customer_name,
   p.name AS product,
   o.quantity,
   o.total
@@ -2665,7 +2715,7 @@ for (int i = 0; i < productCount; i++) {
       {
         title: 'RIGHT JOIN — all from right table',
         sql: `SELECT o.id AS order_id,
-  o.customer,
+  o.customer_name,
   p.name AS product,
   o.total
 FROM orders o
@@ -2717,7 +2767,7 @@ for (int i = 0; i < resultSize - 1; i++)
   o.id AS order_id,
   o.total
 FROM employees e
-FULL JOIN orders o ON e.name = o.customer
+FULL JOIN orders o ON e.name = o.customer_name
 ORDER BY e.name, o.id;`,
         explanation: 'FULL JOIN keeps all rows from BOTH tables. Employees without orders show NULL for order columns. Orders that don\'t match any employee (if any) would also appear. FULL JOIN = LEFT JOIN + RIGHT JOIN + INNER JOIN combined.',
         sourceTables: ['employees', 'orders'],
@@ -2844,98 +2894,74 @@ for (int i = 0; i < resultSize - 1; i++)
 if (resultSize > 15) resultSize = 15;`
       },
       {
-        title: 'JOIN with WHERE filtering',
-        sql: `SELECT o.id AS order_id,
-  o.customer,
-  p.name AS product,
-  o.quantity,
-  o.total
-FROM orders o
-JOIN products p ON o.product_id = p.id
-WHERE p.category = 'Electronics'
-  AND o.total > 100
-ORDER BY o.total DESC;`,
-        explanation: 'After joining orders to products, WHERE filters the combined results to only Electronics orders over $100.',
-        sourceTables: ['orders', 'products'],
-        cppRepresentation: `int resIds[100];
-string resCusts[100];
-string resProds[100];
-int resQtys[100];
-double resTotals[100];
-int resultSize = 0;
-for (int i = 0; i < orderCount; i++)
-    for (int j = 0; j < productCount; j++)
-        if (orders[i].product_id == products[j].id && products[j].category == "Electronics" && orders[i].total > 100) {
-            resIds[resultSize] = orders[i].id;
-            resCusts[resultSize] = orders[i].customer;
-            resProds[resultSize] = products[j].name;
-            resQtys[resultSize] = orders[i].quantity;
-            resTotals[resultSize] = orders[i].total;
-            resultSize++;
-            break;
-        }
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++)
-        if (resTotals[j] < resTotals[j + 1]) {
-            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
-            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
-            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
-            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
-            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
-        }`
-      },
-      {
-        title: 'LEFT JOIN — all employees and any orders',
-        sql: `SELECT e.name,
-  e.department,
-  o.id AS order_id,
-  o.total
+        title: 'ON vs WHERE in LEFT JOIN (critical concept)',
+        sql: `-- LEFT JOIN with filter in ON: keeps ALL employees
+-- right-table filter is evaluated BEFORE the join
+SELECT e.name, e.department, o.total
 FROM employees e
-LEFT JOIN orders o ON e.name = o.customer
+LEFT JOIN orders o
+  ON e.name = o.customer_name
+  AND o.total > 200
+ORDER BY e.name;
+
+-- Same LEFT JOIN with filter in WHERE: DROPS employees with no matching order
+-- right-table filter is evaluated AFTER the join → NULLs get filtered out
+SELECT e.name, e.department, o.total
+FROM employees e
+LEFT JOIN orders o ON e.name = o.customer_name
+WHERE o.total > 200
 ORDER BY e.name;`,
-        explanation: 'Shows each employee alongside any orders they placed (matched by name). Employees without orders get NULL for order columns. This is using name matching since employees and orders share customer names.',
+        explanation: 'The first query keeps ALL employees (LEFT JOIN), only matching orders over $200. Employees without orders >$200 still appear with NULL total. The second query behaves like INNER JOIN: WHERE filters out rows where o.total IS NULL, so employees without matching orders disappear entirely.',
         sourceTables: ['employees', 'orders'],
-        cppRepresentation: `string resNames[100];
-string resDepts[100];
-int resOrderIds[100];
-double resTotals[100];
-bool resHasOrder[100];
-int resultSize = 0;
+        cppRepresentation: `// ON filter (keeps all employees):
 for (int i = 0; i < employeeCount; i++) {
     bool matched = false;
     for (int j = 0; j < orderCount; j++)
-        if (employees[i].name == orders[j].customer) {
-            resNames[resultSize] = employees[i].name;
-            resDepts[resultSize] = employees[i].department;
-            resOrderIds[resultSize] = orders[j].id;
-            resTotals[resultSize] = orders[j].total;
-            resHasOrder[resultSize] = true;
-            resultSize++;
+        if (employees[i].name == orders[j].customer_name && orders[j].total > 200) {
+            cout << employees[i].name << " | " << orders[j].total << "\\n";
             matched = true;
         }
-    if (!matched) {
-        resNames[resultSize] = employees[i].name;
-        resDepts[resultSize] = employees[i].department;
-        resOrderIds[resultSize] = -1;
-        resTotals[resultSize] = 0.0;
-        resHasOrder[resultSize] = false;
-        resultSize++;
-    }
+    if (!matched) cout << employees[i].name << " | NULL\\n";
 }
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++)
-        if (resNames[j] > resNames[j + 1]) {
-            string tmpN = resNames[j]; resNames[j] = resNames[j + 1]; resNames[j + 1] = tmpN;
-            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
-            int tmpId = resOrderIds[j]; resOrderIds[j] = resOrderIds[j + 1]; resOrderIds[j + 1] = tmpId;
-            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
-            bool tmpH = resHasOrder[j]; resHasOrder[j] = resHasOrder[j + 1]; resHasOrder[j + 1] = tmpH;
-        }`
+// WHERE filter (drops employees without qualifying orders):
+for (int i = 0; i < employeeCount; i++)
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer_name && orders[j].total > 200)
+            cout << employees[i].name << " | " << orders[j].total << "\\n";`
+      },
+      {
+        title: 'USING clause — shorter syntax for equi-joins',
+        sql: `-- USING requires identical column names in both tables
+-- Here: products.id = order_items.product_id
+SELECT p.name, oi.quantity
+FROM products p
+JOIN order_items oi USING (product_id)
+ORDER BY p.name;
+
+-- Equivalent ON version (more flexible)
+SELECT p.name, oi.quantity
+FROM products p
+JOIN order_items oi ON p.id = oi.product_id
+ORDER BY p.name;
+
+-- Multi-table USING: joins on shared "id" columns
+-- Only works when ALL joined tables have "id" as the FK name
+SELECT c.name, o.total, p.name AS product
+FROM customers c
+JOIN orders o USING (id)            -- error: orders.id ≠ customers.id
+JOIN products p ON o.product_id = p.id;`,
+        explanation: 'USING is syntactic sugar for equi-joins where the FK column has the same name in both tables. It avoids the redundant ON condition. Limitation: both columns must have identical names and you cannot qualify the join column with a table alias in the SELECT list.',
+        sourceTables: ['products', 'order_items', 'customers', 'orders'],
+        cppRepresentation: `// USING is just syntax sugar — same result as ON
+for (int i = 0; i < productCount; i++)
+    for (int j = 0; j < orderItemCount; j++)
+        if (products[i].id == orderItems[j].product_id)
+            cout << products[i].name << " | " << orderItems[j].quantity << "\\n";`
       },
       {
         title: 'Multiple JOINs',
         sql: `SELECT o.id AS order_id,
-  o.customer,
+  o.customer_name,
   p.name AS product,
   p.category,
   o.quantity,
@@ -2943,7 +2969,7 @@ for (int i = 0; i < resultSize - 1; i++)
   e.department AS customer_department
 FROM orders o
 JOIN products p ON o.product_id = p.id
-JOIN employees e ON o.customer = e.name
+JOIN employees e ON o.customer_name = e.name
 ORDER BY o.total DESC;`,
         explanation: 'Joins all three tables: orders to products by product_id, and orders to employees by customer name. Shows order details enriched with product info and the purchasing employee department.',
         sourceTables: ['orders', 'products', 'employees'],
@@ -3056,7 +3082,9 @@ ORDER BY e1.department, e1.name;`,
       'Forgetting the JOIN condition (creates a Cartesian product — CROSS JOIN)',
       'Using LEFT JOIN when INNER JOIN is sufficient (worse performance, unexpected NULLs)',
       'Not qualifying column names when both tables have the same column name',
-      'Confusing ON clause filtering with WHERE clause filtering in outer joins'
+      'Putting a right-table filter in WHERE instead of ON for LEFT JOIN — silently converts to INNER JOIN',
+      'Using USING but the column names differ between tables (USING requires identical names)',
+      'Forgetting table aliases in self-joins (must use different aliases for each instance)'
     ],
     practiceQuestions: [
       {
