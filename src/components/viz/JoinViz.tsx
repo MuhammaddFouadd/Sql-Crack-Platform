@@ -33,10 +33,11 @@ export default function JoinViz({ className }: JoinVizProps) {
   }
 
   const getMatchState = () => {
-    const matches: Record<number, number[]> = {
-      0: [0],
-      1: [1],
-      2: [0],
+    const matches: Record<number, number[]> = {}
+    for (let i = 0; i < tableB.data.length; i++) {
+      const deptId = Number(tableB.data[i][0])
+      if (!matches[deptId]) matches[deptId] = []
+      matches[deptId].push(i)
     }
     return matches
   }
