@@ -4854,31 +4854,42 @@ ORDER BY department, salary DESC;`
     difficulty: 'advanced',
     prerequisites: ['window-functions'],
     topics: ['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'NTILE'],
-    explanation: `── Ranking Functions Comparison ──
-Given data sorted by salary DESC (ties: two people earn 100K):
+    explanation: `── Real-World Analogy ──
+Think of a race where two runners tie for 1st place:
+- ROW_NUMBER = the judges arbitrarily say "you're #1, you're #2" (everyone gets a unique position)
+- RANK = both get 1st, but the next person is 3rd (gap after ties)
+- DENSE_RANK = both get 1st, and the next person is 2nd (no gap)
+- NTILE = splitting runners into equal groups (top half, bottom half)
 
-| Name   | Salary | ROW_NUMBER | RANK | DENSE_RANK | NTILE(4) |
-|--------|--------|------------|------|------------|----------|
-| Alice  | 100K   | 1          | 1    | 1          | 1        |
-| Bob    | 100K   | 2          | 1    | 1          | 1        |
-| Carol  | 90K    | 3          | 3    | 2          | 2        |
-| Dave   | 80K    | 4          | 4    | 3          | 2        |
-| Eve    | 70K    | 5          | 5    | 4          | 3        |
-| Frank  | 60K    | 6          | 6    | 5          | 4        |
+── Visual: The Tie Difference ──
+  Athletes sorted by score (DESC):      ROW_NUMBER   RANK   DENSE_RANK   NTILE(2)
+  ┌──────────┬───────┐
+  │ Athlete  │ Score │                  Each gets    Ties    Ties get    Split into
+  ├──────────┼───────┤                  a UNIQUE     get     same rank   2 equal
+  │ Alice    │ 100   │  🥇              1            1       1           groups:
+  │ Bob      │ 100   │  🥇              2            1       1           Top half
+  │ Carol    │ 90    │  🥈              3            3       2           ──────
+  │ Dave     │ 80    │  🥉              4            4       3           Bottom
+  │ Eve      │ 70    │                 5            5       4           half
+  │ Frank    │ 60    │                 6            6       5
+  └──────────┴───────┘
+
+  Notice the GAP: RANK goes 1, 1, 3 (skips 2), DENSE_RANK goes 1, 1, 2 (no skip).
 
 ── When to Use Each ──
 | Function    | Behavior with Ties         | Skip gaps? | Best For                              |
-|-------------|----------------------------|------------|---------------------------------------|
+|-------------|----------------------------|:----------:|---------------------------------------|
 | ROW_NUMBER  | Unique for EVERY row       | N/A        | Pagination, dedup, top-N-per-group    |
-| RANK        | Same rank for ties         | ✅ Skips   | "Top 3" that includes ties (N might exceed 3) |
-| DENSE_RANK  | Same rank for ties         | ❌ No skip | "Top 3" that stops exactly at 3       |
+| RANK        | Same rank for ties         | ✅ Skips   | "Top 3" that includes ties (result may have >3 rows) |
+| DENSE_RANK  | Same rank for ties         | ❌ No skip | "Top 3" that stops at exactly 3       |
 | NTILE(n)    | Divides into n buckets     | N/A        | Quartiles, deciles, equal groups      |
 
-── ROW_NUMBER vs RANK vs DENSE_RANK Quick Rule ──
-- Need unique numbers? → ROW_NUMBER
-- Ties get same rank, accept gaps? → RANK
-- Ties get same rank, no gaps? → DENSE_RANK
-- Need even groups? → NTILE`,
+── Quick Decision Guide ──
+  "I need each row to have a UNIQUE number"                         → ROW_NUMBER
+  "Ties get same rank, and I'm OK with gaps"                       → RANK
+  "Ties get same rank, but DON'T skip numbers"                     → DENSE_RANK
+  "I need to divide rows into N equal groups"                      → NTILE
+  "I need the previous/next row's value for comparison"            → LAG / LEAD`,
     syntax: `SELECT 
   name,
   department,
@@ -7029,39 +7040,68 @@ WHERE order_date < '2024-01-01';`
     difficulty: 'intermediate',
     prerequisites: ['ddl-create', 'dml-crud'],
     topics: ['ALTER TABLE', 'ADD COLUMN', 'DROP COLUMN', 'ALTER COLUMN', 'ADD CONSTRAINT', 'DROP CONSTRAINT', 'DROP TABLE', 'TRUNCATE TABLE'],
-    explanation: `── ALTER TABLE Operations ──
+    explanation: `── Real-World Analogy ──
+ALTER TABLE is like renovating a house AFTER it's already built:
+- ADD COLUMN = adding a new room (the old rooms still exist)
+- DROP COLUMN = demolishing a room (everything inside is lost)
+- ALTER TYPE = changing a room's purpose (bedroom → office)
+- ADD CONSTRAINT = installing rules (door must be locked)
+
+CREATE builds the house from scratch. ALTER modifies the existing house. DROP destroys the house.
+
+── Visual: How ALTER Changes a Table ──
+  Original table "employees":           After ADD COLUMN phone:
+  ┌──────┬────────┬────────┐           ┌──────┬────────┬────────┬─────────────┐
+  │ id   │ name   │ salary │           │ id   │ name   │ salary │ phone       │
+  ├──────┼────────┼────────┤           ├──────┼────────┼────────┼─────────────┤
+  │ 1    │ Alice  │ 100K   │  ──►      │ 1    │ Alice  │ 100K   │ NULL        │  ← new column
+  │ 2    │ Bob    │ 80K    │           │ 2    │ Bob    │ 80K    │ NULL        │  (NULL by default)
+  └──────┴────────┴────────┘           └──────┴────────┴────────┴─────────────┘
+
+  Original: 3 columns                    New: 4 columns (old data preserved!)
+  
+  After ALTER COLUMN salary TYPE INT:    After DROP COLUMN phone:
+  ┌──────┬────────┬────────┐            ┌──────┬────────┬────────┐
+  │ id   │ name   │ salary │            │ id   │ name   │ salary │
+  ├──────┼────────┼────────┤            ├──────┼────────┼────────┤
+  │ 1    │ Alice  │ 100000 │  ← was 100K│ 1    │ Alice  │ 100000 │  ← phone column GONE
+  │ 2    │ Bob    │ 80000  │  ← was 80K │ 2    │ Bob    │ 80000  │
+  └──────┴────────┴────────┘            └──────┴────────┴────────┘
+
+── ALTER TABLE Operations ──
 | Operation         | SQL Syntax                                          | What It Does                         |
 |-------------------|-----------------------------------------------------|--------------------------------------|
-| ADD COLUMN        | ALTER TABLE t ADD COLUMN c type constraint          | Adds a new column                    |
-| DROP COLUMN       | ALTER TABLE t DROP COLUMN c                         | Removes an existing column           |
+| ADD COLUMN        | ALTER TABLE t ADD COLUMN c type constraint          | Adds a new column (NULL in existing rows) |
+| DROP COLUMN       | ALTER TABLE t DROP COLUMN c                         | Removes an existing column (data lost!) |
 | ALTER TYPE        | ALTER TABLE t ALTER COLUMN c TYPE new_type          | Changes column data type             |
-| SET DEFAULT       | ALTER TABLE t ALTER COLUMN c SET DEFAULT value      | Sets a default value                 |
+| SET DEFAULT       | ALTER TABLE t ALTER COLUMN c SET DEFAULT value      | Sets a default for NEW rows          |
 | DROP DEFAULT      | ALTER TABLE t ALTER COLUMN c DROP DEFAULT           | Removes the default                  |
-| SET NOT NULL      | ALTER TABLE t ALTER COLUMN c SET NOT NULL           | Makes column required                |
+| SET NOT NULL      | ALTER TABLE t ALTER COLUMN c SET NOT NULL           | Makes column required (fails if NULLs exist) |
 | DROP NOT NULL     | ALTER TABLE t ALTER COLUMN c DROP NOT NULL          | Makes column optional                |
 | RENAME COLUMN     | ALTER TABLE t RENAME COLUMN old TO new              | Renames a column                     |
-| ADD CONSTRAINT    | ALTER TABLE t ADD CONSTRAINT name PRIMARY KEY (c)   | Adds a table-level constraint        |
+| ADD CONSTRAINT    | ALTER TABLE t ADD CONSTRAINT name PRIMARY KEY (c)   | Adds a constraint                    |
 | DROP CONSTRAINT   | ALTER TABLE t DROP CONSTRAINT name                  | Removes a constraint by name         |
 
 ── ALTER TABLE Caveats ──
-- Adding NOT NULL: fails if existing rows have NULLs in that column
-- Changing type: fails if existing data can't be cast to the new type
-- Dropping column: cascades to any views or FKs referencing it
+- Adding NOT NULL: fails if existing rows already have NULLs in that column
+- Changing type: fails if existing data can't be converted (e.g., 'abc' → INT)
+- Dropping column: also removes any indexes, FKs, or views referencing it
 - Adding FK: fails if existing rows violate the reference
-- CONSTRAINT names must be UNIQUE within the schema
+- CONSTRAINT names must be UNIQUE within the schema (name your constraints!)
 
 ── ALTER vs CREATE vs DROP vs TRUNCATE ──
-| Command       | What Changes                       | Data Preserved? |
-|---------------|------------------------------------|:---------------:|
-| CREATE TABLE  | Creates structure from scratch     | N/A (new)       |
-| ALTER TABLE   | Modifies existing structure        | ✅ Yes          |
-| TRUNCATE      | Removes all rows                   | ❌ No           |
-| DROP TABLE    | Removes everything (structure + rows) | ❌ No        |
+| Command       | What Changes                       | Data Preserved? | Can Undo?     |
+|---------------|------------------------------------|:---------------:|:-------------:|
+| CREATE TABLE  | Creates structure from scratch     | N/A (new)       | N/A           |
+| ALTER TABLE   | Modifies existing structure        | ✅ Yes          | ⚠ Usually not |
+| TRUNCATE      | Removes all rows (keeps structure) | ❌ No           | ⚠ Rarely      |
+| DROP TABLE    | Removes structure + all data       | ❌ No           | ❌ No         |
 
-── Named Constraints ──
-Always name your constraints explicitly — makes ALTER/DROP much easier:
-  CREATE TABLE t (id INT CONSTRAINT pk_id PRIMARY KEY);
-  -- Later: ALTER TABLE t DROP CONSTRAINT pk_id;`,
+── Pro Tip: Name Your Constraints ──
+Without a name, the DB generates something ugly like "employees_salary_check_123abc".
+With a name, you can easily DROP or modify it later:
+  CREATE TABLE t (id INT CONSTRAINT pk_t_id PRIMARY KEY);
+  -- Later: ALTER TABLE t DROP CONSTRAINT pk_t_id;  -- easy!`,
     syntax: `-- Add a column
 ALTER TABLE table_name
 ADD COLUMN column_name data_type constraint;
@@ -7278,21 +7318,39 @@ ON DELETE CASCADE;`
     difficulty: 'intermediate',
     prerequisites: ['subqueries', 'select', 'where'],
     topics: ['EXISTS', 'NOT EXISTS', 'correlated subquery', 'IN vs EXISTS', 'NULL safety', 'division pattern'],
-    explanation: `── What EXISTS / NOT EXISTS Do ──
-EXISTS  → TRUE  if subquery returns ≥1 row  (short-circuits on first match)
-NOT EXISTS → TRUE  if subquery returns 0 rows  (NULL-safe — unlike NOT IN)
+    explanation: `── Real-World Analogy ──
+EXISTS = "Does this employee have ANY orders?" (check YES/NO, don't need details)
+NOT EXISTS = "Does this employee have ZERO orders?" (find people who never ordered)
 
-The SELECT list inside EXISTS never matters — only row existence is checked. Convention: SELECT 1.
+Think of a bouncer checking IDs at a club:
+- EXISTS = "Is this person on the list?" → scan until found, then stop (short-circuit)
+- NOT EXISTS = "Is this person NOT on the list?" → scan entire list, confirm absence
 
-── Correlated Subqueries ──
-A subquery is "correlated" when it references a column from the outer query.
-The inner query re-executes FOR EACH row of the outer query — like a nested loop.
+── Visual: How EXISTS Executes (Short-Circuit) ──
+  Outer query: employees e           Inner: SELECT 1 FROM orders o WHERE o.customer = e.name
 
-SELECT name FROM employees e
-WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer = e.name);
---                   ↑ correlation: links inner to outer row
+  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
+  │ checking │ name     │    │ For THIS employee, scan orders:            │
+  ├──────────┼──────────┤    │                                            │
+  │ Row 1    │ Alice    │───►│ Order #101 (Alice) → MATCH! → STOP ✅     │  ← short-circuit
+  │ Row 2    │ Bob      │───►│ Order #102 (Carol) ❌ Order #104 (Carol) ❌│
+  │          │          │    │ Order #105 (Bob) → MATCH! → STOP ✅        │  ← found on 3rd try
+  │ Row 3    │ Carol    │───►│ Order #102 (Carol) → MATCH! → STOP ✅     │  ← found on 1st try
+  │ Row 4    │ Diana    │───►│ No orders for Diana → scanned ALL → ❌    │
+  └──────────┴──────────┘    └────────────────────────────────────────────┘
+  EXISTS keeps 3 rows (Alice, Bob, Carol). Diana excluded.
 
-Execution order: for each employee → run the subquery → if any order matches, include.
+── Visual: NOT EXISTS (Check for Zero Matches) ──
+  NOT EXISTS finds employees with NO orders:
+  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
+  │ keeping  │ name     │    │ For THIS employee, scan orders:            │
+  ├──────────┼──────────┤    │                                            │
+  │ ❌       │ Alice    │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ❌       │ Bob      │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ❌       │ Carol    │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ✅       │ Diana    │───►│ NO orders found → NOT EXISTS is TRUE ✅    │
+  └──────────┴──────────┘    └────────────────────────────────────────────┘
+  Only Diana kept (she has zero orders).
 
 ── EXISTS vs IN vs JOIN ──
 | Use Case                          | Best Tool        | Why                                  |
@@ -7552,23 +7610,39 @@ WHERE EXISTS (
     difficulty: 'advanced',
     prerequisites: ['exists-not-exists', 'subqueries', 'set-operations', 'select', 'where'],
     topics: ['DIVISION', 'double negation', 'NOT EXISTS', 'EXCEPT', 'for all', 'relational division'],
-    explanation: `── What Division Answers ──
-Division finds entities related to ALL items in a set: "employees who ordered EVERY product", "students who took ALL courses".
+    explanation: `── Real-World Analogy ──
+Division answers: "Which employees have ordered ALL products in the Electronics category?"
+
+Think of a teacher checking homework: "Did EVERY student submit EVERY assignment?"
+The question is NOT "which students submitted something?" (that's EXISTS).
+The question is "which students submitted EVERYTHING?" (that's DIVISION).
+
+── Visual: Division with Real Data ──
+  Products in Electronics:     Orders placed:
+  ┌──────┬──────────────┐     ┌──────────┬────────────┐
+  │ id   │ name         │     │ customer │ product_id │
+  ├──────┼──────────────┤     ├──────────┼────────────┤
+  │ 1    │ Laptop       │     │ Alice    │ 1          │  ← Alice ordered Laptop
+  │ 2    │ Mouse        │     │ Alice    │ 2          │  ← Alice ordered Mouse
+  │ 3    │ Keyboard     │     │ Alice    │ 3          │  ← Alice ordered Keyboard
+  └──────┴──────────────┘     │ Bob      │ 1          │  ← Bob ordered Laptop
+                              │ Bob      │ 2          │  ← Bob ordered Mouse
+  Goal: find employees who   │ Carol    │ 1          │  ← Carol ordered Laptop
+  ordered ALL 3 Electronics   └──────────┴────────────┘
+
+  ── Step-by-step visual check ──
+  Alice: ordered 1✅, 2✅, 3✅ → ALL three! ✅  ← RESULT
+  Bob:   ordered 1✅, 2✅, 3❌ → Missing Keyboard ❌
+  Carol: ordered 1✅, 2❌, 3❌ → Missing 2 items ❌
 
 ── Core Insight: Double Negation ──
-"Employee is assigned to ALL projects" = "There is NO project the employee is NOT on"
+"Employee ordered ALL Electronics products"
+= "There is NO Electronics product that the employee did NOT order"
 
-SQL doesn't have a DIVISION operator — express it via double NOT EXISTS:
-  NOT EXISTS (
-    SELECT target FROM targets
-    WHERE condition AND NOT EXISTS (
-      SELECT 1 FROM links
-      WHERE link.entity = outer.entity AND link.target = target.id
-    )
-  )
-
-Mental model: the outer NOT EXISTS asks "Does a counterexample exist?"
-If NO counterexample → the employee IS assigned to ALL projects.
+  For each employee:
+    For each Electronics product:
+      Did the employee NOT order this product?  → If YES → exclude this employee
+  Keep employees where NO counterexample exists.
 
 ── Three Approaches ──
 | Approach                     | How It Works                              | Pros                     | Cons                     |
@@ -7580,7 +7654,7 @@ If NO counterexample → the employee IS assigned to ALL projects.
 ── When to Use Which ──
 - Double NOT EXISTS: default choice, works everywhere, NULL-safe
 - EXCEPT approach: more intuitive if you know set operations
-- HAVING COUNT: simpler for single-table relationships (e.g., students → enrollments → courses)`,
+- HAVING COUNT: simpler for single-table relationships`,
     syntax: `-- Division: double NOT EXISTS (standard form)
 SELECT e.name
 FROM employees e
@@ -7770,34 +7844,81 @@ ORDER BY o.customer;`
     difficulty: 'advanced',
     prerequisites: ['select', 'where', 'joins', 'set-operations'],
     topics: ['SELECT \u03C3', 'PROJECT \u03C0', 'RENAME \u03C1', 'EQUIJOIN', 'NATURAL JOIN', 'THETA JOIN', 'UNION', 'DIFFERENCE', 'INTERSECTION', 'DIVISION'],
-    explanation: `Relational Algebra (RA) is the theoretical foundation of SQL. Every SQL query can be expressed as an RA expression.
+    explanation: `── What is Relational Algebra? ──
+Relational Algebra (RA) is the mathematical FOUNDATION of SQL.
+Think of it as the "assembly language" of databases — SQL is compiled into RA operations internally.
 
-Core Operations:
+Understanding RA helps you: think clearly about queries, optimize them, and ace your database exam.
 
-\u03C3 (SELECT / filter rows) \u2014 \u03C3_{condition}(Table)
-  SQL: SELECT * FROM Table WHERE condition
+── Visual: RA → SQL Translation Pipeline ──
+  English: "Names of Engineering employees earning over 80k"
 
-\u03C0 (PROJECT / select columns) \u2014 \u03C0_{col1, col2}(Table)
-  SQL: SELECT col1, col2 FROM Table
+      ↓
 
-\u22C8 (JOIN) \u2014 Various join types:
-  \u2022 \u03B8-join (theta join): \u22C8_{condition} \u2014 JOIN ON condition
-  \u2022 Equijoin: \u22C8_{=} \u2014 JOIN ON equal columns
-  \u2022 Natural join: \u22C8 \u2014 NATURAL JOIN (matches same-named columns)
+  RA expression (written inside-out):
+  π_{name}( σ_{department='Engineering' AND salary>80000}( employees ) )
+  ↑         ↑                                                  ↑
+  Step 2    Step 1                                             Start here
 
-\u03C1 (RENAME) \u2014 \u03C1_{new}(Table) or \u03C1_{new(a1, a2)}(Table)
-  SQL: Table AS new
+      ↓ Read from innermost to outermost ↓
 
-\u222A (UNION) \u2014 Set union. SQL: UNION
-\u2212 (DIFFERENCE) \u2014 Set difference. SQL: EXCEPT
-\u2229 (INTERSECTION) \u2014 Set intersection. SQL: INTERSECT
-\u00D7 (CARTESIAN PRODUCT) \u2014 All pairs. SQL: CROSS JOIN or FROM a, b
+  Step 1: σ (SELECT/WHERE) → get Engineering employees earning > 80K
+  Step 2: π (PROJECT)      → keep only the 'name' column
 
-Strategy: Write the RA expression first, then translate to SQL working from innermost to outermost.
+      ↓
 
-Example: "Names of Engineering employees earning over 80k"
-  RA: \u03C0_{name}(\u03C3_{department='Engineering' \u2227 salary>80000}(employees))
-  SQL: SELECT name FROM employees WHERE department = 'Engineering' AND salary > 80000;`,
+  SQL (translated step by step):
+  SELECT name                          ← π (projection)
+  FROM employees
+  WHERE department = 'Engineering'     ← σ (selection)
+    AND salary > 80000;
+
+── Visual: RA Operators as Data Flow ──
+  employees table (raw data):
+  ┌──────┬──────────────┬────────┬────────┐
+  │ name │ department   │ salary │ city   │
+  ├──────┼──────────────┼────────┼────────┤
+  │ Alice│ Engineering  │ 100K   │ Cairo  │
+  │ Bob  │ Engineering  │ 70K    │ Giza   │  ← These rows are REMOVED by σ (salary ≤ 80K)
+  │ Carol│ Marketing    │ 90K    │ Cairo  │  ← Removed by σ (not Engineering)
+  │ Dave │ Engineering  │ 95K    │ Luxor  │
+  └──────┴──────────────┴────────┴────────┘
+
+  Step 1 — σ (SELECT rows): σ_{dept='Eng' AND salary>80000}
+  ┌──────┬──────────────┬────────┬────────┐
+  │ Alice│ Engineering  │ 100K   │ Cairo  │
+  │ Dave │ Engineering  │ 95K    │ Luxor  │  ← 2 rows pass the filter
+  └──────┴──────────────┴────────┴────────┘
+
+  Step 2 — π (PROJECT columns): π_{name}
+  ┌──────┐
+  │ name │
+  ├──────┤
+  │ Alice│  ← Only the name column remains
+  │ Dave │
+  └──────┘
+
+── Core Operations ──
+| Symbol | Name         | What It Does                    | SQL Equivalent                    |
+|:------:|--------------|----------------------------------|-----------------------------------|
+| σ      | SELECT       | Filter ROWS by condition         | SELECT * FROM t WHERE condition   |
+| π      | PROJECT      | Pick specific COLUMNS            | SELECT col1, col2 FROM t          |
+| ⋈      | JOIN         | Combine tables on condition      | t1 JOIN t2 ON condition           |
+| ρ      | RENAME       | Rename table or columns          | table AS alias                    |
+| ∪      | UNION        | Rows in either table             | SELECT ... UNION SELECT ...       |
+| −      | DIFFERENCE   | Rows in first but NOT second     | SELECT ... EXCEPT SELECT ...      |
+| ∩      | INTERSECTION | Rows in BOTH tables              | SELECT ... INTERSECT SELECT ...   |
+| ×      | PRODUCT      | All combinations (Cartesian)     | CROSS JOIN or FROM a, b           |
+
+── Translation Strategy ──
+Write RA from inside-out, translate to SQL from inside-out:
+  π_{name}(σ_{dept='Eng'}(employees))
+     ↓ inner first
+  σ → WHERE:  SELECT * FROM employees WHERE dept = 'Eng'
+     ↓ then outer
+  π → SELECT columns: SELECT name FROM employees WHERE dept = 'Eng'
+
+Composition = nesting. The innermost operation is the FIRST to execute.`,
     syntax: `-- RA to SQL Translation Reference:
 -- \u03C3_{condition}(Table)              \u2192 SELECT * FROM Table WHERE condition
 -- \u03C0_{cols}(Table)                   \u2192 SELECT cols FROM Table
@@ -7975,56 +8096,85 @@ WHERE salary <= 50000;`
     difficulty: 'advanced',
     prerequisites: ['ddl-create', 'dml-crud', 'select', 'where', 'joins', 'subqueries', 'set-operations', 'exists-not-exists', 'division-queries', 'relational-algebra'],
     topics: ['Exam', 'Midterm', 'Final', 'Practice', 'DDL', 'DML', 'SQL', 'RA'],
-    explanation: `Comprehensive exam preparation for your midterm and final.
+    explanation: `Comprehensive exam preparation for your midterm and final — everything in one place.
 
-=== Entity Integrity vs Referential Integrity ===
+═══ Entity Integrity vs Referential Integrity ═══
 
-Entity Integrity: PRIMARY KEY columns cannot be NULL. Ensures every row is uniquely identifiable.
-  Violation: INSERT INTO employees (id, name) VALUES (NULL, 'Alice');
-  Rule: No component of a PRIMARY KEY can be NULL.
+  Every row MUST be uniquely identifiable          Every FK MUST reference an existing PK
+  ┌──────────────────────────────┐                ┌──────────────────────────────┐
+  │ ENTITY INTEGRITY (PK rules)  │                │ REFERENTIAL INTEGRITY (FK)   │
+  ├──────────────────────────────┤                ├──────────────────────────────┤
+  │ PRIMARY KEY ≠ NULL           │                │ FK must EXIST in parent PK   │
+  │ Only ONE PK per table        │                │ FK can be NULL (unless NOT   │
+  │ Can be COMPOSITE (multi-col) │                │   NULL)                      │
+  │ Every table SHOULD have PK   │                │ Table can have MULTIPLE FKs  │
+  └──────────────────────────────┘                └──────────────────────────────┘
+  Violation: INSERT INTO t (id) VALUES (NULL)     Violation: INSERT INTO orders
+              → ERROR! PK cannot be NULL           (product_id) VALUES (999)
+                                                   → ERROR! No product with id=999
 
-Referential Integrity: FOREIGN KEY values must match a PRIMARY KEY value in the referenced table (or be NULL).
-  Violation: INSERT INTO orders (id, product_id) VALUES (1, 999); -- no product with id=999
-  Rule: A FK value must exist in the referenced PK column, or be NULL.
+═══ Common T/F Question Patterns ═══
 
-=== Common T/F Question Patterns ===
+  ┌────────────────────────────────────────────────┬──────────┐
+  │ Statement                                      │ Answer   │
+  ├────────────────────────────────────────────────┼──────────┤
+  │ "A PRIMARY KEY can be NULL"                    │ FALSE ❌ │
+  │ "A FOREIGN KEY can be NULL"                    │ TRUE  ✅ │
+  │ "A table can have multiple FOREIGN KEYs"       │ TRUE  ✅ │
+  │ "A table can have multiple PRIMARY KEYs"       │ FALSE ❌ │
+  │ "UNIQUE allows one NULL"                       │ TRUE  ✅ │
+  │ "DELETE removes the table structure"           │ FALSE ❌ │
+  │ "TRUNCATE can use a WHERE clause"              │ FALSE ❌ │
+  │ "ORDER BY inside a UNION applies to one SELECT"│ FALSE ❌ │
+  │ "Correlated subquery runs once per outer row"  │ TRUE  ✅ │
+  │ "NOT IN is NULL-safe"                          │ FALSE ❌ │
+  └────────────────────────────────────────────────┴──────────┘
 
-\u2022 "A PRIMARY KEY can be NULL" \u2192 FALSE (Entity Integrity)
-\u2022 "A FOREIGN KEY can be NULL" \u2192 TRUE (if not declared NOT NULL)
-\u2022 "A table can have multiple FOREIGN KEYs" \u2192 TRUE
-\u2022 "A table can have multiple PRIMARY KEYs" \u2192 FALSE (only one, but can be composite)
-\u2022 "UNIQUE allows one NULL" \u2192 TRUE (in most DBMS)
-\u2022 "DELETE removes the table structure" \u2192 FALSE (DROP does)
-\u2022 "TRUNCATE can use a WHERE clause" \u2192 FALSE (DELETE can)
+═══ The Complete Query Writing Playbook (6 Steps) ═══
 
-=== The Complete Query Writing Playbook (6 Steps) ===
+  ┌─ Step 1 ────────────────────────────────────────┐
+  │  WHAT to display?  (SELECT columns)              │
+  │  • Names? Expressions? Aliases? Aggregates?      │
+  └──────────────────────────────────────────────────┘
+                        ↓
+  ┌─ Step 2 ────────────────────────────────────────┐
+  │  WHICH tables?  (FROM + JOIN)                    │
+  │  • Every column must come from one of these       │
+  └──────────────────────────────────────────────────┘
+                        ↓
+  ┌─ Step 3 ────────────────────────────────────────┐
+  │  HOW to connect?  (JOIN conditions)              │
+  │  • FK = PK (usually) — N tables → N-1 conditions │
+  └──────────────────────────────────────────────────┘
+                        ↓
+  ┌─ Step 4 ────────────────────────────────────────┐
+  │  FILTERING?  (WHERE — row-level, BEFORE group)   │
+  └──────────────────────────────────────────────────┘
+                        ↓
+  ┌─ Step 5 ────────────────────────────────────────┐
+  │  GROUPING?  (GROUP BY + HAVING — AFTER group)    │
+  │  • Non-aggregate in SELECT → MUST be in GROUP BY │
+  └──────────────────────────────────────────────────┘
+                        ↓
+  ┌─ Step 6 ────────────────────────────────────────┐
+  │  SORTING?  (ORDER BY + LIMIT)                    │
+  │  • ASC/DESC? LIMIT to restrict rows?             │
+  └──────────────────────────────────────────────────┘
 
-Step 1: What to display?
-  Identify the SELECT columns. Are there expressions? Aggregates? Aliases?
-Step 2: Which tables?
-  Identify all FROM and JOIN tables. Every column must come from one of these.
-Step 3: How to connect?
-  Identify JOIN conditions. Usually FK = PK relationships.
-Step 4: Filtering?
-  Identify WHERE conditions. Row-level filters applied before grouping.
-Step 5: Grouping?
-  Identify GROUP BY columns and HAVING conditions. Every non-aggregate in SELECT must be in GROUP BY.
-Step 6: Sorting?
-  Identify ORDER BY columns and direction (ASC/DESC). Add LIMIT if needed.
+═══ Pattern Recognition Table ═══
 
-=== Pattern Recognition Table ===
-
-English Phrase                    \u2192 SQL Pattern
-"who have ordered"                \u2192 EXISTS or JOIN
-"who have NOT ordered"            \u2192 NOT EXISTS
-"who ordered ALL"                 \u2192 Division (double NOT EXISTS)
-"average per department"          \u2192 GROUP BY + AVG
-"top 3"                           \u2192 ORDER BY + LIMIT
-"in both tables"                  \u2192 INTERSECT or JOIN
-"in neither table"                \u2192 NOT EXISTS or EXCEPT
-"find duplicates"                 \u2192 GROUP BY + HAVING COUNT(*) > 1
-"running total"                   \u2192 Window SUM() OVER (ORDER BY)
-"compare to department average"   \u2192 Window AVG() OVER (PARTITION BY)
+  English Phrase                    → SQL Pattern
+  ───────────────────────────────────────────────────
+  "who have ordered"                → EXISTS or JOIN
+  "who have NOT ordered"            → NOT EXISTS
+  "who ordered ALL"                 → Division (double NOT EXISTS)
+  "average per department"          → GROUP BY + AVG
+  "top 3"                           → ORDER BY + LIMIT
+  "in both tables"                  → INTERSECT or JOIN
+  "in neither table"                → NOT EXISTS or EXCEPT
+  "find duplicates"                 → GROUP BY + HAVING COUNT(*) > 1
+  "running total"                   → Window SUM() OVER (ORDER BY)
+  "compare to department average"   → Window AVG() OVER (PARTITION BY)
 
 === Final Exam Checklist ===
 
