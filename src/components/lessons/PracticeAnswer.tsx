@@ -7,7 +7,7 @@ import { PRACTICE_SCHEMA_SQL } from '@/lib/db-schema'
 import { saveSolved, isSolved } from '@/lib/progress'
 import { useAuth } from '@/context/AuthContext'
 import { fireSolvedReminder } from '@/components/LoginReminder'
-import { Check, X, Wand2, Eye, EyeOff, HelpCircle, Database } from 'lucide-react'
+import { Check, X, Wand2, Eye, EyeOff, HelpCircle, Database, ChevronDown } from 'lucide-react'
 
 const SCHEMA_INFO: { table: string; columns: string[] }[] = [
   { table: 'customers', columns: ['id', 'name', 'email', 'phone', 'city', 'signup_date'] },
@@ -81,7 +81,6 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
-  const [showSchema, setShowSchema] = useState(false)
 
   const handleChange = (value: string) => {
     setUserSql(value)
@@ -166,6 +165,17 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const start = e.currentTarget.selectionStart
+      const end = e.currentTarget.selectionEnd
+      const newVal = userSql.slice(0, start) + '  ' + userSql.slice(end)
+      setUserSql(newVal)
+      requestAnimationFrame(() => {
+        e.currentTarget.selectionStart = e.currentTarget.selectionEnd = start + 2
+      })
+      return
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       checkAnswer()
@@ -188,17 +198,13 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
       <div className="px-6 pb-6 space-y-4">
         <p className="text-text-secondary leading-relaxed text-sm">{question}</p>
 
-        <button
-          onClick={() => setShowSchema(!showSchema)}
-          aria-label={showSchema ? 'Hide tables' : 'Show tables'}
-          className="flex items-center gap-1.5 text-xs text-accent font-medium hover:opacity-80 transition-opacity"
-        >
-          <Database size={13} />
-          {showSchema ? 'Hide tables' : 'Show tables'}
-        </button>
-
-        {showSchema && (
-          <div className="bg-cream-dark border-2 border-border rounded-xl p-4 space-y-2 text-xs font-mono">
+        <details className="group text-xs">
+          <summary className="flex items-center gap-1.5 text-accent font-medium cursor-pointer hover:opacity-80 transition-opacity list-none">
+            <Database size={13} className="shrink-0" />
+            <span>Schema / Tables</span>
+            <ChevronDown size={12} className="ml-auto group-open:rotate-180 transition-transform text-text-muted" />
+          </summary>
+          <div className="mt-2 bg-cream-dark border-2 border-border rounded-xl p-4 space-y-2 font-mono">
             {SCHEMA_INFO.map((t) => (
               <div key={t.table}>
                 <span className="font-bold text-text">{t.table}</span>
@@ -215,7 +221,7 @@ export default function PracticeAnswer({ lessonId, question, hint, solution, ind
               </div>
             ))}
           </div>
-        )}
+        </details>
 
         <div className="space-y-3">
           <textarea

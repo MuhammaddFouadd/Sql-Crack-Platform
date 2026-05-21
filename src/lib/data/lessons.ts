@@ -10,6 +10,7 @@ export interface PracticeQuestion {
   question: string
   hint: string
   solution: string
+  tablesUsed?: string[]
 }
 
 export interface Lesson {
@@ -315,20 +316,37 @@ ORDER BY salary DESC;`,
     ],
     practiceQuestions: [
       {
-        question: 'Select distinct departments from the employees table, showing them as "department_name".',
+        question: `Table: employees
+
+Select distinct departments from the employees table, showing them as "department_name".
+
+Return columns: department_name (unique values)
+Order by: any order.`,
         hint: 'Use DISTINCT with an AS alias.',
         solution: `SELECT DISTINCT department AS department_name
 FROM employees;`
       },
       {
-        question: 'Select product names and their prices, with the price displayed as "price_with_tax" (price * 1.1). Limit to 5 rows.',
+        question: `Table: products
+
+Select product names and their prices, with the price displayed as "price_with_tax" (price * 1.1).
+
+Return columns: name, price_with_tax
+Order by: any order.
+Limit: 5 rows.`,
         hint: 'Use arithmetic in the SELECT clause with an alias and LIMIT.',
         solution: `SELECT name, price * 1.1 AS price_with_tax
 FROM products
 LIMIT 5;`
       },
       {
-        question: 'Write a query that shows each product\'s name, its price, the price with a 20% discount labeled as "discounted_price", and the total inventory value (price * stock) labeled as "inventory_value". Limit to 8 rows.',
+        question: `Table: products
+
+Show each product's name, price, the price with a 20% discount labeled as "discounted_price", and the total inventory value (price * stock) labeled as "inventory_value".
+
+Return columns: name, price, discounted_price, inventory_value
+Order by: any order.
+Limit: 8 rows.`,
         hint: 'Use arithmetic expressions in SELECT with AS aliases. Discounted price = price * 0.8, inventory value = price * stock.',
         solution: `SELECT name, price,
   price * 0.8 AS discounted_price,
@@ -337,7 +355,13 @@ FROM products
 LIMIT 8;`
       },
       {
-        question: 'Challenge: Write a query that shows the first 5 distinct department-city combinations from the employees table. Alias the columns as "dept" and "location".',
+        question: `Table: employees
+
+Write a query that shows the first 5 distinct department-city combinations from the employees table.
+
+Return columns: dept, location (aliased from department, city)
+Order by: any order.
+Limit: 5 rows.`,
         hint: 'Use DISTINCT on two columns, AS for aliases, and LIMIT.',
         solution: `SELECT DISTINCT department AS dept,
   city AS location
@@ -730,7 +754,12 @@ ORDER BY name;`,
     ],
     practiceQuestions: [
       {
-        question: 'Find all products that cost between $4 and $100, are in category "Electronics" or "Stationery", and have stock quantity greater than 50.',
+        question: `Table: products
+
+Find all products that cost between $4 and $100, are in category "Electronics" or "Stationery", and have stock quantity greater than 50.
+
+Return columns: * (all columns)
+Order by: any order.`,
         hint: 'Combine BETWEEN, IN, AND, and comparison operators.',
         solution: `SELECT *
 FROM products
@@ -739,7 +768,12 @@ WHERE price BETWEEN 4 AND 100
   AND stock > 50;`
       },
       {
-        question: 'Find employees whose email ends with @company.com and who are not in the Engineering department.',
+        question: `Table: employees
+
+Find employees whose email ends with @company.com and who are not in the Engineering department.
+
+Return columns: name, email, department
+Order by: any order.`,
         hint: 'Use LIKE with a pattern and the <> or != operator.',
         solution: `SELECT name, email, department
 FROM employees
@@ -747,7 +781,12 @@ WHERE email LIKE '%@company.com'
   AND department <> 'Engineering';`
       },
       {
-        question: 'From the products table, find all products where the name contains the letter "e" (case-sensitive) AND the price is either under $30 or over $400. Show name, price, and category columns.',
+        question: `Table: products
+
+Find all products where the name contains the letter "e" (case-sensitive) AND the price is either under $30 or over $400.
+
+Return columns: name, price, category
+Order by: any order.`,
         hint: 'Use LIKE with wildcards to match "e". Combine with OR for the price condition. Parentheses matter for mixing AND with OR.',
         solution: `SELECT name, price, category
 FROM products
@@ -755,7 +794,12 @@ WHERE name LIKE '%e%'
   AND (price < 30 OR price > 400);`
       },
       {
-        question: 'Challenge: Write a query that finds all employees whose name starts with a letter in the first half of the alphabet (A through M) and whose salary is between $60,000 and $100,000. Show name, salary, and department columns.',
+        question: `Table: employees
+
+Challenge: Find all employees whose name starts with a letter in the first half of the alphabet (A through M) and whose salary is between $60,000 and $100,000.
+
+Return columns: name, salary, department
+Order by: any order.`,
         hint: 'Use multiple LIKE patterns OR\'d together for each starting letter: name LIKE \'A%\' OR name LIKE \'B%\' etc. Combine with salary BETWEEN.',
         solution: `SELECT name, salary, department
 FROM employees
@@ -1175,7 +1219,13 @@ for (int i = 0; i < sortedCount; i++)
     ],
     practiceQuestions: [
       {
-        question: 'List the top 5 most expensive products in the "Electronics" category, from highest to lowest price.',
+        question: `Table: products
+
+List the top 5 most expensive products in the "Electronics" category, from highest to lowest price.
+
+Return columns: name, price
+Order by: price DESC
+Limit: 5 rows.`,
         hint: 'Use WHERE to filter by category, ORDER BY price DESC to sort, and LIMIT 5.',
         solution: `SELECT name, price
 FROM products
@@ -1184,14 +1234,24 @@ ORDER BY price DESC
 LIMIT 5;`
       },
       {
-        question: 'Show all employees sorted by department alphabetically, then by salary from highest to lowest within each department.',
+        question: `Table: employees
+
+Show all employees sorted by department alphabetically, then by salary from highest to lowest within each department.
+
+Return columns: name, department, salary
+Order by: department ASC, salary DESC.`,
         hint: 'Use ORDER BY with two columns.',
         solution: `SELECT name, department, salary
 FROM employees
 ORDER BY department ASC, salary DESC;`
       },
       {
-        question: 'Challenge: From the products table, write a query that sorts products first by category in reverse alphabetical order (Z to A), then by price from lowest to highest within each category. Only show products with stock greater than 0. Show name, category, price, and stock columns.',
+        question: `Table: products
+
+Challenge: Write a query that sorts products first by category in reverse alphabetical order (Z to A), then by price from lowest to highest within each category. Only show products with stock greater than 0.
+
+Return columns: name, category, price, stock
+Order by: category DESC, price ASC.`,
         hint: 'Use ORDER BY with category DESC (reverse alphabetical) and price ASC. Add WHERE to filter stock > 0.',
         solution: `SELECT name, category, price, stock
 FROM products
@@ -1199,7 +1259,13 @@ WHERE stock > 0
 ORDER BY category DESC, price ASC;`
       },
       {
-        question: 'Challenge: From the employees table, write a query that sorts employees by salary divided by 1000 (as "salary_in_thousands") from highest to lowest, then by name alphabetically for ties. Only show employees with a non-null salary. Show name, salary, and the computed salary_in_thousands column. Limit to 10 rows.',
+        question: `Table: employees
+
+Challenge: Write a query that sorts employees by salary divided by 1000 (as "salary_in_thousands") from highest to lowest, then by name alphabetically for ties. Only show employees with a non-null salary.
+
+Return columns: name, salary, salary_in_thousands
+Order by: salary_in_thousands DESC, name ASC
+Limit: 10 rows.`,
         hint: 'Use ORDER BY with an expression: salary / 1000.0 DESC. Add a computed column in SELECT with an alias.',
         solution: `SELECT name, salary,
   ROUND(salary / 1000.0, 1) AS salary_in_thousands
@@ -1742,7 +1808,12 @@ for (int i = 0; i < groupCount; i++) {
     ],
     practiceQuestions: [
       {
-        question: 'For each product category, show the total stock (SUM of stock) and the number of products. Sort by total stock descending.',
+        question: `Table: products
+
+For each product category, show the total stock (SUM of stock) and the number of products.
+
+Return columns: category, total_stock, product_count
+Order by: total_stock DESC.`,
         hint: 'Use GROUP BY with SUM() and COUNT(). Use ORDER BY for sorting.',
         solution: `SELECT 
   category,
@@ -1753,7 +1824,12 @@ GROUP BY category
 ORDER BY total_stock DESC;`
       },
       {
-        question: 'Find the average salary per department. Show department and avg_salary columns, sorted by average salary descending.',
+        question: `Table: employees
+
+Find the average salary per department.
+
+Return columns: department, avg_salary
+Order by: avg_salary DESC.`,
         hint: 'Use GROUP BY department with AVG(salary) and ROUND.',
         solution: `SELECT department, ROUND(AVG(salary), 2) AS avg_salary
 FROM employees
@@ -1761,7 +1837,13 @@ GROUP BY department
 ORDER BY avg_salary DESC;`
       },
       {
-        question: 'Challenge: From the products table, find the category with the widest price range (difference between max and min price). Show category, min_price, max_price, and price_range columns. Sort by price_range descending and show only the top result.',
+        question: `Table: products
+
+Challenge: Find the category with the widest price range (difference between max and min price).
+
+Return columns: category, min_price, max_price, price_range
+Order by: price_range DESC
+Limit: 1 row.`,
         hint: 'Use GROUP BY with MIN(price), MAX(price), and compute MAX(price) - MIN(price) as an expression. Use ORDER BY and LIMIT.',
         solution: `SELECT category,
   MIN(price) AS min_price,
@@ -1773,7 +1855,12 @@ ORDER BY price_range DESC
 LIMIT 1;`
       },
       {
-        question: 'Challenge: Write a query that shows each category\'s statistics: number of products, average price, total stock, and total potential revenue (SUM of price * stock). Only include products with stock greater than 0 (filter before grouping). Sort by total_potential_revenue descending.',
+        question: `Table: products
+
+Challenge: Show each category's statistics: number of products, average price, total stock, and total potential revenue (SUM of price * stock). Only include products with stock greater than 0.
+
+Return columns: category, product_count, avg_price, total_stock, total_potential_revenue
+Order by: total_potential_revenue DESC.`,
         hint: 'Use WHERE to filter rows before GROUP BY. Use COUNT, AVG, SUM for aggregation. Only one table — no JOIN needed.',
         solution: `SELECT category,
   COUNT(*) AS product_count,
@@ -2206,7 +2293,12 @@ for (int i = 0; i < groupSize; i++) {
     ],
     practiceQuestions: [
       {
-        question: 'Find departments where the average salary is above $65,000 and there are at least 2 employees.',
+        question: `Table: employees
+
+Find departments where the average salary is above $65,000 and there are at least 2 employees.
+
+Return columns: department, headcount, avg_salary
+Order by: avg_salary DESC.`,
         hint: 'GROUP BY department, use AVG(salary) and COUNT(*) in HAVING.',
         solution: `SELECT department, 
   COUNT(*) AS headcount,
@@ -2217,7 +2309,12 @@ HAVING AVG(salary) > 65000 AND COUNT(*) >= 2
 ORDER BY avg_salary DESC;`
       },
       {
-        question: 'Show product categories where the total stock value (SUM of price * stock) exceeds $10,000. Show category and total_stock_value columns.',
+        question: `Table: products
+
+Show product categories where the total stock value (SUM of price * stock) exceeds $10,000.
+
+Return columns: category, total_stock_value
+Order by: total_stock_value DESC.`,
         hint: 'Use GROUP BY with SUM in HAVING.',
         solution: `SELECT category, 
   SUM(price * stock) AS total_stock_value
@@ -2227,7 +2324,12 @@ HAVING SUM(price * stock) > 10000
 ORDER BY total_stock_value DESC;`
       },
       {
-        question: 'Challenge: From the products table, find categories where the average price is at least double the minimum price in that category. Show category, avg_price, min_price, and the ratio (avg_price / min_price) rounded to 2 decimal places. Sort by the ratio descending.',
+        question: `Table: products
+
+Challenge: Find categories where the average price is at least double the minimum price in that category.
+
+Return columns: category, avg_price, min_price, ratio
+Order by: ratio DESC.`,
         hint: 'Use GROUP BY with AVG and MIN. Use HAVING AVG(price) >= MIN(price) * 2. Compute ratio as AVG(price) / MIN(price).',
         solution: `SELECT category,
   ROUND(AVG(price), 2) AS avg_price,
@@ -2239,7 +2341,12 @@ HAVING AVG(price) >= MIN(price) * 2
 ORDER BY ratio DESC;`
       },
       {
-        question: 'Challenge: From the employees table, find departments where the total salary budget exceeds $150,000 and the average salary is above $55,000. Show department, total_salary, avg_salary, and employee_count columns. Sort by total_salary descending.',
+        question: `Table: employees
+
+Challenge: Find departments where the total salary budget exceeds $150,000 and the average salary is above $55,000.
+
+Return columns: department, total_salary, avg_salary, employee_count
+Order by: total_salary DESC.`,
         hint: 'Use GROUP BY department with SUM, AVG, and COUNT. Use HAVING with multiple conditions connected by AND.',
         solution: `SELECT department,
   SUM(salary) AS total_salary,
@@ -2267,7 +2374,13 @@ Each question combines multiple concepts to challenge your understanding. Try to
     commonMistakes: [],
     practiceQuestions: [
       {
-        question: 'Find the top 2 highest-paid active employees in the Engineering department. Show name, department, and salary.',
+        question: `Table: employees
+
+Find the top 2 highest-paid active employees in the Engineering department.
+
+Return columns: name, department, salary
+Order by: salary DESC
+Limit: 2 rows.`,
         hint: 'WHERE status = \'active\' AND department = \'Engineering\', ORDER BY salary DESC, LIMIT 2.',
         solution: `SELECT name, department, salary
 FROM employees
@@ -2276,7 +2389,12 @@ ORDER BY salary DESC
 LIMIT 2;`
       },
       {
-        question: 'Show how many products each category has, the average price, and the total stock. Only include categories where the average price is over $50. Sort by total stock descending.',
+        question: `Table: products
+
+Show how many products each category has, the average price, and the total stock. Only include categories where the average price is over $50.
+
+Return columns: category, product_count, avg_price, total_stock
+Order by: total_stock DESC.`,
         hint: 'Use GROUP BY with COUNT, AVG, SUM, then HAVING AVG(price) > 50. ORDER BY total_stock DESC.',
         solution: `SELECT category,
   COUNT(*) AS product_count,
@@ -2288,7 +2406,12 @@ HAVING AVG(price) > 50
 ORDER BY total_stock DESC;`
       },
       {
-        question: 'Find employees whose salary is above the average salary of all employees, grouped by department. For each such department, show how many high earners there are and the average salary of those high earners.',
+        question: `Table: employees
+
+Find employees whose salary is above the average salary of all employees, grouped by department. For each such department, show how many high earners there are and the average salary of those high earners.
+
+Return columns: department, high_earners, avg_high_salary
+Order by: avg_high_salary DESC.`,
         hint: 'First use WHERE salary > (SELECT AVG(salary) FROM employees), then GROUP BY department.',
         solution: `SELECT department,
   COUNT(*) AS high_earners,
@@ -2299,7 +2422,13 @@ GROUP BY department
 ORDER BY avg_high_salary DESC;`
       },
       {
-        question: 'List products that cost more than $50, sorted by category alphabetically and then by price descending within each category. Show name, category, and price. Limit to the first 5 results.',
+        question: `Table: products
+
+List products that cost more than $50, sorted by category alphabetically and then by price descending within each category.
+
+Return columns: name, category, price
+Order by: category ASC, price DESC
+Limit: 5 rows.`,
         hint: 'WHERE price > 50, ORDER BY category ASC, price DESC, LIMIT 5.',
         solution: `SELECT name, category, price
 FROM products
@@ -2308,7 +2437,12 @@ ORDER BY category ASC, price DESC
 LIMIT 5;`
       },
       {
-        question: 'Write a query that uses DISTINCT to find all unique department-city combinations from employees, aliasing them as "dept" and "location".',
+        question: `Table: employees
+
+Write a query that uses DISTINCT to find all unique department-city combinations from employees, aliasing them as "dept" and "location".
+
+Return columns: dept, location (aliased from department, city)
+Order by: any order.`,
         hint: 'Use DISTINCT on two columns with AS aliases.',
         solution: `SELECT DISTINCT department AS dept, city AS location
 FROM employees;`
@@ -2925,7 +3059,12 @@ ORDER BY e1.department, e1.name;`,
     ],
     practiceQuestions: [
       {
-        question: 'List all products and their total order quantity. Include products that have never been ordered (they should show NULL for quantity).',
+        question: `Table: products, orders
+
+List all products and their total order quantity. Include products that have never been ordered (they should show NULL for quantity).
+
+Return columns: name, price, total_ordered
+Order by: total_ordered DESC NULLS LAST.`,
         hint: 'Use LEFT JOIN from products to orders, GROUP BY product, and SUM(quantity).',
         solution: `SELECT 
   p.name,
@@ -2937,7 +3076,12 @@ GROUP BY p.name, p.price
 ORDER BY total_ordered DESC NULLS LAST;`
       },
       {
-        question: 'Find pairs of employees in the same department where one earns more than the other. Show both names, their salaries, and department.',
+        question: `Table: employees
+
+Find pairs of employees in the same department where one earns more than the other.
+
+Return columns: higher_earner, salary (of higher earner), lower_earner, salary (of lower earner), department
+Order by: department, higher_earner salary DESC.`,
         hint: 'Use a SELF JOIN on employees with e1.department = e2.department AND e1.salary > e2.salary.',
         solution: `SELECT 
   e1.name AS higher_earner,
@@ -2950,7 +3094,12 @@ JOIN employees e2 ON e1.department = e2.department AND e1.salary > e2.salary
 ORDER BY e1.department, e1.salary DESC;`
       },
       {
-        question: 'Challenge: Find products that have never been ordered. Use a LEFT JOIN between products and orders to identify products with no matching orders. Show product name, price, and category columns.',
+        question: `Table: products, orders
+
+Challenge: Find products that have never been ordered. Use a LEFT JOIN between products and orders to identify products with no matching orders.
+
+Return columns: name, price, category
+Order by: any order.`,
         hint: 'LEFT JOIN products to orders, then filter WHERE orders.id IS NULL. This finds products with no matching order records.',
         solution: `SELECT p.name, p.price, p.category
 FROM products p
@@ -2958,7 +3107,12 @@ LEFT JOIN orders o ON p.id = o.product_id
 WHERE o.id IS NULL;`
       },
       {
-        question: 'Challenge: Find customers who have placed orders totaling more than $200. Use an INNER JOIN between orders and a subquery that aggregates per customer. Show customer name, order count, and total spent.',
+        question: `Table: orders
+
+Challenge: Find customers who have placed orders totaling more than $200.
+
+Return columns: customer, order_count, total_spent
+Order by: total_spent DESC.`,
         hint: 'First aggregate in a subquery or CTE: GROUP BY customer with SUM(total) and COUNT(*). Then JOIN or filter with WHERE.',
         solution: `SELECT o.customer,
   COUNT(*) AS order_count,
@@ -3310,7 +3464,12 @@ for (int i=0;i<neverCount;i++) cout<<neverOrdered[i].name<<" | "<<neverOrdered[i
     ],
     practiceQuestions: [
       {
-        question: 'Find employees whose salary is above the average salary of their own department.',
+        question: `Table: employees
+
+Find employees whose salary is above the average salary of their own department.
+
+Return columns: name, salary, department
+Order by: department, salary DESC.`,
         hint: 'Use a correlated subquery in the WHERE clause that references the outer employee\'s department.',
         solution: `SELECT name, salary, department
 FROM employees e
@@ -3322,7 +3481,12 @@ WHERE salary > (
 ORDER BY department, salary DESC;`
       },
       {
-        question: 'Find departments that have no employees assigned. (Use a subquery with NOT IN on the employees table to check which departments have no staff.)',
+        question: `Table: employees
+
+Find departments that have no employees assigned. (Use a subquery with NOT IN on the employees table.)
+
+Return columns: department
+Order by: any order.`,
         hint: 'List of actual departments: Engineering, Product, Marketing, Sales, HR.',
         solution: `SELECT d.department
 FROM (
@@ -3337,7 +3501,12 @@ WHERE d.department NOT IN (
 );`
       },
       {
-        question: 'Challenge: Write a query that uses a scalar subquery in the SELECT clause to show each product\'s name, price, and what percentage its price represents of the total price of ALL products. Round the percentage to 2 decimal places. Sort by percentage descending.',
+        question: `Table: products
+
+Challenge: Use a scalar subquery in the SELECT clause to show each product's name, price, and what percentage its price represents of the total price of ALL products. Round the percentage to 2 decimal places.
+
+Return columns: name, price, pct_of_total
+Order by: pct_of_total DESC.`,
         hint: 'Use a scalar subquery: (SELECT SUM(price) FROM products) to get the total. Then compute price * 100.0 / total in the SELECT.',
         solution: `SELECT name, price,
   ROUND(price * 100.0 / (SELECT SUM(price) FROM products), 2) AS pct_of_total
@@ -3345,7 +3514,13 @@ FROM products
 ORDER BY pct_of_total DESC;`
       },
       {
-        question: 'Challenge: Write a query to find the employee who earns the closest to the company average salary (absolute difference). Show their name, salary, the average, and the difference.',
+        question: `Table: employees
+
+Challenge: Find the employee who earns the closest to the company average salary (absolute difference).
+
+Return columns: name, salary, company_avg, diff_from_avg
+Order by: diff_from_avg ASC
+Limit: 1 row.`,
         hint: 'Compute ABS(salary - (SELECT AVG(salary) FROM employees)) in SELECT. Use ORDER BY that expression. LIMIT 1. Use a CTE or duplicate the subquery.',
         solution: `SELECT name, salary,
   ROUND((SELECT AVG(salary) FROM employees), 2) AS company_avg,
@@ -3702,7 +3877,12 @@ for (int i=0;i<activeCount;i++) cout<<active[i].name<<" | "<<active[i].departmen
     ],
     practiceQuestions: [
       {
-        question: 'Categorize orders into "Small" (< $50), "Medium" ($50-$200), or "Large" (> $200). Show the count in each category.',
+        question: `Table: orders
+
+Categorize orders into "Small" (< $50), "Medium" ($50-$200), or "Large" (> $200). Show the count in each category.
+
+Return columns: order_size, order_count
+Order by: order_count DESC.`,
         hint: 'Use CASE in GROUP BY or use conditional aggregation.',
         solution: `SELECT 
   CASE 
@@ -3716,7 +3896,12 @@ GROUP BY order_size
 ORDER BY order_count DESC;`
       },
       {
-        question: 'Show each employee with a bonus column: 20% of salary if they are in Engineering, 10% if in Sales, otherwise 5%. Show name, salary, department, and bonus columns.',
+        question: `Table: employees
+
+Show each employee with a bonus column: 20% of salary if they are in Engineering, 10% if in Sales, otherwise 5%.
+
+Return columns: name, salary, department, bonus
+Order by: any order.`,
         hint: 'Use CASE in SELECT to calculate the bonus percentage.',
         solution: `SELECT 
   name,
@@ -3730,7 +3915,12 @@ ORDER BY order_count DESC;`
 FROM employees;`
       },
       {
-        question: 'Challenge: Write a query that assigns a salary band to each employee using CASE: "Junior" (< $40,000), "Mid" ($40,000-$80,000), "Senior" ($80,001-$120,000), or "Lead" (> $120,000). Show name, salary, salary_band, and also a tax_bracket column: "Low" (salary < $50,000), "Medium" ($50,000-$100,000), or "High" (> $100,000). Sort by salary descending.',
+        question: `Table: employees
+
+Challenge: Assign a salary band to each employee: "Junior" (< $40,000), "Mid" ($40,000-$80,000), "Senior" ($80,001-$120,000), or "Lead" (> $120,000). Also add a tax_bracket: "Low" (salary < $50,000), "Medium" ($50,000-$100,000), or "High" (> $100,000).
+
+Return columns: name, salary, salary_band, tax_bracket
+Order by: salary DESC.`,
         hint: 'Use two CASE expressions in the SELECT clause with different thresholds. ORDER BY salary DESC.',
         solution: `SELECT name, salary,
   CASE
@@ -3748,7 +3938,12 @@ FROM employees
 ORDER BY salary DESC;`
       },
       {
-        question: 'Challenge: Use conditional aggregation with CASE inside SUM to show each customer\'s total orders, total of large orders (total > 200), total of small orders (total <= 200), and their grand total. Show customer, total_orders, large_order_total, small_order_total, and grand_total columns. Sort by grand_total descending.',
+        question: `Table: orders
+
+Challenge: Use conditional aggregation with CASE inside SUM to show each customer's total orders, total of large orders (total > 200), total of small orders (total <= 200), and their grand total.
+
+Return columns: customer, total_orders, large_order_total, small_order_total, grand_total
+Order by: grand_total DESC.`,
         hint: 'Use SUM(CASE WHEN total > 200 THEN total ELSE 0 END) for large orders, and SUM(CASE WHEN total <= 200 THEN total ELSE 0 END) for small orders.',
         solution: `SELECT customer,
   COUNT(*) AS total_orders,
@@ -4247,7 +4442,12 @@ for (int c = 0; c < catCount; c++)
     ],
     practiceQuestions: [
       {
-        question: 'Write a query using a CTE to compute the average salary per department. Then use the CTE to show only departments where the average salary exceeds $65,000. Show department and avg_salary columns. Sort by avg_salary descending.',
+        question: `Table: employees
+
+Write a query using a CTE to compute the average salary per department. Then use the CTE to show only departments where the average salary exceeds $65,000.
+
+Return columns: department, avg_salary
+Order by: avg_salary DESC.`,
         hint: 'Use a CTE with GROUP BY department. Then SELECT from the CTE with a WHERE filter.',
         solution: `WITH dept_avg AS (
   SELECT department,
@@ -4261,7 +4461,12 @@ WHERE avg_salary > 65000
 ORDER BY avg_salary DESC;`
       },
       {
-        question: 'Use a recursive CTE to generate a series of dates from 2024-01-01 to 2024-01-10.',
+        question: `Table: (no table — recursive CTE)
+
+Use a recursive CTE to generate a series of dates from 2024-01-01 to 2024-01-10.
+
+Return columns: dt
+Order by: dt ASC.`,
         hint: 'Start with the base date and UNION ALL adding 1 day.',
         solution: `WITH RECURSIVE dates AS (
   SELECT '2024-01-01' AS dt
@@ -4274,7 +4479,12 @@ SELECT dt FROM dates
 ORDER BY dt;`
       },
       {
-        question: 'Challenge: Using a recursive CTE, generate a hierarchy of products based on their category. Since products don\'t have a parent-child relationship in our schema, instead generate a numbers table from 1 to 20 using a recursive CTE, and then JOIN it with products to show product name, its price, and the number. Only show rows where the product ID matches the number. Explain why some numbers have no products.',
+        question: `Table: products
+
+Challenge: Generate a numbers table from 1 to 20 using a recursive CTE, then LEFT JOIN it with products to show product name and price for matching IDs.
+
+Return columns: number, product_name, price
+Order by: number ASC.`,
         hint: 'Start with SELECT 1 AS n as the anchor. UNION ALL SELECT n + 1 FROM numbers WHERE n < 20 for the recursion. Then LEFT JOIN products ON n = products.id.',
         solution: `WITH RECURSIVE numbers AS (
   SELECT 1 AS n
@@ -4289,7 +4499,12 @@ LEFT JOIN products p ON n = p.id
 ORDER BY n;`
       },
       {
-        question: 'Challenge: Write a query using multiple CTEs that computes the percentage contribution of each product category to total stock value (price * stock). The first CTE should compute total_value per category. The second CTE should compute the grand total. The main query computes each category\'s percentage. Show category, total_value, and percentage columns rounded to 2 decimal places.',
+        question: `Table: products
+
+Challenge: Use multiple CTEs to compute the percentage contribution of each product category to total stock value (price * stock).
+
+Return columns: category, total_value, percentage
+Order by: percentage DESC.`,
         hint: 'First CTE: GROUP BY category with SUM(price * stock). Second CTE: SELECT SUM(total_value) FROM first CTE. Final query: CROSS JOIN both and compute percentage.',
         solution: `WITH category_totals AS (
   SELECT category,
@@ -4800,7 +5015,12 @@ for (int i = 0; i < employeeCount; i++) {
     ],
     practiceQuestions: [
       {
-        question: 'For each employee, show their salary and the difference from the next higher-paid employee in the same department. Show name, department, salary, next_higher_salary, and gap columns.',
+        question: `Table: employees
+
+For each employee, show their salary and the difference from the next higher-paid employee in the same department.
+
+Return columns: name, department, salary, next_higher_salary, gap
+Order by: department, salary DESC.`,
         hint: 'Use LEAD(salary) OVER (PARTITION BY department ORDER BY salary DESC).',
         solution: `SELECT 
   name,
@@ -4818,7 +5038,12 @@ FROM employees
 ORDER BY department, salary DESC;`
       },
       {
-        question: 'Challenge: Write a query that shows for each month in 2024 (from the orders table), the total quantity ordered, and a 3-month rolling average of quantity ordered. Use a window function with a frame clause.',
+        question: `Table: orders
+
+Challenge: Show for each month in 2024 the total quantity ordered, and a 3-month rolling average of quantity ordered.
+
+Return columns: month, total_qty, rolling_3mo_avg
+Order by: month ASC.`,
         hint: 'First aggregate orders by month to get monthly_quantity. Then use AVG(monthly_quantity) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW).',
         solution: `WITH monthly AS (
   SELECT strftime('%m', order_date) AS month,
@@ -4836,7 +5061,12 @@ FROM monthly
 ORDER BY month;`
       },
       {
-        question: 'Challenge: For each employee, show their name, salary, department, and what percentage their salary contributes to their department\'s total salary. Use a window function with PARTITION BY department. Show name, department, salary, dept_total, and pct_of_dept columns. Sort by department and salary descending.',
+        question: `Table: employees
+
+Challenge: For each employee, show their name, salary, department, and what percentage their salary contributes to their department's total salary.
+
+Return columns: name, department, salary, dept_total, pct_of_dept
+Order by: department, salary DESC.`,
         hint: 'Use SUM(salary) OVER (PARTITION BY department) to compute dept_total. Then compute salary * 100.0 / dept_total.',
         solution: `SELECT name, department, salary,
   SUM(salary) OVER (PARTITION BY department) AS dept_total,
@@ -5127,7 +5357,12 @@ for(int i=0;i<employeeCount;i++){
     ],
     practiceQuestions: [
       {
-        question: 'Show each employee\'s salary with their department-wide rank (using DENSE_RANK) and indicate if they are in the top 3 of their department.',
+        question: `Table: employees
+
+Show each employee's salary with their department-wide rank (using DENSE_RANK) and indicate if they are in the top 3 of their department.
+
+Return columns: name, department, salary, dept_rank, badge
+Order by: department, dept_rank ASC.`,
         hint: 'Use DENSE_RANK with PARTITION BY department, then CASE to label.',
         solution: `SELECT 
   name,
@@ -5145,7 +5380,12 @@ FROM employees
 ORDER BY department, dept_rank;`
       },
       {
-        question: 'Challenge: Write a query that assigns a "tier" to each employee within their department based on salary. Use these rules: Top 1 employee by salary = "Platinum", Next 2 = "Gold", Rest = "Standard". Use ROW_NUMBER, not NTILE.',
+        question: `Table: employees
+
+Challenge: Assign a "tier" to each employee within their department based on salary: Top 1 employee by salary = "Platinum", Next 2 = "Gold", Rest = "Standard". Use ROW_NUMBER.
+
+Return columns: name, department, salary, tier
+Order by: department, rn ASC.`,
         hint: 'Use ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC). Then CASE WHEN rn = 1 THEN \'Platinum\' WHEN rn <= 3 THEN \'Gold\' ELSE \'Standard\' END.',
         solution: `WITH ranked AS (
   SELECT name, department, salary,
@@ -5165,7 +5405,12 @@ FROM ranked
 ORDER BY department, rn;`
       },
       {
-        question: 'Challenge: Using RANK and DENSE_RANK together, write a query that shows employee names, their salary, and three different ranking columns to illustrate the difference between the functions on the same salary data. Use the full company (no department partition).',
+        question: `Table: employees
+
+Challenge: Use RANK, DENSE_RANK, and ROW_NUMBER together to show the difference between these functions on the same salary data (company-wide, no partition).
+
+Return columns: name, salary, rank, dense_rank, row_num
+Order by: salary DESC.`,
         hint: 'Use RANK(), DENSE_RANK(), and ROW_NUMBER() all with OVER (ORDER BY salary DESC). This will show how tied salaries are handled differently.',
         solution: `SELECT name, salary,
   RANK() OVER (ORDER BY salary DESC) AS rank,
@@ -5191,7 +5436,12 @@ These are the most powerful SQL features for analytical queries. Each question c
     commonMistakes: [],
     practiceQuestions: [
       {
-        question: 'For each customer, show their total spending, the company-wide average order total, and whether they are above or below the average. Use window functions to avoid subqueries.',
+        question: `Table: orders
+
+For each customer, show their total spending, the company-wide average order total, and whether they are above or below the average. Use window functions.
+
+Return columns: customer, total_spent, avg_spent, standing
+Order by: total_spent DESC.`,
         hint: 'Use SUM(total) with a customer-level GROUP BY. Then use AVG(SUM(total)) OVER () to compute the overall average across all customers. Wrap in a CTE for readability.',
         solution: `WITH customer_totals AS (
   SELECT customer,
@@ -5206,7 +5456,12 @@ FROM customer_totals
 ORDER BY total_spent DESC;`
       },
       {
-        question: 'Use ROW_NUMBER with products and orders to rank products by total sales (SUM of total) within each category. Show the top product in each category.',
+        question: `Table: products, orders
+
+Use ROW_NUMBER to rank products by total sales within each category. Show the top product in each category.
+
+Return columns: name, category, revenue
+Order by: revenue DESC.`,
         hint: 'JOIN products to orders, GROUP BY product, use ROW_NUMBER() OVER (PARTITION BY category ORDER BY SUM(total) DESC) inside a CTE, then filter rn = 1.',
         solution: `WITH product_sales AS (
   SELECT p.id, p.name, p.category,
@@ -5225,7 +5480,12 @@ WHERE rn = 1
 ORDER BY revenue DESC;`
       },
       {
-        question: 'Divide all employees into 4 salary quartiles using NTILE and show the salary range (min to max) for each quartile. Use a CTE with NTILE, then GROUP BY the quartile bucket.',
+        question: `Table: employees
+
+Divide all employees into 4 salary quartiles using NTILE and show the salary range (min to max) for each quartile.
+
+Return columns: quartile, min_salary, max_salary, employee_count
+Order by: quartile ASC.`,
         hint: 'NTILE(4) OVER (ORDER BY salary) to create buckets. Wrap in a CTE, then GROUP BY bucket with MIN and MAX salary.',
         solution: `WITH salary_quartiles AS (
   SELECT name, salary,
@@ -5241,7 +5501,12 @@ GROUP BY quartile
 ORDER BY quartile;`
       },
       {
-        question: 'Use the LAG window function to show each order for each customer alongside the previous order\'s total and the difference between consecutive orders. Show customer, order_date, total, previous_total, and the difference.',
+        question: `Table: orders
+
+Use the LAG window function to show each order for each customer alongside the previous order's total and the difference between consecutive orders.
+
+Return columns: customer, order_date, total, previous_total, difference
+Order by: customer, order_date ASC.`,
         hint: 'LAG(total) OVER (PARTITION BY customer ORDER BY order_date) to get the previous order\'s total. Use COALESCE to avoid NULL for the first order. Compute total - previous_total as the difference.',
         solution: `SELECT customer, order_date, total,
   COALESCE(LAG(total) OVER (
@@ -5481,7 +5746,12 @@ FROM employees`,
     ],
     practiceQuestions: [
       {
-        question: 'Show employee names in uppercase, their department in lowercase, and the length of their full name.',
+        question: `Table: employees
+
+Show employee names in uppercase, their department in lowercase, and the length of their full name.
+
+Return columns: name_upper, dept_lower, name_length
+Order by: any order.`,
         hint: 'Use UPPER(), LOWER(), and LENGTH() functions.',
         solution: `SELECT 
   UPPER(name) AS name_upper,
@@ -5490,7 +5760,12 @@ FROM employees`,
 FROM employees;`
       },
       {
-        question: 'Challenge: Write a query that extracts the first name and last initial from each employee name, and formats it as "First L." where L is the last initial capitalized. Then sort by the last initial descending.',
+        question: `Table: employees
+
+Challenge: Extract the first name and last initial from each employee name, formatted as "First L." where L is the last initial capitalized. Sort by the last initial descending.
+
+Return columns: name, short_name
+Order by: last initial DESC.`,
         hint: 'Use SUBSTR with INSTR to split at the space. Concatenate with ||. Use UPPER on the extracted initial.',
         solution: `SELECT name,
   SUBSTR(name, 1, INSTR(name, ' ') - 1)
@@ -5501,7 +5776,12 @@ FROM employees
 ORDER BY SUBSTR(name, INSTR(name, ' ') + 1, 1) DESC;`
       },
       {
-        question: 'Challenge: From the products table, create a "product_code" column by taking the first 3 letters of the category (uppercased), the first 2 letters of the product name (uppercased), and the ID zero-padded to 3 digits. Example: "ELELP001" for a Laptop Pro in Electronics with ID 1.',
+        question: `Table: products
+
+Challenge: Create a "product_code" column by taking the first 3 letters of the category (uppercased), the first 2 letters of the product name (uppercased), and the ID zero-padded to 3 digits.
+
+Return columns: name, category, id, product_code
+Order by: id ASC.`,
         hint: 'Use UPPER(SUBSTR(category, 1, 3)) concatenated with UPPER(SUBSTR(name, 1, 2)) and PRINTF(\'%03d\', id).',
         solution: `SELECT name, category, id,
   UPPER(SUBSTR(category, 1, 3))
@@ -5687,7 +5967,12 @@ ORDER BY price`,
     ],
     practiceQuestions: [
       {
-        question: 'Find all products whose name starts with "D" or ends with "k". Show name, category, and price.',
+        question: `Table: products
+
+Find all products whose name starts with "D" or ends with "k".
+
+Return columns: name, category, price
+Order by: name ASC.`,
         hint: 'Use name LIKE \'D%\' OR name LIKE \'%k\' with OR.',
         solution: `SELECT name, category, price
 FROM products
@@ -5696,7 +5981,12 @@ WHERE name LIKE 'D%'
 ORDER BY name;`
       },
       {
-        question: 'Challenge: Use LIKE and INSTR to find all employees whose email username (the part before @) has more than 4 characters. Show name, email, and username columns.',
+        question: `Table: employees
+
+Challenge: Find all employees whose email username (the part before @) has more than 4 characters.
+
+Return columns: name, email, username
+Order by: name ASC.`,
         hint: 'Use INSTR(email, \'@\') to find the @ position, then SUBSTR to extract the username and LENGTH to check its length.',
         solution: `SELECT name, email,
   SUBSTR(email, 1, INSTR(email, '@') - 1) AS username
@@ -5705,7 +5995,12 @@ WHERE LENGTH(SUBSTR(email, 1, INSTR(email, '@') - 1)) > 4
 ORDER BY name;`
       },
       {
-        question: 'Challenge: Write a query that finds all products whose price is a whole number (no decimal cents — meaning it ends with .00 when cast to text). Show name, price, category. Sort by price descending.',
+        question: `Table: products
+
+Challenge: Find all products whose price is a whole number (no decimal cents — ends with .00 when cast to text).
+
+Return columns: name, price, category
+Order by: price DESC.`,
         hint: 'Use CAST(price AS TEXT) LIKE \'%.00\' or use price = CAST(price AS INTEGER).',
         solution: `SELECT name, price, category
 FROM products
@@ -6051,7 +6346,12 @@ ORDER BY name`,
     ],
     practiceQuestions: [
       {
-        question: 'Find products that have been ordered at least once — use INTERSECT between products list and product_ids appearing in orders.',
+        question: `Table: products, orders
+
+Find products that have been ordered at least once using INTERSECT.
+
+Return columns: id, name
+Order by: any order.`,
         hint: 'Select ids from products, INTERSECT with SELECT DISTINCT product_id FROM orders.',
         solution: `SELECT id, name
 FROM products
@@ -6062,7 +6362,12 @@ WHERE id IN (
 );`
       },
       {
-        question: 'Challenge: Use EXCEPT to find employees who have NOT placed any orders. The employees table has names, and the orders table has a customer column. Show employee name and department.',
+        question: `Table: employees, orders
+
+Challenge: Use EXCEPT to find employees who have NOT placed any orders.
+
+Return columns: name, department
+Order by: name ASC.`,
         hint: 'SELECT name, department FROM employees EXCEPT SELECT customer, ... FROM orders. Both queries must have the same number of columns.',
         solution: `SELECT name, department
 FROM employees
@@ -6073,7 +6378,12 @@ JOIN employees e ON o.customer = e.name
 ORDER BY name;`
       },
       {
-        question: 'Challenge: Write a query using UNION ALL to create a combined product-employee catalog. For each entry show: the name, a type (either "Employee" or "Product"), and a price/salary column. Employees show their salary, products show their price. Sort by name.',
+        question: `Table: employees, products
+
+Challenge: Use UNION ALL to create a combined product-employee catalog showing name, type ("Employee" or "Product"), and value (salary or price).
+
+Return columns: name, type, value
+Order by: name ASC.`,
         hint: 'First SELECT: SELECT name, \'Employee\' AS type, salary FROM employees. Second SELECT: SELECT name, \'Product\' AS type, price FROM products. Use UNION ALL to combine.',
         solution: `SELECT name, 'Employee' AS type, salary AS value
 FROM employees
@@ -6099,7 +6409,12 @@ Each question combines multiple concepts to challenge your understanding. Try to
     commonMistakes: [],
     practiceQuestions: [
       {
-        question: 'Show each employee\'s name, department, and salary, along with the average salary of their department (use a correlated subquery). Then show how their salary compares to their department average as a "Above Avg" or "Below Avg" label using CASE.',
+        question: `Table: employees
+
+Show each employee's name, department, and salary, along with the average salary of their department (use a correlated subquery), and whether they are above or below their department average.
+
+Return columns: name, department, salary, dept_avg, standing
+Order by: department, salary DESC.`,
         hint: 'Use a correlated subquery: (SELECT AVG(salary) FROM employees sub WHERE sub.department = e.department). Wrap in CASE for the label.',
         solution: `SELECT name, department, salary,
   ROUND((SELECT AVG(salary) FROM employees sub WHERE sub.department = e.department), 0) AS dept_avg,
@@ -6112,7 +6427,12 @@ FROM employees e
 ORDER BY department, salary DESC;`
       },
       {
-        question: 'Use a CTE to find the top 2 products by total sales in each category. The CTE should join products with orders, compute total revenue per product, then use ROW_NUMBER() with PARTITION BY category. Show product name, category, and total revenue.',
+        question: `Table: products, orders
+
+Use a CTE to find the top 2 products by total sales in each category.
+
+Return columns: name, category, revenue
+Order by: category, revenue DESC.`,
         hint: 'CTE: JOIN products to orders, GROUP BY product with SUM(total), use ROW_NUMBER() OVER (PARTITION BY category ORDER BY SUM(total) DESC). Then SELECT WHERE rn <= 2.',
         solution: `WITH product_sales AS (
   SELECT p.name, p.category,
@@ -6131,7 +6451,12 @@ WHERE rn <= 2
 ORDER BY category, revenue DESC;`
       },
       {
-        question: 'Find employees who have placed orders totaling more than $100. Use a subquery in WHERE with EXISTS. Show employee name, department, and salary.',
+        question: `Table: employees, orders
+
+Find employees who have placed orders totaling more than $100. Use EXISTS.
+
+Return columns: name, department, salary
+Order by: salary DESC.`,
         hint: 'WHERE EXISTS (SELECT 1 FROM orders WHERE customer = e.name AND total > 100).',
         solution: `SELECT name, department, salary
 FROM employees e
@@ -6143,7 +6468,12 @@ WHERE EXISTS (
 ORDER BY salary DESC;`
       },
       {
-        question: 'Write a query using string functions to extract the first letter of each employee\'s name and show how many employees have names starting with each letter. Use UPPER, SUBSTR, GROUP BY, and ORDER BY.',
+        question: `Table: employees
+
+Use string functions to extract the first letter of each employee's name and show how many employees have names starting with each letter.
+
+Return columns: first_letter, employee_count
+Order by: employee_count DESC.`,
         hint: 'Use SUBSTR(UPPER(name), 1, 1) AS first_letter. GROUP BY first_letter. ORDER BY count DESC.',
         solution: `SELECT SUBSTR(UPPER(name), 1, 1) AS first_letter,
   COUNT(*) AS employee_count
@@ -6152,7 +6482,12 @@ GROUP BY first_letter
 ORDER BY employee_count DESC;`
       },
       {
-        question: 'Use a self-JOIN on employees to find all pairs of employees from different departments who earn similar salaries (within $5,000 of each other). Show both names, their departments, and salaries. Exclude pairs where the first employee earns less than the second to avoid duplicates.',
+        question: `Table: employees
+
+Use a self-JOIN to find all pairs of employees from different departments who earn similar salaries (within $5,000 of each other). Exclude mirror pairs (e1.name < e2.name).
+
+Return columns: emp1, dept1, salary1, emp2, dept2, salary2
+Order by: salary1 ASC.`,
         hint: 'JOIN employees e1 JOIN employees e2 ON e1.department <> e2.department AND ABS(e1.salary - e2.salary) <= 5000 AND e1.name < e2.name.',
         solution: `SELECT e1.name AS emp1, e1.department AS dept1, e1.salary AS salary1,
   e2.name AS emp2, e2.department AS dept2, e2.salary AS salary2
@@ -6405,7 +6740,12 @@ void insertEmployee(Employee e) {
     ],
     practiceQuestions: [
       {
-        question: 'Write a CREATE TABLE statement for the "products" table with columns: id (auto-increment PK), name (required, max 200 chars), category (optional), price (required, must be >= 0), stock (default 0, must be >= 0).',
+        question: `Table: products (new table)
+
+Write a CREATE TABLE statement for the "products" table with: id (auto-increment PK), name (required, max 200 chars), category (optional), price (required, >= 0), stock (default 0, >= 0).
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use GENERATED ALWAYS AS IDENTITY for id, VARCHAR(200) NOT NULL for name, CHECK constraints for price and stock.',
         solution: `CREATE TABLE products (
   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -6416,7 +6756,10 @@ void insertEmployee(Employee e) {
 );`
       },
       {
-        question: 'Create a table "order_items" with a composite primary key (order_id, product_id), a quantity column (NOT NULL, > 0), and foreign keys referencing orders(id) and products(id) with ON DELETE CASCADE.',
+        question: `Write a CREATE TABLE statement for "order_items" with a composite primary key (order_id, product_id), quantity (NOT NULL, > 0), and FKs referencing orders(id) and products(id) with ON DELETE CASCADE.
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use PRIMARY KEY (order_id, product_id) as a table-level constraint. Add two FOREIGN KEY clauses referencing orders and products.',
         solution: `CREATE TABLE order_items (
   order_id INT NOT NULL,
@@ -6429,7 +6772,10 @@ void insertEmployee(Employee e) {
 );`
       },
       {
-        question: 'Challenge: Create a "projects" table with an id (auto-increment PK), name (required, unique), budget (required, >= 1000), start_date (defaults to current date), and a CHECK constraint ensuring the name is at least 3 characters long (use LENGTH()).',
+        question: `Challenge: Create a "projects" table with: id (auto-increment PK), name (required, unique), budget (required, >= 1000), start_date (defaults to current date), name must be >= 3 chars.
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use GENERATED ALWAYS AS IDENTITY, UNIQUE on name, DEFAULT CURRENT_DATE, and CHECK (LENGTH(name) >= 3).',
         solution: `CREATE TABLE projects (
   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -6764,7 +7110,10 @@ for (int i = 0; i < orderCount; i++)
     ],
     practiceQuestions: [
       {
-        question: 'Create a "library" schema with two tables: "members" (id, name, email) and "loans" (id, member_id, book_id, loan_date, return_date). Define appropriate PKs, FKs, and a UNIQUE constraint on email.',
+        question: `Design a "library" schema with two tables: "members" (id, name, email) and "loans" (id, member_id, book_id, loan_date, return_date). Define PKs, FKs, and UNIQUE on email.
+
+Return columns: (DDL statements — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'members: id INT PK, email VARCHAR UNIQUE NOT NULL. loans: id INT PK, member_id INT FK → members(id), book_id INT NOT NULL FK → books(id).',
         solution: `CREATE TABLE members (
   id INT PRIMARY KEY,
@@ -6781,7 +7130,10 @@ CREATE TABLE loans (
 );`
       },
       {
-        question: 'Explain the difference in behavior when deleting a parent row with ON DELETE CASCADE vs ON DELETE SET NULL vs default (NO ACTION). Which one deletes child rows automatically?',
+        question: `Explain the difference in behavior when deleting a parent row with ON DELETE CASCADE vs ON DELETE SET NULL vs default (NO ACTION). Which one deletes child rows automatically?
+
+Return columns: (explanatory — no columns returned)
+Order by: N/A.`,
         hint: 'CASCADE deletes children, SET NULL sets FK to NULL, NO ACTION prevents the delete if children exist.',
         solution: `-- CASCADE: Deleting a customer also deletes ALL their orders
 DELETE FROM customers WHERE id = 1;
@@ -6798,7 +7150,10 @@ DELETE FROM customers WHERE id = 1;
 -- CASCADE is the only one that DELETES child rows automatically.`
       },
       {
-        question: 'Design a table for "product_tags" where each product can have many tags and each tag can belong to many products (many-to-many). A product should not have the same tag twice. Use a composite PK.',
+        question: `Design a table for "product_tags" where each product can have many tags and each tag can belong to many products (many-to-many). Use a composite PK to prevent duplicate tag assignments.
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'product_tags(product_id, tag_id) as composite PK, plus two FKs referencing products(id) and tags(id).',
         solution: `CREATE TABLE product_tags (
   product_id INT NOT NULL REFERENCES products(id),
@@ -7006,13 +7361,23 @@ employeeCount = writePos;
     ],
     practiceQuestions: [
       {
-        question: 'Insert a new product with: id=10, name="Wireless Mouse", category="Electronics", price=29.99, stock=150.',
+        question: `Table: products
+
+Insert a new product with: id=10, name="Wireless Mouse", category="Electronics", price=29.99, stock=150.
+
+Return columns: (DML statement — no columns returned)
+Order by: N/A (DML).`,
         hint: 'Use INSERT INTO products (columns) VALUES (values). All columns are id, name, category, price, stock.',
         solution: `INSERT INTO products (id, name, category, price, stock)
 VALUES (10, 'Wireless Mouse', 'Electronics', 29.99, 150);`
       },
       {
-        question: 'Give all Marketing employees a 5% raise and update their city to "Chicago".',
+        question: `Table: employees
+
+Give all Marketing employees a 5% raise and update their city to "Chicago".
+
+Return columns: (DML statement — no columns returned)
+Order by: N/A (DML).`,
         hint: 'Use UPDATE with SET salary = salary * 1.05, city = \'Chicago\' and a WHERE department = \'Marketing\' filter.',
         solution: `UPDATE employees
 SET salary = salary * 1.05,
@@ -7020,7 +7385,12 @@ SET salary = salary * 1.05,
 WHERE department = 'Marketing';`
       },
       {
-        question: 'Challenge: Write an INSERT INTO SELECT statement that creates "archived_orders" entries for all orders before 2024. Assume archived_orders has the same columns as orders (id, customer, product_id, quantity, total, order_date). After inserting, delete those old orders from the orders table.',
+        question: `Table: orders, archived_orders
+
+Challenge: Insert all orders before 2024 into "archived_orders" (same columns), then delete them from orders.
+
+Return columns: (DML statements — no columns returned)
+Order by: N/A (DML).`,
         hint: 'First INSERT INTO archived_orders SELECT * FROM orders WHERE order_date < \'2024-01-01\'. Then DELETE FROM orders WHERE order_date < \'2024-01-01\'.',
         solution: `INSERT INTO archived_orders (id, customer, product_id, quantity, total, order_date)
 SELECT id, customer, product_id, quantity, total, order_date
@@ -7280,7 +7650,12 @@ for (int i = 0; i < employeeCount; i++)
     ],
     practiceQuestions: [
       {
-        question: 'Write an ALTER TABLE statement to add a "salary" column to the "employees" table of type DECIMAL(10,2) with a default of 0. Also add a CHECK constraint to ensure salary is never negative.',
+        question: `Table: employees
+
+Add a "salary" column to employees (DECIMAL(10,2), default 0), and add a CHECK constraint ensuring salary >= 0.
+
+Return columns: (DDL statement — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use ADD COLUMN with DEFAULT, then ADD CONSTRAINT with CHECK.',
         solution: `ALTER TABLE employees
 ADD COLUMN salary DECIMAL(10,2) DEFAULT 0;
@@ -7289,7 +7664,12 @@ ALTER TABLE employees
 ADD CONSTRAINT chk_salary_nonneg CHECK (salary >= 0);`
       },
       {
-        question: 'Write a statement to remove the "email" column from the "employees" table. Then write a statement to drop the "employees" table entirely if it exists.',
+        question: `Table: employees
+
+Remove the "email" column from employees, then drop the employees table entirely if it exists.
+
+Return columns: (DDL statements — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use DROP COLUMN for the first, DROP TABLE IF EXISTS for the second.',
         solution: `ALTER TABLE employees
 DROP COLUMN email;
@@ -7297,7 +7677,12 @@ DROP COLUMN email;
 DROP TABLE IF EXISTS employees;`
       },
       {
-        question: 'Challenge: You have a "products" table with a "price" column of type DECIMAL(8,2). Write an ALTER TABLE statement to change the price column to DECIMAL(12,2) and add a NOT NULL constraint. Then add a foreign key on the "orders" table\'s product_id column referencing products(id) with ON DELETE CASCADE. Assume orders already exists.',
+        question: `Table: products, orders
+
+Challenge: Change the price column in products from DECIMAL(8,2) to DECIMAL(12,2) with NOT NULL. Then add a FK on orders.product_id referencing products(id) ON DELETE CASCADE.
+
+Return columns: (DDL statements — no columns returned)
+Order by: N/A (DDL).`,
         hint: 'Use ALTER COLUMN ... TYPE for the type change, ALTER COLUMN ... SET NOT NULL for the constraint, and ADD CONSTRAINT ... FOREIGN KEY for the FK.',
         solution: `ALTER TABLE products
 ALTER COLUMN price TYPE DECIMAL(12,2),
@@ -7548,7 +7933,12 @@ for (int i = 0; i < employeeCount; i++) {
     ],
     practiceQuestions: [
       {
-        question: 'Use EXISTS to find all departments that have at least one employee with a salary above $90,000. Show the department name.',
+        question: `Table: employees
+
+Use EXISTS to find all departments that have at least one employee with a salary above $90,000.
+
+Return columns: department
+Order by: any order.`,
         hint: 'SELECT DISTINCT department FROM employees e WHERE EXISTS (SELECT 1 FROM employees e2 WHERE e2.department = e.department AND e2.salary > 90000).',
         solution: `SELECT DISTINCT e.department
 FROM employees e
@@ -7559,7 +7949,12 @@ WHERE EXISTS (
 );`
       },
       {
-        question: 'Find all employees who have never placed an order, using NOT EXISTS. Show their name and department.',
+        question: `Table: employees, orders
+
+Find all employees who have never placed an order, using NOT EXISTS.
+
+Return columns: name, department
+Order by: any order.`,
         hint: 'Use NOT EXISTS (SELECT 1 FROM orders WHERE customer = e.name) correlated to the outer employee.',
         solution: `SELECT e.name, e.department
 FROM employees e
@@ -7569,7 +7964,12 @@ WHERE NOT EXISTS (
 );`
       },
       {
-        question: 'Challenge: Using the relational division pattern (double NOT EXISTS), find employees who have placed orders for ALL products that cost more than $100. Show their name and department. (This means they\'ve ordered every single expensive product at least once.)',
+        question: `Table: employees, products, orders
+
+Challenge: Use double NOT EXISTS (relational division) to find employees who have ordered ALL products that cost more than $100.
+
+Return columns: name, department
+Order by: any order.`,
         hint: 'Outer NOT EXISTS on products: WHERE price > 100 AND NOT EXISTS (orders linking employee to that product).',
         solution: `SELECT e.name, e.department
 FROM employees e
@@ -7584,7 +7984,12 @@ WHERE NOT EXISTS (
 );`
       },
       {
-        question: 'Rewrite this IN query using EXISTS instead, and explain which is better and why: SELECT name FROM products WHERE id IN (SELECT product_id FROM orders WHERE quantity > 5);',
+        question: `Table: products, orders
+
+Rewrite this IN query using EXISTS instead: SELECT name FROM products WHERE id IN (SELECT product_id FROM orders WHERE quantity > 5); Explain which is better and why.
+
+Return columns: name
+Order by: any order.`,
         hint: 'For EXISTS, correlate: WHERE EXISTS (SELECT 1 FROM orders WHERE product_id = p.id AND quantity > 5). Both work here since no NULLs, but EXISTS short-circuits.',
         solution: `SELECT p.name
 FROM products p
@@ -7792,7 +8197,12 @@ for (int i = 0; i < custCount; i++)
     ],
     practiceQuestions: [
       {
-        question: 'Write a query using double NOT EXISTS to find employees who have placed orders for ALL products in the "Clothing" category. Show employee name and department.',
+        question: `Table: employees, products, orders
+
+Write a query using double NOT EXISTS to find employees who have placed orders for ALL products in the "Clothing" category.
+
+Return columns: name, department
+Order by: any order.`,
         hint: 'Outer NOT EXISTS on products WHERE category = \'Clothing\' AND inner NOT EXISTS on orders linking employee to product WHERE o.customer = e.name AND o.product_id = p.id.',
         solution: `SELECT e.name, e.department
 FROM employees e
@@ -7807,7 +8217,12 @@ WHERE NOT EXISTS (
 );`
       },
       {
-        question: 'Rewrite the division query from question 1 using the EXCEPT pattern instead of double NOT EXISTS.',
+        question: `Table: employees, products, orders
+
+Rewrite the division query from question 1 using the EXCEPT pattern instead of double NOT EXISTS.
+
+Return columns: name, department
+Order by: any order.`,
         hint: 'Use NOT EXISTS ( (SELECT p.id FROM products p WHERE p.category = \'Clothing\') EXCEPT (SELECT o.product_id FROM orders o WHERE o.customer = e.name) ).',
         solution: `SELECT e.name, e.department
 FROM employees e
@@ -7822,7 +8237,12 @@ WHERE NOT EXISTS (
 );`
       },
       {
-        question: 'Challenge: Using the HAVING COUNT approach, find customers who have ordered ALL products costing more than $50. Show customer name and the count of expensive products they ordered. Sort by customer name.',
+        question: `Table: products, orders
+
+Challenge: Using the HAVING COUNT approach, find customers who have ordered ALL products costing more than $50.
+
+Return columns: customer, expensive_ordered
+Order by: customer ASC.`,
         hint: 'GROUP BY o.customer, HAVING COUNT(DISTINCT o.product_id) = (SELECT COUNT(*) FROM products WHERE price > 50). JOIN products to filter by price.',
         solution: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS expensive_ordered
 FROM orders o
@@ -8061,7 +8481,12 @@ for (int i = 0; i < employeeCount; i++) {
     ],
     practiceQuestions: [
       {
-        question: 'Write an RA expression and its SQL translation for: "Names and salaries of employees in Marketing who earn more than $70,000."',
+        question: `Table: employees
+
+Write an RA expression and its SQL translation: "Names and salaries of employees in Marketing who earn more than $70,000."
+
+Return columns: name, salary
+Order by: any order.`,
         hint: 'RA: \u03C0_{name, salary}(\u03C3_{department=\'Marketing\' \u2227 salary>70000}(employees)). SQL: SELECT name, salary FROM employees WHERE department = \'Marketing\' AND salary > 70000.',
         solution: `-- RA: \u03C0_{name, salary}(\u03C3_{department='Marketing' \u2227 salary>70000}(employees))
 SELECT name, salary
@@ -8069,14 +8494,24 @@ FROM employees
 WHERE department = 'Marketing' AND salary > 70000;`
       },
       {
-        question: 'Translate this RA expression to SQL: \u03C0_{name, city}(employees \u22C8_{name=customer} orders). What does it return?',
+        question: `Table: employees, orders
+
+Translate this RA expression to SQL: \u03C0_{name, city}(employees \u22C8_{name=customer} orders). What does it return?
+
+Return columns: name, city
+Order by: any order.`,
         hint: 'The \u03B8-join combines employees with orders where employee name = order customer. Then \u03C0 projects name and city. Use DISTINCT to avoid duplicates.',
         solution: `SELECT DISTINCT e.name, e.city
 FROM employees e
 JOIN orders o ON e.name = o.customer;`
       },
       {
-        question: 'Challenge: Write an RA expression and SQL for: "Find departments where every employee earns more than $50,000." Use the difference pattern: all departments minus departments that have at least one employee earning \u2264 $50k.',
+        question: `Table: employees
+
+Challenge: Write an RA expression and SQL for: "Find departments where every employee earns more than $50,000." Use the difference pattern.
+
+Return columns: department
+Order by: any order.`,
         hint: 'RA: \u03C0_{department}(employees) \u2212 \u03C0_{department}(\u03C3_{salary \u2264 50000}(employees)). SQL: SELECT DISTINCT department FROM employees EXCEPT SELECT department FROM employees WHERE salary <= 50000.',
         solution: `-- RA: \u03C0_{department}(employees) \u2212 \u03C0_{department}(\u03C3_{salary \u2264 50000}(employees))
 SELECT DISTINCT department
@@ -8333,15 +8768,20 @@ ORDER BY p.name;`,
     ],
     practiceQuestions: [
       {
-        question: 'Step-by-step: Use the 6-step playbook to write a query. Question: "Find departments where the average salary is above $80,000. Show department name and average salary, sorted by highest average first." Walk through each step before writing the final query.',
+        question: `Table: employees
+
+Step-by-step: Use the 6-step playbook. "Find departments where the average salary is above $80,000. Show department name and average salary, sorted by highest average first."
+
+Return columns: department, avg_salary
+Order by: avg_salary DESC.`,
         hint: 'Step 1: SELECT department, AVG(salary). Step 2: FROM employees. Step 3: No JOIN. Step 4: No WHERE. Step 5: GROUP BY department HAVING AVG(salary) > 80000. Step 6: ORDER BY AVG(salary) DESC.',
-        solution: `-- Step 1: What to display? \u2192 department, AVG(salary)
--- Step 2: Which tables? \u2192 employees
--- Step 3: How to connect? \u2192 No join (single table)
--- Step 4: Filtering? \u2192 No row-level filter
--- Step 5: Grouping? \u2192 GROUP BY department
+        solution: `-- Step 1: What to display? → department, AVG(salary)
+-- Step 2: Which tables? → employees
+-- Step 3: How to connect? → No join (single table)
+-- Step 4: Filtering? → No row-level filter
+-- Step 5: Grouping? → GROUP BY department
 --         HAVING AVG(salary) > 80000
--- Step 6: Sorting? \u2192 ORDER BY avg_salary DESC
+-- Step 6: Sorting? → ORDER BY avg_salary DESC
 
 SELECT department, AVG(salary) AS avg_salary
 FROM employees
@@ -8350,7 +8790,11 @@ HAVING AVG(salary) > 80000
 ORDER BY avg_salary DESC;`
       },
       {
-        question: 'Debugging: The following query has TWO errors. Identify and fix them. Query: SELECT name, department, COUNT(*) FROM employees WHERE COUNT(*) > 2 ORDER BY department;',
+        question: `Debugging: The following query has TWO errors. Identify and fix them.
+Query: SELECT name, department, COUNT(*) FROM employees WHERE COUNT(*) > 2 ORDER BY department;
+
+Return columns: department, COUNT(*)
+Order by: department ASC.`,
         hint: 'Error 1: COUNT(*) in WHERE (use HAVING instead). Error 2: name and department are not in GROUP BY. Fix: Remove name, add GROUP BY department, and move the COUNT filter to HAVING.',
         solution: `-- Error 1: Aggregate COUNT(*) used in WHERE clause
 -- Error 2: Column 'name' selected but not in GROUP BY
@@ -8362,8 +8806,15 @@ HAVING COUNT(*) > 2
 ORDER BY department;`
       },
       {
-        question: 'True or False: Explain why each statement is T or F. (a) NOT IN (SELECT ...) is always equivalent to NOT EXISTS (SELECT ...). (b) A FOREIGN KEY column can contain duplicate values. (c) TRUNCATE TABLE removes all rows and resets the identity counter. (d) You can use ORDER BY inside an individual SELECT of a UNION.',
-        hint: '(a) FALSE \u2014 NOT IN fails with NULLs in subquery. (b) TRUE \u2014 FK allows duplicates unless UNIQUE. (c) TRUE \u2014 TRUNCATE resets identity counters. (d) FALSE \u2014 ORDER BY goes at the end of the entire UNION.',
+        question: `True or False: Explain why each statement is T or F.
+(a) NOT IN (SELECT ...) is always equivalent to NOT EXISTS (SELECT ...).
+(b) A FOREIGN KEY column can contain duplicate values.
+(c) TRUNCATE TABLE removes all rows and resets the identity counter.
+(d) You can use ORDER BY inside an individual SELECT of a UNION.
+
+Return columns: (explanatory — no columns returned)
+Order by: N/A.`,
+        hint: '(a) FALSE — NOT IN fails with NULLs in subquery. (b) TRUE — FK allows duplicates unless UNIQUE. (c) TRUE — TRUNCATE resets identity counters. (d) FALSE — ORDER BY goes at the end of the entire UNION.',
         solution: `-- (a) FALSE: NOT IN returns empty if subquery contains ANY NULL.
 -- NOT EXISTS handles NULLs correctly. Prefer NOT EXISTS.
 
@@ -8379,7 +8830,12 @@ ORDER BY department;`
 -- applying to the entire UNION result.`
       },
       {
-        question: 'Challenge (exam-style): "Find the name of the employee who has spent the most money across all their orders. Show their name and total amount spent. If there is a tie, show all tied employees."',
+        question: `Table: employees, orders
+
+Challenge (exam-style): Find the name of the employee who has spent the most money across all their orders. If there is a tie, show all tied employees.
+
+Return columns: name, total_spent
+Order by: name ASC.`,
         hint: 'Use a window function: RANK() OVER (ORDER BY SUM(o.total) DESC). Wrap in a subquery and filter WHERE rnk = 1 to handle ties.',
         solution: `SELECT name, total_spent
 FROM (

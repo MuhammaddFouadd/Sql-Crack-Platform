@@ -88,7 +88,6 @@ export default function InterleavedPractice() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [showSolution, setShowSolution] = useState(false)
-  const [showSchema, setShowSchema] = useState(false)
 
   const topics = useMemo(() => {
     return [...new Set(practiceProblems.map((p) => p.topic))].sort()
@@ -111,7 +110,6 @@ export default function InterleavedPractice() {
     setErrorMsg(null)
     setShowHint(false)
     setShowSolution(false)
-    setShowSchema(false)
   }, [])
 
   const shuffleDeck = useCallback(() => {
@@ -183,6 +181,17 @@ export default function InterleavedPractice() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      const start = e.currentTarget.selectionStart
+      const end = e.currentTarget.selectionEnd
+      const newVal = userSql.slice(0, start) + '  ' + userSql.slice(end)
+      setUserSql(newVal)
+      requestAnimationFrame(() => {
+        e.currentTarget.selectionStart = e.currentTarget.selectionEnd = start + 2
+      })
+      return
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       checkAnswer()
@@ -276,16 +285,13 @@ export default function InterleavedPractice() {
             <p className="text-sm font-medium text-text leading-relaxed">{current.question}</p>
           </div>
 
-          <button
-            onClick={() => setShowSchema(!showSchema)}
-            className="flex items-center gap-1.5 text-xs text-accent font-medium hover:opacity-80 transition-opacity"
-          >
-            <Database size={13} />
-            {showSchema ? 'Hide tables' : 'Show tables'}
-          </button>
-
-          {showSchema && (
-            <div className="bg-cream-dark border-2 border-border rounded-xl p-4 space-y-2 text-xs font-mono">
+          <details className="group text-xs">
+            <summary className="flex items-center gap-1.5 text-accent font-medium cursor-pointer hover:opacity-80 transition-opacity list-none">
+              <Database size={13} className="shrink-0" />
+              <span>Schema / Tables</span>
+              <ChevronDown size={12} className="ml-auto group-open:rotate-180 transition-transform text-text-muted" />
+            </summary>
+            <div className="mt-2 bg-cream-dark border-2 border-border rounded-xl p-4 space-y-2 font-mono">
               {SCHEMA_INFO.map((t) => (
                 <div key={t.table}>
                   <span className="font-bold text-text">{t.table}</span>
@@ -302,7 +308,7 @@ export default function InterleavedPractice() {
                 </div>
               ))}
             </div>
-          )}
+          </details>
 
           <div className="space-y-3">
             <textarea
