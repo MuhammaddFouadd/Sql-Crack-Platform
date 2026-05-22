@@ -816,7 +816,7 @@ WHERE (name LIKE 'A%' OR name LIKE 'B%' OR name LIKE 'C%' OR name LIKE 'D%' OR n
     icon: '📊',
     difficulty: 'beginner',
     prerequisites: ['select'],
-    topics: ['ORDER BY', 'ASC', 'DESC', 'multiple columns'],
+    topics: ['ORDER BY', 'ASC', 'DESC', 'multiple columns', 'LIMIT', 'OFFSET', 'NULL handling'],
     explanation: `── Real-World Analogy ──
 ORDER BY is like sorting a deck of cards. You can sort by suit first, then by rank within each suit (multi-key sort).
 
@@ -1211,6 +1211,32 @@ for (int i = 0; i < sortedCount; i++) {
 for (int i = 0; i < sortedCount; i++)
     cout << sorted[i].name << " | " << sorted[i].name.length() << " | " << sorted[i].department << "\\n";`
       },
+      {
+        title: 'LIMIT OFFSET with subquery for NULL (LeetCode 176)',
+        sql: `-- Second highest salary — returns NULL if no second highest
+SELECT
+  (SELECT DISTINCT salary
+   FROM employees
+   ORDER BY salary DESC
+   LIMIT 1 OFFSET 1
+  ) AS SecondHighestSalary;
+
+-- Without subquery wrapper, LIMIT 1 OFFSET 1 on empty result
+-- returns NO rows instead of NULL. The subquery in SELECT
+-- converts "no rows" to NULL automatically.`,
+        explanation: 'LeetCode 176: Wrapping a LIMIT/OFFSET query in a SELECT subquery converts "no rows" into a NULL result. Without this, if there is no second-highest salary, the query returns empty instead of NULL.',
+        sourceTables: ['employees'],
+        cppRepresentation: `double salaries[100];
+int sc = employeeCount;
+for (int i = 0; i < sc; i++) salaries[i] = employees[i].salary;
+sort(salaries, salaries + sc, greater<double>());
+double second = -1;
+for (int i = 0; i < sc; i++) {
+    if (salaries[i] != salaries[0]) { second = salaries[i]; break; }
+}
+if (second == -1) cout << "null\\n";
+else cout << second << "\\n";`
+      },
     ],
     commonMistakes: [
       'Assuming ORDER BY guarantees row order across queries without specifying all tie-breaking columns',
@@ -1274,6 +1300,841 @@ FROM employees
 WHERE salary IS NOT NULL
 ORDER BY salary / 1000.0 DESC, name ASC
 LIMIT 10;`
+      },
+      {
+        question: `Table: employees
+
+Challenge (LeetCode 176): Find the second highest distinct salary in the company. If there is no second highest salary, the result should be NULL, not empty.
+
+Return columns: SecondHighestSalary
+Order by: single row.`,
+        hint: 'Use a subquery in SELECT: (SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 1 OFFSET 1). The subquery wrapper automatically converts no rows to NULL.',
+        solution: `SELECT
+  (SELECT DISTINCT salary
+   FROM employees
+   ORDER BY salary DESC
+   LIMIT 1 OFFSET 1
+  ) AS SecondHighestSalary;`
+      }
+    ]
+  },
+  {
+    id: 'joins',
+    title: 'Joins',
+    description: 'Combine data from multiple tables',
+    icon: '🔗',
+    difficulty: 'intermediate',
+    prerequisites: ['where', 'select'],
+    topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN', 'USING clause', 'ON vs WHERE', 'join predicate', 'filter predicate'],
+    explanation: `── Real-World Analogy ──
+Two tables are like two separate lists. INNER JOIN = "show me items that appear in BOTH lists."
+LEFT JOIN = "show me everything from list A, and add info from list B if available."
+
+Think of two puzzle pieces — the key column is the interlocking tab that connects them.
+
+── Visual: JOINs with Real Data ──
+  students table (LEFT):            registrations table (RIGHT):
+  ┌────┬────────┐                   ┌────┬────────────┐
+  │ id │ name   │                   │ id │ student_id │
+  ├────┼────────┤                   ├────┼────────────┤
+  │ 1  │ Alice  │                   │ 1  │ 1          │  ← Alice registered
+  │ 2  │ Bob    │                   │ 2  │ 3          │  ← Charlie registered
+  │ 3  │ Charlie│                   │ 3  │ 1          │  ← Alice registered again
+  │ 4  │ Diana  │                   └────┴────────────┘  Diana never registered
+  └────┴────────┘
+
+  INNER JOIN ON students.id = registrations.student_id:
+  ┌────┬─────────┬───────┐
+  │ id │ name    │ reg_id│  → Only students WITH registrations: Alice (2 regs), Charlie (1)
+  ├────┼─────────┼───────┤    Bob and Diana excluded (no match on the RIGHT)
+  │ 1  │ Alice   │ 1     │  ← registration id=1 links student 1 to course
+  │ 1  │ Alice   │ 3     │  ← registration id=3 links student 1 again
+  │ 3  │ Charlie │ 2     │  ← registration id=2 links student 3
+  └────┴─────────┴───────┘
+
+  LEFT JOIN ON students.id = registrations.student_id:
+  ┌────┬─────────┬───────┐
+  │ id │ name    │ reg_id│  → ALL students, even without registrations
+  ├────┼─────────┼───────┤    Bob and Diana show with NULL on the right-side columns
+  │ 1  │ Alice   │ 1     │
+  │ 1  │ Alice   │ 3     │
+  │ 2  │ Bob     │ NULL  │  ← Bob never registered → NULL for right-side columns
+  │ 3  │ Charlie │ 2     │
+  │ 4  │ Diana   │ NULL  │  ← Diana never registered → NULL for right-side columns
+  └────┴─────────┴───────┘
+
+── JOIN Types Quick Comparison ──
+| Join Type      | Returns                                | Use When                         |
+|----------------|----------------------------------------|----------------------------------|
+| INNER JOIN     | Only matching rows in BOTH tables      | "Get all students with courses"  |
+| LEFT JOIN      | ALL rows from LEFT + matches from RIGHT| "Get all students even if no reg"|
+| RIGHT JOIN     | ALL rows from RIGHT + matches from LEFT| "Get all courses even if empty"  |
+| FULL OUTER JOIN| ALL rows from BOTH tables              | "Get everything from both sides" |
+| CROSS JOIN     | Cartesion product (|A| × |B| rows)     | "Get all combinations"           |
+| SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
+
+── Set Visual: What Each JOIN Returns ──
+  Think of two overlapping circles:
+  - Circle A = all rows from the LEFT table  (students)
+  - Circle B = all rows from the RIGHT table (registrations)
+  - Overlap  = rows that MATCH (students who have registrations)
+
+                      ┌─────┐
+          ┌─────┐     │  2  │     ┌─────┐
+          │     │     │ reg │     │     │
+          │  1  │     │  ids│     │  3  │
+          │ stu │     │  1  │     │ reg │
+          │ 2,4 │ ──► │  3  │ ◄── │ ids │
+          │ (no │     │     │     │ (no │
+          │ reg) │     │ stu │     │ stu)│
+          └─────┘     │ 1,3 │     └─────┘
+                      └─────┘
+        LEFT side            OVERLAP           RIGHT side
+      (only from A)     (A ∩ B = matched)   (only from B)
+
+  INNER = overlap only:       │Alice×2, Charlie│  (3 rows)
+  LEFT  = left + overlap:     │Alice×2, Bob, Charlie, Diana│  (5 rows)
+  RIGHT = overlap + right:    │Alice×2, Charlie│  (3 rows — no orphan regs)
+  FULL  = everything:         │Alice×2, Bob, Charlie, Diana│  (5 rows)
+  CROSS = A × B:              │4 students × 3 registrations = 12 rows│
+
+── ON vs USING vs WHERE in JOINs ──
+
+  ON     → specifies the JOIN condition (how rows MATCH between tables)
+  USING  → shorthand when the FK column has the SAME name in both tables
+  WHERE  → filters the result AFTER the JOIN is complete
+
+  -- ON: explicit, works with any column names
+  SELECT * FROM orders o
+  JOIN products p ON o.product_id = p.id;
+
+  -- USING: concise, columns must have identical names in both tables
+  SELECT * FROM orders
+  JOIN products USING (product_id);        -- only if both have "product_id"
+
+  -- WHERE (old implicit syntax, easy to forget condition → CROSS JOIN)
+  SELECT * FROM orders o, products p
+  WHERE o.product_id = p.id;               -- same as INNER JOIN
+
+── Critical: ON vs WHERE in OUTER JOINs ──
+  In LEFT/RIGHT/FULL JOINs, putting a right-table condition in WHERE
+  instead of ON can silently convert your outer join to an inner join:
+
+    LEFT JOIN products p ON o.product_id = p.id
+      AND p.category = 'Electronics'     ← ON: filters BEFORE join, keeps all orders
+      
+    LEFT JOIN products p ON o.product_id = p.id
+      WHERE p.category = 'Electronics'  ← WHERE: filters AFTER join, DROPS orders
+                                           with NULL products → acts like INNER JOIN
+
+    Rule of thumb:
+    - ON   → "which rows from the RIGHT table should I attempt to match?"
+    - WHERE → "which rows from the COMBINED result should I KEEP?"
+
+── Named Patterns: Semi-Join & Anti-Join ──
+  These aren't separate SQL keywords — they're patterns built from other JOINs:
+
+  Anti-join  = rows in A with NO match in B:
+    SELECT A.* FROM A LEFT JOIN B ON ... WHERE B.id IS NULL;
+    → "Products never ordered" (Example 3 above)
+
+  Semi-join  = rows in A that HAVE at least one match in B
+    (usually written with EXISTS or IN subquery, not with JOIN)
+    → "Customers who have placed orders"
+    ──
+    Note: INNER JOIN with DISTINCT on A's columns achieves the same
+    result, but EXISTS/IN is often clearer and avoids the DISTINCT.
+
+── Key Rules ──
+- LEFT JOIN = RIGHT JOIN with tables swapped (reverse table order to convert)
+- RIGHT JOIN mirrors LEFT JOIN; always rewritable as LEFT JOIN by swapping tables
+- RIGHT JOIN is not natively supported in SQLite before v3.39.0 — simulate with swapped LEFT JOIN
+- A meaningful N-table JOIN typically needs N-1 join conditions; fewer conditions → Cartesian product between unconnected tables
+- Always qualify column names with table aliases when joining (table.column) to avoid ambiguity
+- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old implicit syntax) — but this is error-prone; use explicit JOIN
+- In LEFT JOIN, putting a right-table filter in WHERE instead of ON turns it into INNER JOIN (NULLs from failed matches are filtered out)
+- Anti-join pattern (LEFT JOIN + WHERE IS NULL) finds rows with NO match — essential for data quality checks`,
+    syntax: `-- INNER JOIN
+SELECT a.col, b.col
+FROM table_a a
+JOIN table_b b ON a.id = b.a_id;
+
+-- LEFT JOIN
+SELECT a.col, b.col
+FROM table_a a
+LEFT JOIN table_b b ON a.id = b.a_id;
+
+-- RIGHT JOIN
+SELECT a.col, b.col
+FROM table_a a
+RIGHT JOIN table_b b ON a.id = b.a_id;
+
+-- FULL JOIN
+SELECT a.col, b.col
+FROM table_a a
+FULL JOIN table_b b ON a.id = b.a_id;
+
+-- USING (shorthand when column name is identical)
+SELECT a.col, b.col
+FROM table_a a
+JOIN table_b b USING (shared_column);
+
+-- CROSS JOIN
+SELECT a.col, b.col
+FROM table_a a
+CROSS JOIN table_b b;
+
+-- SELF JOIN
+SELECT e1.name AS employee, e2.name AS manager
+FROM employees e1
+LEFT JOIN employees e2 ON e1.manager_id = e2.id;
+
+-- Multiple JOINs
+SELECT o.id, c.name AS customer, p.name AS product
+FROM orders o
+JOIN customers c ON o.customer_id = c.id
+JOIN products p ON o.product_id = p.id;`,
+    examples: [
+      {
+        title: 'INNER JOIN — matching rows only',
+        sql: `SELECT o.id AS order_id,
+  o.customer_name,
+  p.name AS product,
+  o.quantity,
+  o.total
+FROM orders o
+JOIN products p ON o.product_id = p.id
+ORDER BY o.total DESC;`,
+        explanation: 'Joins orders to their product details. Only orders with valid product_ids appear. The ON clause specifies how rows match.',
+        sourceTables: ['orders', 'products'],
+        cppRepresentation: `struct Order { int id; string customer; int product_id; int quantity; double total; };
+struct Product { int id; string name; double price; };
+int resIds[100];
+string resCusts[100];
+string resProds[100];
+int resQtys[100];
+double resTotals[100];
+int resultSize = 0;
+for (int i = 0; i < orderCount; i++)
+    for (int j = 0; j < productCount; j++)
+        if (orders[i].product_id == products[j].id) {
+            resIds[resultSize] = orders[i].id;
+            resCusts[resultSize] = orders[i].customer;
+            resProds[resultSize] = products[j].name;
+            resQtys[resultSize] = orders[i].quantity;
+            resTotals[resultSize] = orders[i].total;
+            resultSize++;
+            break;
+        }
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
+            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
+        }`
+      },
+      {
+        title: 'LEFT JOIN — include all from left',
+        sql: `SELECT p.name,
+  p.price,
+  o.id AS order_id,
+  o.customer_name
+FROM products p
+LEFT JOIN orders o ON p.id = o.product_id;`,
+        explanation: 'Shows all products, even ones never ordered. Products without orders get NULL for order_id and customer_name. INNER JOIN would exclude them.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `string names[100];
+double prices[100];
+int orderIds[100];
+string custs[100];
+bool hasOrder[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
+    bool matched = false;
+    for (int j = 0; j < orderCount; j++)
+        if (products[i].id == orders[j].product_id) {
+            names[resultSize] = products[i].name;
+            prices[resultSize] = products[i].price;
+            orderIds[resultSize] = orders[j].id;
+            custs[resultSize] = orders[j].customer;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+        }
+    if (!matched) {
+        names[resultSize] = products[i].name;
+        prices[resultSize] = products[i].price;
+        orderIds[resultSize] = -1;
+        custs[resultSize] = "";
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
+}`
+      },
+      {
+        title: 'LEFT JOIN — find missing matches',
+        sql: `SELECT p.name, p.category
+FROM products p
+LEFT JOIN orders o ON p.id = o.product_id
+WHERE o.id IS NULL;`,
+        explanation: 'Finds products that have never been ordered. The LEFT JOIN adds NULLs where no match exists; WHERE o.id IS NULL keeps only those.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `string resultNames[100];
+string resultCats[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
+    bool found = false;
+    for (int j = 0; j < orderCount; j++)
+        if (products[i].id == orders[j].product_id) { found = true; break; }
+    if (!found) { resultNames[resultSize] = products[i].name; resultCats[resultSize] = products[i].category; resultSize++; }
+}`
+      },
+      {
+        title: 'RIGHT JOIN — all from right table',
+        sql: `SELECT o.id AS order_id,
+  o.customer_name,
+  p.name AS product,
+  o.total
+FROM orders o
+RIGHT JOIN products p ON o.product_id = p.id
+ORDER BY p.name;`,
+        explanation: 'RIGHT JOIN keeps all rows from the RIGHT table (products), matching orders where they exist. Products without orders get NULL for order_id and customer. This is the mirror of LEFT JOIN — swap table order to convert between them.',
+        sourceTables: ['orders', 'products'],
+        cppRepresentation: `int orderIds[100];
+string custs[100];
+string prods[100];
+double totals[100];
+bool hasOrder[100];
+int resultSize = 0;
+for (int i = 0; i < productCount; i++) {
+    bool matched = false;
+    for (int j = 0; j < orderCount; j++)
+        if (orders[j].product_id == products[i].id) {
+            orderIds[resultSize] = orders[j].id;
+            custs[resultSize] = orders[j].customer;
+            prods[resultSize] = products[i].name;
+            totals[resultSize] = orders[j].total;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+        }
+    if (!matched) {
+        orderIds[resultSize] = -1;
+        custs[resultSize] = "";
+        prods[resultSize] = products[i].name;
+        totals[resultSize] = 0.0;
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
+}
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (prods[j] > prods[j + 1]) {
+            string tmpP = prods[j]; prods[j] = prods[j + 1]; prods[j + 1] = tmpP;
+            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
+            string tmpC = custs[j]; custs[j] = custs[j + 1]; custs[j + 1] = tmpC;
+            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
+            bool tmpH = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpH;
+        }`
+      },
+      {
+        title: 'FULL JOIN — all rows from both tables',
+        sql: `SELECT e.name AS employee,
+  e.department,
+  o.id AS order_id,
+  o.total
+FROM employees e
+FULL JOIN orders o ON e.name = o.customer_name
+ORDER BY e.name, o.id;`,
+        explanation: 'FULL JOIN keeps all rows from BOTH tables. Employees without orders show NULL for order columns. Orders that don\'t match any employee (if any) would also appear. FULL JOIN = LEFT JOIN + RIGHT JOIN + INNER JOIN combined.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `string names[100];
+string depts[100];
+int orderIds[100];
+double totals[100];
+bool hasName[100];
+bool hasOrder[100];
+int resultSize = 0;
+string matchedNames[100];
+int matchedSize = 0;
+for (int i = 0; i < employeeCount; i++) {
+    bool matched = false;
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer) {
+            names[resultSize] = employees[i].name;
+            depts[resultSize] = employees[i].department;
+            orderIds[resultSize] = orders[j].id;
+            totals[resultSize] = orders[j].total;
+            hasName[resultSize] = true;
+            hasOrder[resultSize] = true;
+            resultSize++;
+            matched = true;
+            matchedNames[matchedSize++] = employees[i].name;
+        }
+    if (!matched) {
+        names[resultSize] = employees[i].name;
+        depts[resultSize] = employees[i].department;
+        orderIds[resultSize] = -1;
+        totals[resultSize] = 0.0;
+        hasName[resultSize] = true;
+        hasOrder[resultSize] = false;
+        resultSize++;
+    }
+}
+for (int i = 0; i < orderCount; i++) {
+    bool found = false;
+    for (int j = 0; j < matchedSize; j++)
+        if (matchedNames[j] == orders[i].customer) { found = true; break; }
+    if (!found) {
+        names[resultSize] = "";
+        depts[resultSize] = "";
+        orderIds[resultSize] = orders[i].id;
+        totals[resultSize] = orders[i].total;
+        hasName[resultSize] = false;
+        hasOrder[resultSize] = true;
+        resultSize++;
+    }
+}
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++) {
+        string na = hasName[j] ? names[j] : "";
+        string nb = hasName[j + 1] ? names[j + 1] : "";
+        int oa = hasOrder[j] ? orderIds[j] : -1;
+        int ob = hasOrder[j + 1] ? orderIds[j + 1] : -1;
+        bool doSwap = false;
+        if (na > nb) doSwap = true;
+        else if (na == nb && oa > ob) doSwap = true;
+        if (doSwap) {
+            string tmpNa = names[j]; names[j] = names[j + 1]; names[j + 1] = tmpNa;
+            string tmpD = depts[j]; depts[j] = depts[j + 1]; depts[j + 1] = tmpD;
+            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
+            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
+            bool tmpHN = hasName[j]; hasName[j] = hasName[j + 1]; hasName[j + 1] = tmpHN;
+            bool tmpHO = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpHO;
+        }
+    }`
+      },
+      {
+        title: 'Joining a table to itself',
+        sql: `SELECT e1.name AS employee,
+  e1.salary,
+  e2.name AS higher_earner,
+  e2.salary AS higher_salary
+FROM employees e1
+JOIN employees e2 ON e1.salary < e2.salary
+WHERE e1.department = 'Engineering'
+ORDER BY e1.name, e2.salary;`,
+        explanation: 'A self-join finds Engineering employees and all colleagues who earn more than them. The table appears twice with different aliases.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department != "Engineering") continue;
+    for (int j = 0; j < employeeCount; j++)
+        if (employees[i].salary < employees[j].salary)
+            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";
+}`
+      },
+      {
+        title: 'CROSS JOIN — all combinations',
+        sql: `-- Every employee paired with every product (cartesian product)
+SELECT e.name AS employee, e.department, p.name AS product
+FROM employees e
+CROSS JOIN products p
+ORDER BY e.name, p.name
+LIMIT 15;
+
+-- CROSS JOIN with a filter = restricting one table BEFORE crossing
+-- This is NOT a join condition — it filters rows before the cross
+SELECT e.name, p.name
+FROM employees e
+CROSS JOIN products p
+WHERE e.department = 'Engineering'
+LIMIT 10;`,
+        explanation: 'CROSS JOIN produces every combination of rows (|A| × |B|). The first query pairs ALL 10 employees with ALL 8 products = 80 rows (limited to 15). The second filters Engineering employees FIRST (3 employees), THEN crosses with 8 products = 24 rows. Use cautiously — results grow exponentially.',
+        sourceTables: ['employees', 'products'],
+        cppRepresentation: `string resNames[100];
+string resDepts[100];
+string resProds[100];
+int resultSize = 0;
+for (int i = 0; i < employeeCount; i++)
+    if (employees[i].department == "Engineering")
+        for (int j = 0; j < productCount; j++) {
+            resNames[resultSize] = employees[i].name;
+            resDepts[resultSize] = employees[i].department;
+            resProds[resultSize] = products[j].name;
+            resultSize++;
+        }
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++) {
+        bool doSwap = false;
+        if (resNames[j] > resNames[j + 1]) doSwap = true;
+        else if (resNames[j] == resNames[j + 1] && resProds[j] > resProds[j + 1]) doSwap = true;
+        if (doSwap) {
+            string tmpN = resNames[j]; resNames[j] = resNames[j + 1]; resNames[j + 1] = tmpN;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+        }
+    }
+if (resultSize > 15) resultSize = 15;`
+      },
+      {
+        title: 'ON vs WHERE in LEFT JOIN (critical concept)',
+        sql: `-- LEFT JOIN with filter in ON: keeps ALL employees
+-- right-table filter is evaluated BEFORE the join
+SELECT e.name, e.department, o.total
+FROM employees e
+LEFT JOIN orders o
+  ON e.name = o.customer_name
+  AND o.total > 200
+ORDER BY e.name;
+
+-- Same LEFT JOIN with filter in WHERE: DROPS employees with no matching order
+-- right-table filter is evaluated AFTER the join → NULLs get filtered out
+SELECT e.name, e.department, o.total
+FROM employees e
+LEFT JOIN orders o ON e.name = o.customer_name
+WHERE o.total > 200
+ORDER BY e.name;`,
+        explanation: 'The first query keeps ALL employees (LEFT JOIN), only matching orders over $200. Employees without orders >$200 still appear with NULL total. The second query behaves like INNER JOIN: WHERE filters out rows where o.total IS NULL, so employees without matching orders disappear entirely.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// ON filter (keeps all employees):
+for (int i = 0; i < employeeCount; i++) {
+    bool matched = false;
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer_name && orders[j].total > 200) {
+            cout << employees[i].name << " | " << orders[j].total << "\\n";
+            matched = true;
+        }
+    if (!matched) cout << employees[i].name << " | NULL\\n";
+}
+// WHERE filter (drops employees without qualifying orders):
+for (int i = 0; i < employeeCount; i++)
+    for (int j = 0; j < orderCount; j++)
+        if (employees[i].name == orders[j].customer_name && orders[j].total > 200)
+            cout << employees[i].name << " | " << orders[j].total << "\\n";`
+      },
+      {
+        title: 'USING clause — shorter syntax for equi-joins',
+        sql: `-- USING requires identical column names in both tables
+-- Here: products.id = order_items.product_id
+SELECT p.name, oi.quantity
+FROM products p
+JOIN order_items oi USING (product_id)
+ORDER BY p.name;
+
+-- Equivalent ON version (more flexible)
+SELECT p.name, oi.quantity
+FROM products p
+JOIN order_items oi ON p.id = oi.product_id
+ORDER BY p.name;
+
+-- Multi-table USING: joins on shared "id" columns
+-- Only works when ALL joined tables have "id" as the FK name
+SELECT c.name, o.total, p.name AS product
+FROM customers c
+JOIN orders o USING (id)            -- error: orders.id ≠ customers.id
+JOIN products p ON o.product_id = p.id;`,
+        explanation: 'USING is syntactic sugar for equi-joins where the FK column has the same name in both tables. It avoids the redundant ON condition. Limitation: both columns must have identical names and you cannot qualify the join column with a table alias in the SELECT list.',
+        sourceTables: ['products', 'order_items', 'customers', 'orders'],
+        cppRepresentation: `// USING is just syntax sugar — same result as ON
+for (int i = 0; i < productCount; i++)
+    for (int j = 0; j < orderItemCount; j++)
+        if (products[i].id == orderItems[j].product_id)
+            cout << products[i].name << " | " << orderItems[j].quantity << "\\n";`
+      },
+      {
+        title: 'Multiple JOINs',
+        sql: `SELECT o.id AS order_id,
+  o.customer_name,
+  p.name AS product,
+  p.category,
+  o.quantity,
+  o.total,
+  e.department AS customer_department
+FROM orders o
+JOIN products p ON o.product_id = p.id
+JOIN employees e ON o.customer_name = e.name
+ORDER BY o.total DESC;`,
+        explanation: 'Joins all three tables: orders to products by product_id, and orders to employees by customer name. Shows order details enriched with product info and the purchasing employee department.',
+        sourceTables: ['orders', 'products', 'employees'],
+        cppRepresentation: `struct Product { int id; string name; string category; double price; int stock; };
+struct Employee { int id; string name; string department; double salary; string status; };
+int resIds[100];
+string resCusts[100];
+string resProds[100];
+string resCats[100];
+int resQtys[100];
+double resTotals[100];
+string resDepts[100];
+int resultSize = 0;
+for (int i = 0; i < orderCount; i++) {
+    int mpIdx = -1;
+    int meIdx = -1;
+    for (int j = 0; j < productCount; j++)
+        if (orders[i].product_id == products[j].id) { mpIdx = j; break; }
+    for (int k = 0; k < employeeCount; k++)
+        if (orders[i].customer == employees[k].name) { meIdx = k; break; }
+    if (mpIdx != -1 && meIdx != -1) {
+        resIds[resultSize] = orders[i].id;
+        resCusts[resultSize] = orders[i].customer;
+        resProds[resultSize] = products[mpIdx].name;
+        resCats[resultSize] = products[mpIdx].category;
+        resQtys[resultSize] = orders[i].quantity;
+        resTotals[resultSize] = orders[i].total;
+        resDepts[resultSize] = employees[meIdx].department;
+        resultSize++;
+    }
+}
+for (int i = 0; i < resultSize - 1; i++)
+    for (int j = 0; j < resultSize - 1 - i; j++)
+        if (resTotals[j] < resTotals[j + 1]) {
+            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
+            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
+            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
+            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
+            string tmpCa = resCats[j]; resCats[j] = resCats[j + 1]; resCats[j + 1] = tmpCa;
+            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
+            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
+        }`
+      },
+      {
+        title: 'JOIN with GROUP BY',
+        sql: `SELECT p.category,
+  COUNT(DISTINCT o.id) AS orders_count,
+  ROUND(SUM(o.total), 2) AS total_revenue,
+  ROUND(AVG(o.total), 2) AS avg_order_value
+FROM products p
+LEFT JOIN orders o ON p.id = o.product_id
+GROUP BY p.category
+ORDER BY total_revenue DESC;`,
+        explanation: 'Joins products to orders then groups by product category. LEFT JOIN ensures categories with no orders still appear with zero counts.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `string cats[100];
+double revSums[100];
+int revCounts[100];
+int distinctCounts[100];
+int catSize = 0;
+for (int i = 0; i < productCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < catSize; j++)
+        if (cats[j] == products[i].category) { idx = j; break; }
+    if (idx == -1) { idx = catSize++; cats[idx] = products[i].category; revSums[idx] = 0; revCounts[idx] = 0; distinctCounts[idx] = 0; }
+}
+int seenIds[100];
+int seenSize;
+for (int i = 0; i < catSize; i++) {
+    seenSize = 0;
+    for (int j = 0; j < productCount; j++)
+        if (products[j].category == cats[i])
+            for (int k = 0; k < orderCount; k++)
+                if (products[j].id == orders[k].product_id) {
+                    revSums[i] += orders[k].total;
+                    revCounts[i]++;
+                    bool dup = false;
+                    for (int l = 0; l < seenSize; l++)
+                        if (seenIds[l] == orders[k].id) { dup = true; break; }
+                    if (!dup) { seenIds[seenSize++] = orders[k].id; distinctCounts[i]++; }
+                }
+}
+for (int i = 0; i < catSize; i++) {
+    double sum = revSums[i];
+    int cnt = distinctCounts[i];
+    cout << cats[i] << " | orders=" << cnt << " | rev=$" << round(sum * 100) / 100
+         << " | avg=$" << (revCounts[i] == 0 ? 0.0 : round(sum / revCounts[i] * 100) / 100) << "\\n";
+}`
+      },
+      {
+        title: 'Self-Join for same-department peers',
+        sql: `SELECT e1.name AS employee,
+  e1.salary,
+  e2.name AS peer,
+  e2.salary AS peer_salary
+FROM employees e1
+JOIN employees e2 ON e1.department = e2.department
+  AND e1.name < e2.name
+  AND e1.salary <> e2.salary
+ORDER BY e1.department, e1.name;`,
+        explanation: 'A self-join finds same-department pairs with different salaries. The e1.name < e2.name condition prevents duplicate pairs and self-matches.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++)
+    for (int j = 0; j < employeeCount; j++)
+        if (employees[i].department == employees[j].department && employees[i].name < employees[j].name && employees[i].salary != employees[j].salary)
+            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";`
+      }
+    ],
+    commonMistakes: [
+      'Forgetting the JOIN condition (creates a Cartesian product — CROSS JOIN)',
+      'Using LEFT JOIN when INNER JOIN is sufficient (worse performance, unexpected NULLs)',
+      'Not qualifying column names when both tables have the same column name',
+      'Putting a right-table filter in WHERE instead of ON for LEFT JOIN — silently converts to INNER JOIN',
+      'Using USING but the column names differ between tables (USING requires identical names)',
+      'Forgetting table aliases in self-joins (must use different aliases for each instance)'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: products, orders
+
+List all products and their total order quantity. Include products that have never been ordered (they should show NULL for quantity).
+
+Return columns: name, price, total_ordered
+Order by: total_ordered DESC NULLS LAST.`,
+        hint: 'Use LEFT JOIN from products to orders, GROUP BY product, and SUM(quantity).',
+        solution: `SELECT 
+  p.name,
+  p.price,
+  SUM(o.quantity) AS total_ordered
+FROM products p
+LEFT JOIN orders o ON p.id = o.product_id
+GROUP BY p.name, p.price
+ORDER BY total_ordered DESC NULLS LAST;`
+      },
+      {
+        question: `Table: employees
+
+Find pairs of employees in the same department where one earns more than the other.
+
+Return columns: higher_earner, salary (of higher earner), lower_earner, salary (of lower earner), department
+Order by: department, higher_earner salary DESC.`,
+        hint: 'Use a SELF JOIN on employees with e1.department = e2.department AND e1.salary > e2.salary.',
+        solution: `SELECT 
+  e1.name AS higher_earner,
+  e1.salary,
+  e2.name AS lower_earner,
+  e2.salary,
+  e1.department
+FROM employees e1
+JOIN employees e2 ON e1.department = e2.department AND e1.salary > e2.salary
+ORDER BY e1.department, e1.salary DESC;`
+      },
+      {
+        question: `Table: products, orders
+
+Challenge: Find products that have never been ordered. Use a LEFT JOIN between products and orders to identify products with no matching orders.
+
+Return columns: name, price, category
+Order by: any order.`,
+        hint: 'LEFT JOIN products to orders, then filter WHERE orders.id IS NULL. This finds products with no matching order records.',
+        solution: `SELECT p.name, p.price, p.category
+FROM products p
+LEFT JOIN orders o ON p.id = o.product_id
+WHERE o.id IS NULL;`
+      },
+      {
+        question: `Table: employees, orders, products
+
+Use INNER JOIN across three tables to show each employee's name, the products they ordered, quantities, and order dates.
+
+Return columns: employee_name, product_name, quantity, order_date
+Order by: order_date ASC, employee_name ASC.`,
+        hint: 'Chain two JOINs: FROM employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. Select the relevant columns.',
+        solution: `SELECT e.name AS employee_name,
+  p.name AS product_name,
+  o.quantity,
+  o.order_date
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+ORDER BY o.order_date, e.name;`
+      },
+      {
+        question: `Table: products, departments
+
+Use CROSS JOIN to pair every product with every department, showing all possible combinations.
+
+Return columns: product_name, category, department_name
+Order by: product_name ASC, department_name ASC.`,
+        hint: 'Use SELECT p.name, p.category, d.name FROM products p CROSS JOIN departments d. No ON clause needed — CROSS JOIN produces a Cartesian product.',
+        solution: `SELECT p.name AS product_name,
+  p.category,
+  d.name AS department_name
+FROM products p
+CROSS JOIN departments d
+ORDER BY p.name, d.name;`
+      },
+      {
+        question: `Table: customers, orders
+
+Use FULL OUTER JOIN to show all customers and all orders, including customers with no orders and orders with no matching customer.
+
+Return columns: customer_name, order_id, total, order_date
+Order by: customer_name ASC NULLS LAST, order_date ASC.`,
+        hint: 'Use FULL JOIN ... ON customers.name = orders.customer_name. SQLite supports FULL JOIN since version 3.39.0.',
+        solution: `SELECT c.name AS customer_name,
+  o.id AS order_id,
+  o.total,
+  o.order_date
+FROM customers c
+FULL JOIN orders o ON c.name = o.customer_name
+ORDER BY c.name NULLS LAST, o.order_date;`
+      },
+      {
+        question: `Table: products, orders
+
+Simulate RIGHT JOIN using LEFT JOIN. Show all orders and their product info, including orders whose product_id has no match in products.
+
+Return columns: order_id, product_name, quantity, total
+Order by: order_id ASC.`,
+        hint: 'SQLite does not support RIGHT JOIN. Simulate it by swapping table order: SELECT ... FROM orders o LEFT JOIN products p ON o.product_id = p.id.',
+        solution: `SELECT o.id AS order_id,
+  p.name AS product_name,
+  o.quantity,
+  o.total
+FROM orders o
+LEFT JOIN products p ON o.product_id = p.id
+ORDER BY o.id;`
+      },
+      {
+        question: `Table: employees, products, orders
+
+Medium: Find departments where the total value of products ordered by employees in that department exceeds $500. Use JOINs across all three tables.
+
+Return columns: department, total_order_value, employee_count
+Order by: total_order_value DESC.`,
+        hint: 'JOIN employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. GROUP BY department. Use SUM(o.total) and COUNT(DISTINCT e.name). Add HAVING SUM(o.total) > 500.',
+        solution: `SELECT e.department,
+  ROUND(SUM(o.total), 2) AS total_order_value,
+  COUNT(DISTINCT e.name) AS employee_count
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+GROUP BY e.department
+HAVING SUM(o.total) > 500
+ORDER BY total_order_value DESC;`
+      },
+      {
+        question: `Table: employees, orders
+
+Medium: Show each employee with their total order value. Use a LEFT JOIN so employees with zero orders also appear (show 0 instead of NULL). Label them "Active" if they have > 0 total.
+
+Return columns: name, department, total_spent, status
+Order by: total_spent DESC, name ASC.`,
+        hint: 'LEFT JOIN employees e LEFT JOIN orders o ON e.name = o.customer_name. GROUP BY e.name. Use COALESCE(SUM(o.total), 0). Use CASE for the status label.',
+        solution: `SELECT e.name, e.department,
+  COALESCE(ROUND(SUM(o.total), 2), 0) AS total_spent,
+  CASE WHEN SUM(o.total) > 0 THEN 'Active' ELSE 'Inactive' END AS status
+FROM employees e
+LEFT JOIN orders o ON e.name = o.customer_name
+GROUP BY e.name, e.department
+ORDER BY total_spent DESC, e.name;`
+      },
+      {
+        question: `Table: employees
+
+Advanced: Use a SELF JOIN on manager_id to find managers who earn less than at least one of their direct reports. Show manager name, manager salary, report name, and report salary.
+
+Return columns: manager, manager_salary, report, report_salary
+Order by: manager ASC, report_salary DESC.`,
+        hint: 'JOIN employees m (manager) JOIN employees r (report) ON m.id = r.manager_id. Filter WHERE m.salary < r.salary. Manager is the one whose id matches the report\'s manager_id.',
+        solution: `SELECT m.name AS manager,
+  m.salary AS manager_salary,
+  r.name AS report,
+  r.salary AS report_salary
+FROM employees m
+JOIN employees r ON m.id = r.manager_id
+WHERE m.salary < r.salary
+ORDER BY m.name, r.salary DESC;`
       }
     ]
   },
@@ -2361,1323 +3222,6 @@ ORDER BY total_salary DESC;`
     ]
   },
   {
-    id: 'beginner-practice',
-    title: 'Beginner Practice',
-    description: 'Review all beginner SQL concepts',
-    icon: '📝',
-    difficulty: 'beginner',
-    prerequisites: ['select', 'where', 'order-by', 'group-by', 'having'],
-    topics: ['Practice', 'Review'],
-    explanation: `This practice set tests everything you've learned in the beginner section: SELECT, WHERE, ORDER BY, GROUP BY, and HAVING.
-
-Each question combines multiple concepts to challenge your understanding. Try to solve them without looking at the hints first!`,
-    examples: [],
-    commonMistakes: [],
-    practiceQuestions: [
-      {
-        question: `Table: employees
-
-Find the top 2 highest-paid active employees in the Engineering department.
-
-Return columns: name, department, salary
-Order by: salary DESC
-Limit: 2 rows.`,
-        hint: 'WHERE status = \'active\' AND department = \'Engineering\', ORDER BY salary DESC, LIMIT 2.',
-        solution: `SELECT name, department, salary
-FROM employees
-WHERE status = 'active' AND department = 'Engineering'
-ORDER BY salary DESC
-LIMIT 2;`
-      },
-      {
-        question: `Table: products
-
-Show how many products each category has, the average price, and the total stock. Only include categories where the average price is over $50.
-
-Return columns: category, product_count, avg_price, total_stock
-Order by: total_stock DESC.`,
-        hint: 'Use GROUP BY with COUNT, AVG, SUM, then HAVING AVG(price) > 50. ORDER BY total_stock DESC.',
-        solution: `SELECT category,
-  COUNT(*) AS product_count,
-  ROUND(AVG(price), 2) AS avg_price,
-  SUM(stock) AS total_stock
-FROM products
-GROUP BY category
-HAVING AVG(price) > 50
-ORDER BY total_stock DESC;`
-      },
-      {
-        question: `Table: employees
-
-Find employees whose salary is above the average salary of all employees, grouped by department. For each such department, show how many high earners there are and the average salary of those high earners.
-
-Return columns: department, high_earners, avg_high_salary
-Order by: avg_high_salary DESC.`,
-        hint: 'First use WHERE salary > (SELECT AVG(salary) FROM employees), then GROUP BY department.',
-        solution: `SELECT department,
-  COUNT(*) AS high_earners,
-  ROUND(AVG(salary), 0) AS avg_high_salary
-FROM employees
-WHERE salary > (SELECT AVG(salary) FROM employees)
-GROUP BY department
-ORDER BY avg_high_salary DESC;`
-      },
-      {
-        question: `Table: products
-
-List products that cost more than $50, sorted by category alphabetically and then by price descending within each category.
-
-Return columns: name, category, price
-Order by: category ASC, price DESC
-Limit: 5 rows.`,
-        hint: 'WHERE price > 50, ORDER BY category ASC, price DESC, LIMIT 5.',
-        solution: `SELECT name, category, price
-FROM products
-WHERE price > 50
-ORDER BY category ASC, price DESC
-LIMIT 5;`
-      },
-      {
-        question: `Table: employees
-
-Write a query that uses DISTINCT to find all unique department-city combinations from employees, aliasing them as "dept" and "location".
-
-Return columns: dept, location (aliased from department, city)
-Order by: any order.`,
-        hint: 'Use DISTINCT on two columns with AS aliases.',
-        solution: `SELECT DISTINCT department AS dept, city AS location
-FROM employees;`
-      }
-    ]
-  },
-  {
-    id: 'joins',
-    title: 'Joins',
-    description: 'Combine data from multiple tables',
-    icon: '🔗',
-    difficulty: 'intermediate',
-    prerequisites: ['where', 'select'],
-    topics: ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'SELF JOIN', 'USING clause', 'ON vs WHERE', 'join predicate', 'filter predicate'],
-    explanation: `── Real-World Analogy ──
-Two tables are like two separate lists. INNER JOIN = "show me items that appear in BOTH lists."
-LEFT JOIN = "show me everything from list A, and add info from list B if available."
-
-Think of two puzzle pieces — the key column is the interlocking tab that connects them.
-
-── Visual: JOINs with Real Data ──
-  students table (LEFT):            registrations table (RIGHT):
-  ┌────┬────────┐                   ┌────┬────────────┐
-  │ id │ name   │                   │ id │ student_id │
-  ├────┼────────┤                   ├────┼────────────┤
-  │ 1  │ Alice  │                   │ 1  │ 1          │  ← Alice registered
-  │ 2  │ Bob    │                   │ 2  │ 3          │  ← Charlie registered
-  │ 3  │ Charlie│                   │ 3  │ 1          │  ← Alice registered again
-  │ 4  │ Diana  │                   └────┴────────────┘  Diana never registered
-  └────┴────────┘
-
-  INNER JOIN ON students.id = registrations.student_id:
-  ┌────┬─────────┬───────┐
-  │ id │ name    │ reg_id│  → Only students WITH registrations: Alice (2 regs), Charlie (1)
-  ├────┼─────────┼───────┤    Bob and Diana excluded (no match on the RIGHT)
-  │ 1  │ Alice   │ 1     │  ← registration id=1 links student 1 to course
-  │ 1  │ Alice   │ 3     │  ← registration id=3 links student 1 again
-  │ 3  │ Charlie │ 2     │  ← registration id=2 links student 3
-  └────┴─────────┴───────┘
-
-  LEFT JOIN ON students.id = registrations.student_id:
-  ┌────┬─────────┬───────┐
-  │ id │ name    │ reg_id│  → ALL students, even without registrations
-  ├────┼─────────┼───────┤    Bob and Diana show with NULL on the right-side columns
-  │ 1  │ Alice   │ 1     │
-  │ 1  │ Alice   │ 3     │
-  │ 2  │ Bob     │ NULL  │  ← Bob never registered → NULL for right-side columns
-  │ 3  │ Charlie │ 2     │
-  │ 4  │ Diana   │ NULL  │  ← Diana never registered → NULL for right-side columns
-  └────┴─────────┴───────┘
-
-── JOIN Types Quick Comparison ──
-| Join Type      | Returns                                | Use When                         |
-|----------------|----------------------------------------|----------------------------------|
-| INNER JOIN     | Only matching rows in BOTH tables      | "Get all students with courses"  |
-| LEFT JOIN      | ALL rows from LEFT + matches from RIGHT| "Get all students even if no reg"|
-| RIGHT JOIN     | ALL rows from RIGHT + matches from LEFT| "Get all courses even if empty"  |
-| FULL OUTER JOIN| ALL rows from BOTH tables              | "Get everything from both sides" |
-| CROSS JOIN     | Cartesion product (|A| × |B| rows)     | "Get all combinations"           |
-| SELF JOIN      | Table joined to itself (with aliases)  | "Find employees earning more"    |
-
-── Set Visual: What Each JOIN Returns ──
-  Think of two overlapping circles:
-  - Circle A = all rows from the LEFT table  (students)
-  - Circle B = all rows from the RIGHT table (registrations)
-  - Overlap  = rows that MATCH (students who have registrations)
-
-                      ┌─────┐
-          ┌─────┐     │  2  │     ┌─────┐
-          │     │     │ reg │     │     │
-          │  1  │     │  ids│     │  3  │
-          │ stu │     │  1  │     │ reg │
-          │ 2,4 │ ──► │  3  │ ◄── │ ids │
-          │ (no │     │     │     │ (no │
-          │ reg) │     │ stu │     │ stu)│
-          └─────┘     │ 1,3 │     └─────┘
-                      └─────┘
-        LEFT side            OVERLAP           RIGHT side
-      (only from A)     (A ∩ B = matched)   (only from B)
-
-  INNER = overlap only:       │Alice×2, Charlie│  (3 rows)
-  LEFT  = left + overlap:     │Alice×2, Bob, Charlie, Diana│  (5 rows)
-  RIGHT = overlap + right:    │Alice×2, Charlie│  (3 rows — no orphan regs)
-  FULL  = everything:         │Alice×2, Bob, Charlie, Diana│  (5 rows)
-  CROSS = A × B:              │4 students × 3 registrations = 12 rows│
-
-── ON vs USING vs WHERE in JOINs ──
-
-  ON     → specifies the JOIN condition (how rows MATCH between tables)
-  USING  → shorthand when the FK column has the SAME name in both tables
-  WHERE  → filters the result AFTER the JOIN is complete
-
-  -- ON: explicit, works with any column names
-  SELECT * FROM orders o
-  JOIN products p ON o.product_id = p.id;
-
-  -- USING: concise, columns must have identical names in both tables
-  SELECT * FROM orders
-  JOIN products USING (product_id);        -- only if both have "product_id"
-
-  -- WHERE (old implicit syntax, easy to forget condition → CROSS JOIN)
-  SELECT * FROM orders o, products p
-  WHERE o.product_id = p.id;               -- same as INNER JOIN
-
-── Critical: ON vs WHERE in OUTER JOINs ──
-  In LEFT/RIGHT/FULL JOINs, putting a right-table condition in WHERE
-  instead of ON can silently convert your outer join to an inner join:
-
-    LEFT JOIN products p ON o.product_id = p.id
-      AND p.category = 'Electronics'     ← ON: filters BEFORE join, keeps all orders
-      
-    LEFT JOIN products p ON o.product_id = p.id
-      WHERE p.category = 'Electronics'  ← WHERE: filters AFTER join, DROPS orders
-                                           with NULL products → acts like INNER JOIN
-
-    Rule of thumb:
-    - ON   → "which rows from the RIGHT table should I attempt to match?"
-    - WHERE → "which rows from the COMBINED result should I KEEP?"
-
-── Named Patterns: Semi-Join & Anti-Join ──
-  These aren't separate SQL keywords — they're patterns built from other JOINs:
-
-  Anti-join  = rows in A with NO match in B:
-    SELECT A.* FROM A LEFT JOIN B ON ... WHERE B.id IS NULL;
-    → "Products never ordered" (Example 3 above)
-
-  Semi-join  = rows in A that HAVE at least one match in B
-    (usually written with EXISTS or IN subquery, not with JOIN)
-    → "Customers who have placed orders"
-    ──
-    Note: INNER JOIN with DISTINCT on A's columns achieves the same
-    result, but EXISTS/IN is often clearer and avoids the DISTINCT.
-
-── Key Rules ──
-- LEFT JOIN = RIGHT JOIN with tables swapped (reverse table order to convert)
-- RIGHT JOIN mirrors LEFT JOIN; always rewritable as LEFT JOIN by swapping tables
-- RIGHT JOIN is not natively supported in SQLite before v3.39.0 — simulate with swapped LEFT JOIN
-- A meaningful N-table JOIN typically needs N-1 join conditions; fewer conditions → Cartesian product between unconnected tables
-- Always qualify column names with table aliases when joining (table.column) to avoid ambiguity
-- INNER JOIN can be written as: FROM A, B WHERE A.id = B.id (old implicit syntax) — but this is error-prone; use explicit JOIN
-- In LEFT JOIN, putting a right-table filter in WHERE instead of ON turns it into INNER JOIN (NULLs from failed matches are filtered out)
-- Anti-join pattern (LEFT JOIN + WHERE IS NULL) finds rows with NO match — essential for data quality checks`,
-    syntax: `-- INNER JOIN
-SELECT a.col, b.col
-FROM table_a a
-JOIN table_b b ON a.id = b.a_id;
-
--- LEFT JOIN
-SELECT a.col, b.col
-FROM table_a a
-LEFT JOIN table_b b ON a.id = b.a_id;
-
--- RIGHT JOIN
-SELECT a.col, b.col
-FROM table_a a
-RIGHT JOIN table_b b ON a.id = b.a_id;
-
--- FULL JOIN
-SELECT a.col, b.col
-FROM table_a a
-FULL JOIN table_b b ON a.id = b.a_id;
-
--- USING (shorthand when column name is identical)
-SELECT a.col, b.col
-FROM table_a a
-JOIN table_b b USING (shared_column);
-
--- CROSS JOIN
-SELECT a.col, b.col
-FROM table_a a
-CROSS JOIN table_b b;
-
--- SELF JOIN
-SELECT e1.name AS employee, e2.name AS manager
-FROM employees e1
-LEFT JOIN employees e2 ON e1.manager_id = e2.id;
-
--- Multiple JOINs
-SELECT o.id, c.name AS customer, p.name AS product
-FROM orders o
-JOIN customers c ON o.customer_id = c.id
-JOIN products p ON o.product_id = p.id;`,
-    examples: [
-      {
-        title: 'INNER JOIN — matching rows only',
-        sql: `SELECT o.id AS order_id,
-  o.customer_name,
-  p.name AS product,
-  o.quantity,
-  o.total
-FROM orders o
-JOIN products p ON o.product_id = p.id
-ORDER BY o.total DESC;`,
-        explanation: 'Joins orders to their product details. Only orders with valid product_ids appear. The ON clause specifies how rows match.',
-        sourceTables: ['orders', 'products'],
-        cppRepresentation: `struct Order { int id; string customer; int product_id; int quantity; double total; };
-struct Product { int id; string name; double price; };
-int resIds[100];
-string resCusts[100];
-string resProds[100];
-int resQtys[100];
-double resTotals[100];
-int resultSize = 0;
-for (int i = 0; i < orderCount; i++)
-    for (int j = 0; j < productCount; j++)
-        if (orders[i].product_id == products[j].id) {
-            resIds[resultSize] = orders[i].id;
-            resCusts[resultSize] = orders[i].customer;
-            resProds[resultSize] = products[j].name;
-            resQtys[resultSize] = orders[i].quantity;
-            resTotals[resultSize] = orders[i].total;
-            resultSize++;
-            break;
-        }
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++)
-        if (resTotals[j] < resTotals[j + 1]) {
-            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
-            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
-            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
-            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
-            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
-        }`
-      },
-      {
-        title: 'LEFT JOIN — include all from left',
-        sql: `SELECT p.name,
-  p.price,
-  o.id AS order_id,
-  o.customer_name
-FROM products p
-LEFT JOIN orders o ON p.id = o.product_id;`,
-        explanation: 'Shows all products, even ones never ordered. Products without orders get NULL for order_id and customer_name. INNER JOIN would exclude them.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `string names[100];
-double prices[100];
-int orderIds[100];
-string custs[100];
-bool hasOrder[100];
-int resultSize = 0;
-for (int i = 0; i < productCount; i++) {
-    bool matched = false;
-    for (int j = 0; j < orderCount; j++)
-        if (products[i].id == orders[j].product_id) {
-            names[resultSize] = products[i].name;
-            prices[resultSize] = products[i].price;
-            orderIds[resultSize] = orders[j].id;
-            custs[resultSize] = orders[j].customer;
-            hasOrder[resultSize] = true;
-            resultSize++;
-            matched = true;
-        }
-    if (!matched) {
-        names[resultSize] = products[i].name;
-        prices[resultSize] = products[i].price;
-        orderIds[resultSize] = -1;
-        custs[resultSize] = "";
-        hasOrder[resultSize] = false;
-        resultSize++;
-    }
-}`
-      },
-      {
-        title: 'LEFT JOIN — find missing matches',
-        sql: `SELECT p.name, p.category
-FROM products p
-LEFT JOIN orders o ON p.id = o.product_id
-WHERE o.id IS NULL;`,
-        explanation: 'Finds products that have never been ordered. The LEFT JOIN adds NULLs where no match exists; WHERE o.id IS NULL keeps only those.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `string resultNames[100];
-string resultCats[100];
-int resultSize = 0;
-for (int i = 0; i < productCount; i++) {
-    bool found = false;
-    for (int j = 0; j < orderCount; j++)
-        if (products[i].id == orders[j].product_id) { found = true; break; }
-    if (!found) { resultNames[resultSize] = products[i].name; resultCats[resultSize] = products[i].category; resultSize++; }
-}`
-      },
-      {
-        title: 'RIGHT JOIN — all from right table',
-        sql: `SELECT o.id AS order_id,
-  o.customer_name,
-  p.name AS product,
-  o.total
-FROM orders o
-RIGHT JOIN products p ON o.product_id = p.id
-ORDER BY p.name;`,
-        explanation: 'RIGHT JOIN keeps all rows from the RIGHT table (products), matching orders where they exist. Products without orders get NULL for order_id and customer. This is the mirror of LEFT JOIN — swap table order to convert between them.',
-        sourceTables: ['orders', 'products'],
-        cppRepresentation: `int orderIds[100];
-string custs[100];
-string prods[100];
-double totals[100];
-bool hasOrder[100];
-int resultSize = 0;
-for (int i = 0; i < productCount; i++) {
-    bool matched = false;
-    for (int j = 0; j < orderCount; j++)
-        if (orders[j].product_id == products[i].id) {
-            orderIds[resultSize] = orders[j].id;
-            custs[resultSize] = orders[j].customer;
-            prods[resultSize] = products[i].name;
-            totals[resultSize] = orders[j].total;
-            hasOrder[resultSize] = true;
-            resultSize++;
-            matched = true;
-        }
-    if (!matched) {
-        orderIds[resultSize] = -1;
-        custs[resultSize] = "";
-        prods[resultSize] = products[i].name;
-        totals[resultSize] = 0.0;
-        hasOrder[resultSize] = false;
-        resultSize++;
-    }
-}
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++)
-        if (prods[j] > prods[j + 1]) {
-            string tmpP = prods[j]; prods[j] = prods[j + 1]; prods[j + 1] = tmpP;
-            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
-            string tmpC = custs[j]; custs[j] = custs[j + 1]; custs[j + 1] = tmpC;
-            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
-            bool tmpH = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpH;
-        }`
-      },
-      {
-        title: 'FULL JOIN — all rows from both tables',
-        sql: `SELECT e.name AS employee,
-  e.department,
-  o.id AS order_id,
-  o.total
-FROM employees e
-FULL JOIN orders o ON e.name = o.customer_name
-ORDER BY e.name, o.id;`,
-        explanation: 'FULL JOIN keeps all rows from BOTH tables. Employees without orders show NULL for order columns. Orders that don\'t match any employee (if any) would also appear. FULL JOIN = LEFT JOIN + RIGHT JOIN + INNER JOIN combined.',
-        sourceTables: ['employees', 'orders'],
-        cppRepresentation: `string names[100];
-string depts[100];
-int orderIds[100];
-double totals[100];
-bool hasName[100];
-bool hasOrder[100];
-int resultSize = 0;
-string matchedNames[100];
-int matchedSize = 0;
-for (int i = 0; i < employeeCount; i++) {
-    bool matched = false;
-    for (int j = 0; j < orderCount; j++)
-        if (employees[i].name == orders[j].customer) {
-            names[resultSize] = employees[i].name;
-            depts[resultSize] = employees[i].department;
-            orderIds[resultSize] = orders[j].id;
-            totals[resultSize] = orders[j].total;
-            hasName[resultSize] = true;
-            hasOrder[resultSize] = true;
-            resultSize++;
-            matched = true;
-            matchedNames[matchedSize++] = employees[i].name;
-        }
-    if (!matched) {
-        names[resultSize] = employees[i].name;
-        depts[resultSize] = employees[i].department;
-        orderIds[resultSize] = -1;
-        totals[resultSize] = 0.0;
-        hasName[resultSize] = true;
-        hasOrder[resultSize] = false;
-        resultSize++;
-    }
-}
-for (int i = 0; i < orderCount; i++) {
-    bool found = false;
-    for (int j = 0; j < matchedSize; j++)
-        if (matchedNames[j] == orders[i].customer) { found = true; break; }
-    if (!found) {
-        names[resultSize] = "";
-        depts[resultSize] = "";
-        orderIds[resultSize] = orders[i].id;
-        totals[resultSize] = orders[i].total;
-        hasName[resultSize] = false;
-        hasOrder[resultSize] = true;
-        resultSize++;
-    }
-}
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++) {
-        string na = hasName[j] ? names[j] : "";
-        string nb = hasName[j + 1] ? names[j + 1] : "";
-        int oa = hasOrder[j] ? orderIds[j] : -1;
-        int ob = hasOrder[j + 1] ? orderIds[j + 1] : -1;
-        bool doSwap = false;
-        if (na > nb) doSwap = true;
-        else if (na == nb && oa > ob) doSwap = true;
-        if (doSwap) {
-            string tmpNa = names[j]; names[j] = names[j + 1]; names[j + 1] = tmpNa;
-            string tmpD = depts[j]; depts[j] = depts[j + 1]; depts[j + 1] = tmpD;
-            int tmpId = orderIds[j]; orderIds[j] = orderIds[j + 1]; orderIds[j + 1] = tmpId;
-            double tmpT = totals[j]; totals[j] = totals[j + 1]; totals[j + 1] = tmpT;
-            bool tmpHN = hasName[j]; hasName[j] = hasName[j + 1]; hasName[j + 1] = tmpHN;
-            bool tmpHO = hasOrder[j]; hasOrder[j] = hasOrder[j + 1]; hasOrder[j + 1] = tmpHO;
-        }
-    }`
-      },
-      {
-        title: 'Joining a table to itself',
-        sql: `SELECT e1.name AS employee,
-  e1.salary,
-  e2.name AS higher_earner,
-  e2.salary AS higher_salary
-FROM employees e1
-JOIN employees e2 ON e1.salary < e2.salary
-WHERE e1.department = 'Engineering'
-ORDER BY e1.name, e2.salary;`,
-        explanation: 'A self-join finds Engineering employees and all colleagues who earn more than them. The table appears twice with different aliases.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].department != "Engineering") continue;
-    for (int j = 0; j < employeeCount; j++)
-        if (employees[i].salary < employees[j].salary)
-            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";
-}`
-      },
-      {
-        title: 'CROSS JOIN — all combinations',
-        sql: `-- Every employee paired with every product (cartesian product)
-SELECT e.name AS employee, e.department, p.name AS product
-FROM employees e
-CROSS JOIN products p
-ORDER BY e.name, p.name
-LIMIT 15;
-
--- CROSS JOIN with a filter = restricting one table BEFORE crossing
--- This is NOT a join condition — it filters rows before the cross
-SELECT e.name, p.name
-FROM employees e
-CROSS JOIN products p
-WHERE e.department = 'Engineering'
-LIMIT 10;`,
-        explanation: 'CROSS JOIN produces every combination of rows (|A| × |B|). The first query pairs ALL 10 employees with ALL 8 products = 80 rows (limited to 15). The second filters Engineering employees FIRST (3 employees), THEN crosses with 8 products = 24 rows. Use cautiously — results grow exponentially.',
-        sourceTables: ['employees', 'products'],
-        cppRepresentation: `string resNames[100];
-string resDepts[100];
-string resProds[100];
-int resultSize = 0;
-for (int i = 0; i < employeeCount; i++)
-    if (employees[i].department == "Engineering")
-        for (int j = 0; j < productCount; j++) {
-            resNames[resultSize] = employees[i].name;
-            resDepts[resultSize] = employees[i].department;
-            resProds[resultSize] = products[j].name;
-            resultSize++;
-        }
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++) {
-        bool doSwap = false;
-        if (resNames[j] > resNames[j + 1]) doSwap = true;
-        else if (resNames[j] == resNames[j + 1] && resProds[j] > resProds[j + 1]) doSwap = true;
-        if (doSwap) {
-            string tmpN = resNames[j]; resNames[j] = resNames[j + 1]; resNames[j + 1] = tmpN;
-            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
-            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
-        }
-    }
-if (resultSize > 15) resultSize = 15;`
-      },
-      {
-        title: 'ON vs WHERE in LEFT JOIN (critical concept)',
-        sql: `-- LEFT JOIN with filter in ON: keeps ALL employees
--- right-table filter is evaluated BEFORE the join
-SELECT e.name, e.department, o.total
-FROM employees e
-LEFT JOIN orders o
-  ON e.name = o.customer_name
-  AND o.total > 200
-ORDER BY e.name;
-
--- Same LEFT JOIN with filter in WHERE: DROPS employees with no matching order
--- right-table filter is evaluated AFTER the join → NULLs get filtered out
-SELECT e.name, e.department, o.total
-FROM employees e
-LEFT JOIN orders o ON e.name = o.customer_name
-WHERE o.total > 200
-ORDER BY e.name;`,
-        explanation: 'The first query keeps ALL employees (LEFT JOIN), only matching orders over $200. Employees without orders >$200 still appear with NULL total. The second query behaves like INNER JOIN: WHERE filters out rows where o.total IS NULL, so employees without matching orders disappear entirely.',
-        sourceTables: ['employees', 'orders'],
-        cppRepresentation: `// ON filter (keeps all employees):
-for (int i = 0; i < employeeCount; i++) {
-    bool matched = false;
-    for (int j = 0; j < orderCount; j++)
-        if (employees[i].name == orders[j].customer_name && orders[j].total > 200) {
-            cout << employees[i].name << " | " << orders[j].total << "\\n";
-            matched = true;
-        }
-    if (!matched) cout << employees[i].name << " | NULL\\n";
-}
-// WHERE filter (drops employees without qualifying orders):
-for (int i = 0; i < employeeCount; i++)
-    for (int j = 0; j < orderCount; j++)
-        if (employees[i].name == orders[j].customer_name && orders[j].total > 200)
-            cout << employees[i].name << " | " << orders[j].total << "\\n";`
-      },
-      {
-        title: 'USING clause — shorter syntax for equi-joins',
-        sql: `-- USING requires identical column names in both tables
--- Here: products.id = order_items.product_id
-SELECT p.name, oi.quantity
-FROM products p
-JOIN order_items oi USING (product_id)
-ORDER BY p.name;
-
--- Equivalent ON version (more flexible)
-SELECT p.name, oi.quantity
-FROM products p
-JOIN order_items oi ON p.id = oi.product_id
-ORDER BY p.name;
-
--- Multi-table USING: joins on shared "id" columns
--- Only works when ALL joined tables have "id" as the FK name
-SELECT c.name, o.total, p.name AS product
-FROM customers c
-JOIN orders o USING (id)            -- error: orders.id ≠ customers.id
-JOIN products p ON o.product_id = p.id;`,
-        explanation: 'USING is syntactic sugar for equi-joins where the FK column has the same name in both tables. It avoids the redundant ON condition. Limitation: both columns must have identical names and you cannot qualify the join column with a table alias in the SELECT list.',
-        sourceTables: ['products', 'order_items', 'customers', 'orders'],
-        cppRepresentation: `// USING is just syntax sugar — same result as ON
-for (int i = 0; i < productCount; i++)
-    for (int j = 0; j < orderItemCount; j++)
-        if (products[i].id == orderItems[j].product_id)
-            cout << products[i].name << " | " << orderItems[j].quantity << "\\n";`
-      },
-      {
-        title: 'Multiple JOINs',
-        sql: `SELECT o.id AS order_id,
-  o.customer_name,
-  p.name AS product,
-  p.category,
-  o.quantity,
-  o.total,
-  e.department AS customer_department
-FROM orders o
-JOIN products p ON o.product_id = p.id
-JOIN employees e ON o.customer_name = e.name
-ORDER BY o.total DESC;`,
-        explanation: 'Joins all three tables: orders to products by product_id, and orders to employees by customer name. Shows order details enriched with product info and the purchasing employee department.',
-        sourceTables: ['orders', 'products', 'employees'],
-        cppRepresentation: `struct Product { int id; string name; string category; double price; int stock; };
-struct Employee { int id; string name; string department; double salary; string status; };
-int resIds[100];
-string resCusts[100];
-string resProds[100];
-string resCats[100];
-int resQtys[100];
-double resTotals[100];
-string resDepts[100];
-int resultSize = 0;
-for (int i = 0; i < orderCount; i++) {
-    int mpIdx = -1;
-    int meIdx = -1;
-    for (int j = 0; j < productCount; j++)
-        if (orders[i].product_id == products[j].id) { mpIdx = j; break; }
-    for (int k = 0; k < employeeCount; k++)
-        if (orders[i].customer == employees[k].name) { meIdx = k; break; }
-    if (mpIdx != -1 && meIdx != -1) {
-        resIds[resultSize] = orders[i].id;
-        resCusts[resultSize] = orders[i].customer;
-        resProds[resultSize] = products[mpIdx].name;
-        resCats[resultSize] = products[mpIdx].category;
-        resQtys[resultSize] = orders[i].quantity;
-        resTotals[resultSize] = orders[i].total;
-        resDepts[resultSize] = employees[meIdx].department;
-        resultSize++;
-    }
-}
-for (int i = 0; i < resultSize - 1; i++)
-    for (int j = 0; j < resultSize - 1 - i; j++)
-        if (resTotals[j] < resTotals[j + 1]) {
-            double tmpT = resTotals[j]; resTotals[j] = resTotals[j + 1]; resTotals[j + 1] = tmpT;
-            int tmpId = resIds[j]; resIds[j] = resIds[j + 1]; resIds[j + 1] = tmpId;
-            string tmpC = resCusts[j]; resCusts[j] = resCusts[j + 1]; resCusts[j + 1] = tmpC;
-            string tmpP = resProds[j]; resProds[j] = resProds[j + 1]; resProds[j + 1] = tmpP;
-            string tmpCa = resCats[j]; resCats[j] = resCats[j + 1]; resCats[j + 1] = tmpCa;
-            int tmpQ = resQtys[j]; resQtys[j] = resQtys[j + 1]; resQtys[j + 1] = tmpQ;
-            string tmpD = resDepts[j]; resDepts[j] = resDepts[j + 1]; resDepts[j + 1] = tmpD;
-        }`
-      },
-      {
-        title: 'JOIN with GROUP BY',
-        sql: `SELECT p.category,
-  COUNT(DISTINCT o.id) AS orders_count,
-  ROUND(SUM(o.total), 2) AS total_revenue,
-  ROUND(AVG(o.total), 2) AS avg_order_value
-FROM products p
-LEFT JOIN orders o ON p.id = o.product_id
-GROUP BY p.category
-ORDER BY total_revenue DESC;`,
-        explanation: 'Joins products to orders then groups by product category. LEFT JOIN ensures categories with no orders still appear with zero counts.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `string cats[100];
-double revSums[100];
-int revCounts[100];
-int distinctCounts[100];
-int catSize = 0;
-for (int i = 0; i < productCount; i++) {
-    int idx = -1;
-    for (int j = 0; j < catSize; j++)
-        if (cats[j] == products[i].category) { idx = j; break; }
-    if (idx == -1) { idx = catSize++; cats[idx] = products[i].category; revSums[idx] = 0; revCounts[idx] = 0; distinctCounts[idx] = 0; }
-}
-int seenIds[100];
-int seenSize;
-for (int i = 0; i < catSize; i++) {
-    seenSize = 0;
-    for (int j = 0; j < productCount; j++)
-        if (products[j].category == cats[i])
-            for (int k = 0; k < orderCount; k++)
-                if (products[j].id == orders[k].product_id) {
-                    revSums[i] += orders[k].total;
-                    revCounts[i]++;
-                    bool dup = false;
-                    for (int l = 0; l < seenSize; l++)
-                        if (seenIds[l] == orders[k].id) { dup = true; break; }
-                    if (!dup) { seenIds[seenSize++] = orders[k].id; distinctCounts[i]++; }
-                }
-}
-for (int i = 0; i < catSize; i++) {
-    double sum = revSums[i];
-    int cnt = distinctCounts[i];
-    cout << cats[i] << " | orders=" << cnt << " | rev=$" << round(sum * 100) / 100
-         << " | avg=$" << (revCounts[i] == 0 ? 0.0 : round(sum / revCounts[i] * 100) / 100) << "\\n";
-}`
-      },
-      {
-        title: 'Self-Join for same-department peers',
-        sql: `SELECT e1.name AS employee,
-  e1.salary,
-  e2.name AS peer,
-  e2.salary AS peer_salary
-FROM employees e1
-JOIN employees e2 ON e1.department = e2.department
-  AND e1.name < e2.name
-  AND e1.salary <> e2.salary
-ORDER BY e1.department, e1.name;`,
-        explanation: 'A self-join finds same-department pairs with different salaries. The e1.name < e2.name condition prevents duplicate pairs and self-matches.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++)
-    for (int j = 0; j < employeeCount; j++)
-        if (employees[i].department == employees[j].department && employees[i].name < employees[j].name && employees[i].salary != employees[j].salary)
-            cout << employees[i].name << " ($" << employees[i].salary << ") | " << employees[j].name << " ($" << employees[j].salary << ")\\n";`
-      }
-    ],
-    commonMistakes: [
-      'Forgetting the JOIN condition (creates a Cartesian product — CROSS JOIN)',
-      'Using LEFT JOIN when INNER JOIN is sufficient (worse performance, unexpected NULLs)',
-      'Not qualifying column names when both tables have the same column name',
-      'Putting a right-table filter in WHERE instead of ON for LEFT JOIN — silently converts to INNER JOIN',
-      'Using USING but the column names differ between tables (USING requires identical names)',
-      'Forgetting table aliases in self-joins (must use different aliases for each instance)'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: products, orders
-
-List all products and their total order quantity. Include products that have never been ordered (they should show NULL for quantity).
-
-Return columns: name, price, total_ordered
-Order by: total_ordered DESC NULLS LAST.`,
-        hint: 'Use LEFT JOIN from products to orders, GROUP BY product, and SUM(quantity).',
-        solution: `SELECT 
-  p.name,
-  p.price,
-  SUM(o.quantity) AS total_ordered
-FROM products p
-LEFT JOIN orders o ON p.id = o.product_id
-GROUP BY p.name, p.price
-ORDER BY total_ordered DESC NULLS LAST;`
-      },
-      {
-        question: `Table: employees
-
-Find pairs of employees in the same department where one earns more than the other.
-
-Return columns: higher_earner, salary (of higher earner), lower_earner, salary (of lower earner), department
-Order by: department, higher_earner salary DESC.`,
-        hint: 'Use a SELF JOIN on employees with e1.department = e2.department AND e1.salary > e2.salary.',
-        solution: `SELECT 
-  e1.name AS higher_earner,
-  e1.salary,
-  e2.name AS lower_earner,
-  e2.salary,
-  e1.department
-FROM employees e1
-JOIN employees e2 ON e1.department = e2.department AND e1.salary > e2.salary
-ORDER BY e1.department, e1.salary DESC;`
-      },
-      {
-        question: `Table: products, orders
-
-Challenge: Find products that have never been ordered. Use a LEFT JOIN between products and orders to identify products with no matching orders.
-
-Return columns: name, price, category
-Order by: any order.`,
-        hint: 'LEFT JOIN products to orders, then filter WHERE orders.id IS NULL. This finds products with no matching order records.',
-        solution: `SELECT p.name, p.price, p.category
-FROM products p
-LEFT JOIN orders o ON p.id = o.product_id
-WHERE o.id IS NULL;`
-      },
-      {
-        question: `Table: employees, orders, products
-
-Use INNER JOIN across three tables to show each employee's name, the products they ordered, quantities, and order dates.
-
-Return columns: employee_name, product_name, quantity, order_date
-Order by: order_date ASC, employee_name ASC.`,
-        hint: 'Chain two JOINs: FROM employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. Select the relevant columns.',
-        solution: `SELECT e.name AS employee_name,
-  p.name AS product_name,
-  o.quantity,
-  o.order_date
-FROM employees e
-JOIN orders o ON e.name = o.customer_name
-JOIN products p ON o.product_id = p.id
-ORDER BY o.order_date, e.name;`
-      },
-      {
-        question: `Table: products, departments
-
-Use CROSS JOIN to pair every product with every department, showing all possible combinations.
-
-Return columns: product_name, category, department_name
-Order by: product_name ASC, department_name ASC.`,
-        hint: 'Use SELECT p.name, p.category, d.name FROM products p CROSS JOIN departments d. No ON clause needed — CROSS JOIN produces a Cartesian product.',
-        solution: `SELECT p.name AS product_name,
-  p.category,
-  d.name AS department_name
-FROM products p
-CROSS JOIN departments d
-ORDER BY p.name, d.name;`
-      },
-      {
-        question: `Table: customers, orders
-
-Use FULL OUTER JOIN to show all customers and all orders, including customers with no orders and orders with no matching customer.
-
-Return columns: customer_name, order_id, total, order_date
-Order by: customer_name ASC NULLS LAST, order_date ASC.`,
-        hint: 'Use FULL JOIN ... ON customers.name = orders.customer_name. SQLite supports FULL JOIN since version 3.39.0.',
-        solution: `SELECT c.name AS customer_name,
-  o.id AS order_id,
-  o.total,
-  o.order_date
-FROM customers c
-FULL JOIN orders o ON c.name = o.customer_name
-ORDER BY c.name NULLS LAST, o.order_date;`
-      },
-      {
-        question: `Table: products, orders
-
-Simulate RIGHT JOIN using LEFT JOIN. Show all orders and their product info, including orders whose product_id has no match in products.
-
-Return columns: order_id, product_name, quantity, total
-Order by: order_id ASC.`,
-        hint: 'SQLite does not support RIGHT JOIN. Simulate it by swapping table order: SELECT ... FROM orders o LEFT JOIN products p ON o.product_id = p.id.',
-        solution: `SELECT o.id AS order_id,
-  p.name AS product_name,
-  o.quantity,
-  o.total
-FROM orders o
-LEFT JOIN products p ON o.product_id = p.id
-ORDER BY o.id;`
-      },
-      {
-        question: `Table: employees, products, orders
-
-Medium: Find departments where the total value of products ordered by employees in that department exceeds $500. Use JOINs across all three tables.
-
-Return columns: department, total_order_value, employee_count
-Order by: total_order_value DESC.`,
-        hint: 'JOIN employees e JOIN orders o ON e.name = o.customer_name JOIN products p ON o.product_id = p.id. GROUP BY department. Use SUM(o.total) and COUNT(DISTINCT e.name). Add HAVING SUM(o.total) > 500.',
-        solution: `SELECT e.department,
-  ROUND(SUM(o.total), 2) AS total_order_value,
-  COUNT(DISTINCT e.name) AS employee_count
-FROM employees e
-JOIN orders o ON e.name = o.customer_name
-JOIN products p ON o.product_id = p.id
-GROUP BY e.department
-HAVING SUM(o.total) > 500
-ORDER BY total_order_value DESC;`
-      },
-      {
-        question: `Table: employees, orders
-
-Medium: Show each employee with their total order value. Use a LEFT JOIN so employees with zero orders also appear (show 0 instead of NULL). Label them "Active" if they have > 0 total.
-
-Return columns: name, department, total_spent, status
-Order by: total_spent DESC, name ASC.`,
-        hint: 'LEFT JOIN employees e LEFT JOIN orders o ON e.name = o.customer_name. GROUP BY e.name. Use COALESCE(SUM(o.total), 0). Use CASE for the status label.',
-        solution: `SELECT e.name, e.department,
-  COALESCE(ROUND(SUM(o.total), 2), 0) AS total_spent,
-  CASE WHEN SUM(o.total) > 0 THEN 'Active' ELSE 'Inactive' END AS status
-FROM employees e
-LEFT JOIN orders o ON e.name = o.customer_name
-GROUP BY e.name, e.department
-ORDER BY total_spent DESC, e.name;`
-      },
-      {
-        question: `Table: employees
-
-Advanced: Use a SELF JOIN on manager_id to find managers who earn less than at least one of their direct reports. Show manager name, manager salary, report name, and report salary.
-
-Return columns: manager, manager_salary, report, report_salary
-Order by: manager ASC, report_salary DESC.`,
-        hint: 'JOIN employees m (manager) JOIN employees r (report) ON m.id = r.manager_id. Filter WHERE m.salary < r.salary. Manager is the one whose id matches the report\'s manager_id.',
-        solution: `SELECT m.name AS manager,
-  m.salary AS manager_salary,
-  r.name AS report,
-  r.salary AS report_salary
-FROM employees m
-JOIN employees r ON m.id = r.manager_id
-WHERE m.salary < r.salary
-ORDER BY m.name, r.salary DESC;`
-      }
-    ]
-  },
-  {
-    id: 'subqueries',
-    title: 'Subqueries',
-    description: 'Nest queries within queries for powerful data retrieval',
-    icon: '🪆',
-    difficulty: 'intermediate',
-    prerequisites: ['where', 'select', 'group-by'],
-    topics: ['scalar subquery', 'correlated subquery', 'EXISTS', 'IN', 'ANY', 'ALL'],
-    explanation: `── Real-World Analogy ──
-A subquery is like a Russian nesting doll (matryoshka): a query inside another query.
-The inner doll (subquery) is solved FIRST, then its answer is used by the outer doll.
-
-  "Show me employees who earn MORE than the company average"
-  → Step 1 (inner):  WHAT is the company average?  → 85K
-  → Step 2 (outer):  WHICH employees earn > 85K?
-
-── Visual: Non-Correlated Subquery (runs ONCE) ──
-  Outer: SELECT * FROM employees WHERE salary > (INNER)
-                                                   │
-                                                   ▼
-  Inner: SELECT AVG(salary) FROM employees  ──►  Returns: 85K
-                                                   │
-                                                   ▼
-  Outer continues: WHERE salary > 85K  ──►  Returns high earners
-
-  Flow: Inner runs ONCE → result cached → outer uses it for every row
-
-── Visual: Correlated Subquery (runs PER ROW) ──
-  Outer: SELECT * FROM employees e WHERE salary > (INNER that depends on e.department)
-                                                   │
-  For EACH employee row in the outer query:        ▼
-  Inner runs AGAIN with THAT employee's department:
-    Alice (IT)      → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 100K > 90K? ✅
-    Bob (Sales)     → SELECT AVG(salary) WHERE dept = 'Sales'   → 80K → 70K > 80K? ❌
-    Charlie (IT)    → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 92K > 90K? ✅
-
-── Subquery Types Comparison ──
-| Type               | Returns            | Used In              | Example                                |
-|--------------------|--------------------|-----------------------|----------------------------------------|
-| Scalar subquery    | Single value       | SELECT, WHERE, HAVING | (SELECT AVG(salary) FROM employees)    |
-| Row subquery       | Single row         | WHERE                 | WHERE (col1, col2) = (SELECT ...)      |
-| Table subquery     | Multiple rows/cols | FROM (derived table)  | FROM (SELECT ...) AS sub               |
-| Correlated subquery| Varies             | WHERE, SELECT, EXISTS | WHERE col > (SELECT ... FROM outer)    |
-
-── Golden Rules ──
-- Subqueries in parentheses: (SELECT ...)
-- Subqueries in FROM MUST have an alias: FROM (SELECT ...) AS t
-- Scalar subquery must return EXACTLY one value (or NULL)
-- EXISTS checks for row EXISTENCE, not data — use SELECT 1 inside
-- Non-correlated runs ONCE (fast). Correlated runs PER ROW (potentially slow)
-- If a JOIN can do the job, prefer JOIN for efficiency`,
-    syntax: `-- Scalar subquery in SELECT
-SELECT 
-  name,
-  salary,
-  (SELECT AVG(salary) FROM employees) AS avg_salary
-FROM employees;
-
--- Subquery in WHERE with IN
-SELECT name, department
-FROM employees
-WHERE department IN (
-  SELECT DISTINCT department
-  FROM employees
-  WHERE salary > 90000
-);
-
--- Correlated subquery with EXISTS
-SELECT name
-FROM employees e
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.customer = e.name
-    AND o.total > 100
-);
-
--- Subquery in FROM (derived table)
-SELECT dept, avg_salary
-FROM (
-  SELECT department AS dept, AVG(salary) AS avg_salary
-  FROM employees
-  GROUP BY department
-) sub
-WHERE avg_salary > 60000;`,
-    examples: [
-      {
-        title: 'Scalar subquery in SELECT',
-        sql: `SELECT name, salary,
-  (SELECT ROUND(AVG(salary), 0) FROM employees) AS company_avg,
-  ROUND(100.0 * salary / (SELECT AVG(salary) FROM employees), 1) AS pct_of_avg
-FROM employees
-WHERE salary > (SELECT AVG(salary) FROM employees);`,
-        explanation: 'The subquery in parentheses runs first to find the average salary. The outer query then uses that value to filter and compare.',
-        sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
-for (int i=0;i<employeeCount;i++)
-    if (employees[i].salary>companyAvg)
-        cout<<employees[i].name<<" | "<<employees[i].salary<<" | "<<round(companyAvg)<<" | "<<round(100.0*employees[i].salary/companyAvg*10)/10<<"%\\n";`
-      },
-      {
-        title: 'Subquery with IN',
-        sql: `SELECT name, department, salary
-FROM employees
-WHERE department IN (
-  SELECT department
-  FROM employees
-  WHERE salary > 90000
-);`,
-        explanation: 'The inner query finds departments with high earners. The outer query returns all employees in those departments.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string highDepts[100]; int highCnt=0;
-for (int i=0;i<employeeCount;i++) if (employees[i].salary>90000) {
-    bool dup=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) dup=true;
-    if (!dup) highDepts[highCnt++]=employees[i].department;
-}
-for (int i=0;i<employeeCount;i++) {
-    bool found=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) found=true;
-    if (found) cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";
-}`
-      },
-      {
-        title: 'EXISTS — correlated subquery',
-        sql: `SELECT p.name, p.price, p.category
-FROM products p
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.product_id = p.id
-    AND o.total > 500
-);`,
-        explanation: 'For each product, the EXISTS check runs the subquery. If that product has an order over $500, the product is included.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `for (int i=0;i<productCount;i++) {
-    bool found=false;
-    for (int j=0;j<orderCount;j++) if (orders[j].product_id==products[i].id && orders[j].total>500) { found=true; break; }
-    if (found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
-}`
-      },
-      {
-        title: 'Subquery in FROM (derived table)',
-        sql: `SELECT department,
-  employee_count
-FROM (
-  SELECT 
-    department,
-    AVG(salary) AS avg_salary,
-    COUNT(*) AS employee_count
-  FROM employees
-  GROUP BY department
-) dept_stats
-WHERE employee_count >= 5
-ORDER BY avg_salary DESC;`,
-        explanation: 'First computes department statistics in a subquery, then filters and sorts the results.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string depts[100]; double sums[100]; int counts[100]; int deptCount=0;
-for (int i=0;i<employeeCount;i++) {
-    string d=employees[i].department; int idx=-1;
-    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
-    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; counts[deptCount]=0; deptCount++; }
-    sums[idx]+=employees[i].salary; counts[idx]++;
-}
-string outDepts[100]; double outAvgs[100]; int outCnts[100]; int outCount=0;
-for (int i=0;i<deptCount;i++) {
-    double avg=sums[i]/counts[i];
-    if (counts[i]>=5) { outDepts[outCount]=depts[i]; outAvgs[outCount]=avg; outCnts[outCount]=counts[i]; outCount++; }
-}
-for (int i=0;i<outCount;i++) for (int j=i+1;j<outCount;j++) if (outAvgs[j]>outAvgs[i]) {
-    string td=outDepts[i]; outDepts[i]=outDepts[j]; outDepts[j]=td;
-    double ta=outAvgs[i]; outAvgs[i]=outAvgs[j]; outAvgs[j]=ta;
-    int tc=outCnts[i]; outCnts[i]=outCnts[j]; outCnts[j]=tc;
-}
-for (int i=0;i<outCount;i++) cout<<outDepts[i]<<" | "<<outCnts[i]<<"\\n";`
-      },
-      {
-        title: 'NOT EXISTS — finding missing records',
-        sql: `SELECT p.name, p.price, p.category
-FROM products p
-WHERE NOT EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.product_id = p.id
-);`,
-        explanation: 'NOT EXISTS finds products that have no matching orders. For each product, the subquery checks if any order references it.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
-for (int i=0;i<orderCount;i++) {
-    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
-    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
-}
-for (int i=0;i<productCount;i++) {
-    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
-    if (!found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
-}`
-      },
-      {
-        title: 'Subquery with comparison operator',
-        sql: `SELECT name, salary, department
-FROM employees
-WHERE salary > (
-  SELECT AVG(salary) FROM employees
-)
-ORDER BY salary DESC;`,
-        explanation: 'The subquery computes the company-wide average salary once. The outer query finds all employees earning above that average.',
-        sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double avgSal=total/employeeCount;
-Employee above[1000]; int aboveCount=0;
-for (int i=0;i<employeeCount;i++) if (employees[i].salary>avgSal) above[aboveCount++]=employees[i];
-for (int i=0;i<aboveCount;i++) for (int j=i+1;j<aboveCount;j++) if (above[j].salary>above[i].salary) {
-    Employee t=above[i]; above[i]=above[j]; above[j]=t;
-}
-for (int i=0;i<aboveCount;i++) cout<<above[i].name<<" | "<<above[i].salary<<" | "<<above[i].department<<"\\n";`
-      },
-      {
-        title: 'Nested subqueries',
-        sql: `SELECT name, department, salary
-FROM employees
-WHERE salary > (
-  SELECT AVG(salary)
-  FROM employees
-  WHERE department IN (
-    SELECT department
-    FROM employees
-    GROUP BY department
-    HAVING AVG(salary) > 70000
-  )
-)
-ORDER BY salary DESC;`,
-        explanation: 'The innermost subquery finds departments with avg salary > $70k. The middle subquery computes the average of those departments. The outer query finds employees above that average.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
-for (int i=0;i<employeeCount;i++) {
-    string d=employees[i].department; int idx=-1;
-    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
-    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
-    sums[idx]+=employees[i].salary; cnts[idx]++;
-}
-double subsetTotal=0; int subsetCount=0;
-for (int i=0;i<deptCount;i++) {
-    double avg=sums[i]/cnts[i];
-    if (avg>70000) { subsetTotal+=sums[i]; subsetCount+=cnts[i]; }
-}
-double threshold=subsetTotal/subsetCount;
-for (int i=0;i<employeeCount;i++) if (employees[i].salary>threshold)
-    cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";`
-      },
-      {
-        title: 'Subquery in SELECT for comparison',
-        sql: `SELECT name, department, salary,
-  (SELECT ROUND(AVG(salary), 0) FROM employees e2 WHERE e2.department = employees.department) AS dept_avg_salary,
-  ROUND(salary - (SELECT AVG(salary) FROM employees e2 WHERE e2.department = employees.department), 0) AS diff_from_dept_avg
-FROM employees
-ORDER BY department, salary DESC;`,
-        explanation: 'Shows each employee\'s salary versus their department\'s average using a correlated scalar subquery in SELECT. The dept_avg_salary and difference are computed per row.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
-for (int i=0;i<employeeCount;i++) {
-    string d=employees[i].department; int idx=-1;
-    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
-    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
-    sums[idx]+=employees[i].salary; cnts[idx]++;
-}
-double deptAvg[100];
-for (int i=0;i<deptCount;i++) deptAvg[i]=sums[i]/cnts[i];
-Employee sorted[1000]; int sortedCount=employeeCount;
-for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
-for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) {
-    bool swp=false;
-    if (sorted[j].department!=sorted[i].department) { if (sorted[j].department<sorted[i].department) swp=true; }
-    else if (sorted[j].salary>sorted[i].salary) swp=true;
-    if (swp) { Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t; }
-}
-for (int i=0;i<sortedCount;i++) {
-    int di=-1; for (int j=0;j<deptCount;j++) if (depts[j]==sorted[i].department) { di=j; break; }
-    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(deptAvg[di])<<" | "<<round(sorted[i].salary-deptAvg[di])<<"\\n";
-}`
-      },
-      {
-        title: 'Multiple subqueries in one query',
-        sql: `SELECT name,
-  department,
-  salary,
-  (SELECT ROUND(AVG(salary), 0) FROM employees) AS company_avg,
-  (SELECT MAX(salary) FROM employees WHERE department = employees.department) AS dept_max,
-  ROUND(100.0 * salary / (SELECT AVG(salary) FROM employees), 1) AS pct_of_company_avg
-FROM employees
-ORDER BY salary DESC;`,
-        explanation: 'Two different scalar subqueries in SELECT compute the company-wide average and the department maximum salary side by side with each employee\'s data.',
-        sourceTables: ['employees'],
-        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
-string deptMaxDepts[100]; double deptMaxVals[100]; int deptMaxCount=0;
-for (int i=0;i<employeeCount;i++) {
-    string d=employees[i].department; int idx=-1;
-    for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==d) { idx=j; break; }
-    if (idx==-1) { idx=deptMaxCount; deptMaxDepts[deptMaxCount]=d; deptMaxVals[deptMaxCount]=0; deptMaxCount++; }
-    if (employees[i].salary>deptMaxVals[idx]) deptMaxVals[idx]=employees[i].salary;
-}
-Employee sorted[1000]; int sortedCount=employeeCount;
-for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
-for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) if (sorted[j].salary>sorted[i].salary) {
-    Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t;
-}
-for (int i=0;i<sortedCount;i++) {
-    int di=-1; for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==sorted[i].department) { di=j; break; }
-    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(companyAvg)<<" | "<<deptMaxVals[di]<<" | "<<round(100.0*sorted[i].salary/companyAvg*10)/10<<"%\\n";
-}`
-      },
-      {
-        title: 'NOT IN with subquery',
-        sql: `SELECT name, category, price
-FROM products
-WHERE id NOT IN (
-  SELECT DISTINCT product_id
-  FROM orders
-  WHERE product_id IS NOT NULL
-)
-ORDER BY price DESC;`,
-        explanation: 'Finds products that have never been ordered. The subquery returns all product_ids that appear in orders; NOT IN excludes them from the result.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
-for (int i=0;i<orderCount;i++) {
-    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
-    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
-}
-Product neverOrdered[1000]; int neverCount=0;
-for (int i=0;i<productCount;i++) {
-    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
-    if (!found) neverOrdered[neverCount++]=products[i];
-}
-for (int i=0;i<neverCount;i++) for (int j=i+1;j<neverCount;j++) if (neverOrdered[j].price>neverOrdered[i].price) {
-    Product t=neverOrdered[i]; neverOrdered[i]=neverOrdered[j]; neverOrdered[j]=t;
-}
-for (int i=0;i<neverCount;i++) cout<<neverOrdered[i].name<<" | "<<neverOrdered[i].category<<" | "<<neverOrdered[i].price<<"\\n";`
-      },
-    ],
-    commonMistakes: [
-      'Using IN with a subquery that returns NULLs (IN becomes UNKNOWN for NULL comparisons)',
-      'Writing correlated subqueries that execute row-by-row (performance killer)',
-      'Forgetting to alias subqueries in FROM clause',
-      'Using a subquery where a JOIN would be more efficient and readable'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: employees
-
-Find employees whose salary is above the average salary of their own department.
-
-Return columns: name, salary, department
-Order by: department, salary DESC.`,
-        hint: 'Use a correlated subquery in the WHERE clause that references the outer employee\'s department.',
-        solution: `SELECT name, salary, department
-FROM employees e
-WHERE salary > (
-  SELECT AVG(salary)
-  FROM employees
-  WHERE department = e.department
-)
-ORDER BY department, salary DESC;`
-      },
-      {
-        question: `Table: employees
-
-Find departments that have no employees assigned. (Use a subquery with NOT IN on the employees table.)
-
-Return columns: department
-Order by: any order.`,
-        hint: 'List of actual departments: Engineering, Product, Marketing, Sales, HR.',
-        solution: `SELECT d.department
-FROM (
-  SELECT 'Engineering' AS department
-  UNION SELECT 'Product'
-  UNION SELECT 'Marketing'
-  UNION SELECT 'Sales'
-  UNION SELECT 'HR'
-) d
-WHERE d.department NOT IN (
-  SELECT DISTINCT department FROM employees
-);`
-      },
-      {
-        question: `Table: products
-
-Challenge: Use a scalar subquery in the SELECT clause to show each product's name, price, and what percentage its price represents of the total price of ALL products. Round the percentage to 2 decimal places.
-
-Return columns: name, price, pct_of_total
-Order by: pct_of_total DESC.`,
-        hint: 'Use a scalar subquery: (SELECT SUM(price) FROM products) to get the total. Then compute price * 100.0 / total in the SELECT.',
-        solution: `SELECT name, price,
-  ROUND(price * 100.0 / (SELECT SUM(price) FROM products), 2) AS pct_of_total
-FROM products
-ORDER BY pct_of_total DESC;`
-      },
-      {
-        question: `Table: employees
-
-Challenge: Find the employee who earns the closest to the company average salary (absolute difference).
-
-Return columns: name, salary, company_avg, diff_from_avg
-Order by: diff_from_avg ASC
-Limit: 1 row.`,
-        hint: 'Compute ABS(salary - (SELECT AVG(salary) FROM employees)) in SELECT. Use ORDER BY that expression. LIMIT 1. Use a CTE or duplicate the subquery.',
-        solution: `SELECT name, salary,
-  ROUND((SELECT AVG(salary) FROM employees), 2) AS company_avg,
-  ROUND(ABS(salary - (SELECT AVG(salary) FROM employees)), 2) AS diff_from_avg
-FROM employees
-ORDER BY ABS(salary - (SELECT AVG(salary) FROM employees))
-LIMIT 1;`
-      }
-    ]
-  },
-  {
     id: 'case-when',
     title: 'CASE WHEN',
     description: 'Conditional logic and value mapping in SQL queries',
@@ -4099,6 +3643,413 @@ Order by: grand_total DESC.`,
 FROM orders
 GROUP BY customer
 ORDER BY grand_total DESC;`
+      }
+    ]
+  },
+  {
+    id: 'subqueries',
+    title: 'Subqueries',
+    description: 'Nest queries within queries for powerful data retrieval',
+    icon: '🪆',
+    difficulty: 'intermediate',
+    prerequisites: ['where', 'select', 'group-by'],
+    topics: ['scalar subquery', 'correlated subquery', 'EXISTS', 'IN', 'ANY', 'ALL'],
+    explanation: `── Real-World Analogy ──
+A subquery is like a Russian nesting doll (matryoshka): a query inside another query.
+The inner doll (subquery) is solved FIRST, then its answer is used by the outer doll.
+
+  "Show me employees who earn MORE than the company average"
+  → Step 1 (inner):  WHAT is the company average?  → 85K
+  → Step 2 (outer):  WHICH employees earn > 85K?
+
+── Visual: Non-Correlated Subquery (runs ONCE) ──
+  Outer: SELECT * FROM employees WHERE salary > (INNER)
+                                                   │
+                                                   ▼
+  Inner: SELECT AVG(salary) FROM employees  ──►  Returns: 85K
+                                                   │
+                                                   ▼
+  Outer continues: WHERE salary > 85K  ──►  Returns high earners
+
+  Flow: Inner runs ONCE → result cached → outer uses it for every row
+
+── Visual: Correlated Subquery (runs PER ROW) ──
+  Outer: SELECT * FROM employees e WHERE salary > (INNER that depends on e.department)
+                                                   │
+  For EACH employee row in the outer query:        ▼
+  Inner runs AGAIN with THAT employee's department:
+    Alice (IT)      → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 100K > 90K? ✅
+    Bob (Sales)     → SELECT AVG(salary) WHERE dept = 'Sales'   → 80K → 70K > 80K? ❌
+    Charlie (IT)    → SELECT AVG(salary) WHERE dept = 'IT'      → 90K → 92K > 90K? ✅
+
+── Subquery Types Comparison ──
+| Type               | Returns            | Used In              | Example                                |
+|--------------------|--------------------|-----------------------|----------------------------------------|
+| Scalar subquery    | Single value       | SELECT, WHERE, HAVING | (SELECT AVG(salary) FROM employees)    |
+| Row subquery       | Single row         | WHERE                 | WHERE (col1, col2) = (SELECT ...)      |
+| Table subquery     | Multiple rows/cols | FROM (derived table)  | FROM (SELECT ...) AS sub               |
+| Correlated subquery| Varies             | WHERE, SELECT, EXISTS | WHERE col > (SELECT ... FROM outer)    |
+
+── Golden Rules ──
+- Subqueries in parentheses: (SELECT ...)
+- Subqueries in FROM MUST have an alias: FROM (SELECT ...) AS t
+- Scalar subquery must return EXACTLY one value (or NULL)
+- EXISTS checks for row EXISTENCE, not data — use SELECT 1 inside
+- Non-correlated runs ONCE (fast). Correlated runs PER ROW (potentially slow)
+- If a JOIN can do the job, prefer JOIN for efficiency`,
+    syntax: `-- Scalar subquery in SELECT
+SELECT 
+  name,
+  salary,
+  (SELECT AVG(salary) FROM employees) AS avg_salary
+FROM employees;
+
+-- Subquery in WHERE with IN
+SELECT name, department
+FROM employees
+WHERE department IN (
+  SELECT DISTINCT department
+  FROM employees
+  WHERE salary > 90000
+);
+
+-- Correlated subquery with EXISTS
+SELECT name
+FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+    AND o.total > 100
+);
+
+-- Subquery in FROM (derived table)
+SELECT dept, avg_salary
+FROM (
+  SELECT department AS dept, AVG(salary) AS avg_salary
+  FROM employees
+  GROUP BY department
+) sub
+WHERE avg_salary > 60000;`,
+    examples: [
+      {
+        title: 'Scalar subquery in SELECT',
+        sql: `SELECT name, salary,
+  (SELECT ROUND(AVG(salary), 0) FROM employees) AS company_avg,
+  ROUND(100.0 * salary / (SELECT AVG(salary) FROM employees), 1) AS pct_of_avg
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);`,
+        explanation: 'The subquery in parentheses runs first to find the average salary. The outer query then uses that value to filter and compare.',
+        sourceTables: ['employees'],
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
+for (int i=0;i<employeeCount;i++)
+    if (employees[i].salary>companyAvg)
+        cout<<employees[i].name<<" | "<<employees[i].salary<<" | "<<round(companyAvg)<<" | "<<round(100.0*employees[i].salary/companyAvg*10)/10<<"%\\n";`
+      },
+      {
+        title: 'Subquery with IN',
+        sql: `SELECT name, department, salary
+FROM employees
+WHERE department IN (
+  SELECT department
+  FROM employees
+  WHERE salary > 90000
+);`,
+        explanation: 'The inner query finds departments with high earners. The outer query returns all employees in those departments.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string highDepts[100]; int highCnt=0;
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>90000) {
+    bool dup=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) dup=true;
+    if (!dup) highDepts[highCnt++]=employees[i].department;
+}
+for (int i=0;i<employeeCount;i++) {
+    bool found=false; for (int j=0;j<highCnt;j++) if (highDepts[j]==employees[i].department) found=true;
+    if (found) cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";
+}`
+      },
+      {
+        title: 'EXISTS — correlated subquery',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+    AND o.total > 500
+);`,
+        explanation: 'For each product, the EXISTS check runs the subquery. If that product has an order over $500, the product is included.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `for (int i=0;i<productCount;i++) {
+    bool found=false;
+    for (int j=0;j<orderCount;j++) if (orders[j].product_id==products[i].id && orders[j].total>500) { found=true; break; }
+    if (found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
+}`
+      },
+      {
+        title: 'Subquery in FROM (derived table)',
+        sql: `SELECT department,
+  employee_count
+FROM (
+  SELECT 
+    department,
+    AVG(salary) AS avg_salary,
+    COUNT(*) AS employee_count
+  FROM employees
+  GROUP BY department
+) dept_stats
+WHERE employee_count >= 5
+ORDER BY avg_salary DESC;`,
+        explanation: 'First computes department statistics in a subquery, then filters and sorts the results.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string depts[100]; double sums[100]; int counts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; counts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; counts[idx]++;
+}
+string outDepts[100]; double outAvgs[100]; int outCnts[100]; int outCount=0;
+for (int i=0;i<deptCount;i++) {
+    double avg=sums[i]/counts[i];
+    if (counts[i]>=5) { outDepts[outCount]=depts[i]; outAvgs[outCount]=avg; outCnts[outCount]=counts[i]; outCount++; }
+}
+for (int i=0;i<outCount;i++) for (int j=i+1;j<outCount;j++) if (outAvgs[j]>outAvgs[i]) {
+    string td=outDepts[i]; outDepts[i]=outDepts[j]; outDepts[j]=td;
+    double ta=outAvgs[i]; outAvgs[i]=outAvgs[j]; outAvgs[j]=ta;
+    int tc=outCnts[i]; outCnts[i]=outCnts[j]; outCnts[j]=tc;
+}
+for (int i=0;i<outCount;i++) cout<<outDepts[i]<<" | "<<outCnts[i]<<"\\n";`
+      },
+      {
+        title: 'NOT EXISTS — finding missing records',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+);`,
+        explanation: 'NOT EXISTS finds products that have no matching orders. For each product, the subquery checks if any order references it.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
+for (int i=0;i<orderCount;i++) {
+    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
+    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
+}
+for (int i=0;i<productCount;i++) {
+    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
+    if (!found) cout<<products[i].name<<" | "<<products[i].price<<" | "<<products[i].category<<"\\n";
+}`
+      },
+      {
+        title: 'Subquery with comparison operator',
+        sql: `SELECT name, salary, department
+FROM employees
+WHERE salary > (
+  SELECT AVG(salary) FROM employees
+)
+ORDER BY salary DESC;`,
+        explanation: 'The subquery computes the company-wide average salary once. The outer query finds all employees earning above that average.',
+        sourceTables: ['employees'],
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double avgSal=total/employeeCount;
+Employee above[1000]; int aboveCount=0;
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>avgSal) above[aboveCount++]=employees[i];
+for (int i=0;i<aboveCount;i++) for (int j=i+1;j<aboveCount;j++) if (above[j].salary>above[i].salary) {
+    Employee t=above[i]; above[i]=above[j]; above[j]=t;
+}
+for (int i=0;i<aboveCount;i++) cout<<above[i].name<<" | "<<above[i].salary<<" | "<<above[i].department<<"\\n";`
+      },
+      {
+        title: 'Nested subqueries',
+        sql: `SELECT name, department, salary
+FROM employees
+WHERE salary > (
+  SELECT AVG(salary)
+  FROM employees
+  WHERE department IN (
+    SELECT department
+    FROM employees
+    GROUP BY department
+    HAVING AVG(salary) > 70000
+  )
+)
+ORDER BY salary DESC;`,
+        explanation: 'The innermost subquery finds departments with avg salary > $70k. The middle subquery computes the average of those departments. The outer query finds employees above that average.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; cnts[idx]++;
+}
+double subsetTotal=0; int subsetCount=0;
+for (int i=0;i<deptCount;i++) {
+    double avg=sums[i]/cnts[i];
+    if (avg>70000) { subsetTotal+=sums[i]; subsetCount+=cnts[i]; }
+}
+double threshold=subsetTotal/subsetCount;
+for (int i=0;i<employeeCount;i++) if (employees[i].salary>threshold)
+    cout<<employees[i].name<<" | "<<employees[i].department<<" | "<<employees[i].salary<<"\\n";`
+      },
+      {
+        title: 'Subquery in SELECT for comparison',
+        sql: `SELECT name, department, salary,
+  (SELECT ROUND(AVG(salary), 0) FROM employees e2 WHERE e2.department = employees.department) AS dept_avg_salary,
+  ROUND(salary - (SELECT AVG(salary) FROM employees e2 WHERE e2.department = employees.department), 0) AS diff_from_dept_avg
+FROM employees
+ORDER BY department, salary DESC;`,
+        explanation: 'Shows each employee\'s salary versus their department\'s average using a correlated scalar subquery in SELECT. The dept_avg_salary and difference are computed per row.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string depts[100]; double sums[100]; int cnts[100]; int deptCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptCount;j++) if (depts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptCount; depts[deptCount]=d; sums[deptCount]=0; cnts[deptCount]=0; deptCount++; }
+    sums[idx]+=employees[i].salary; cnts[idx]++;
+}
+double deptAvg[100];
+for (int i=0;i<deptCount;i++) deptAvg[i]=sums[i]/cnts[i];
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) {
+    bool swp=false;
+    if (sorted[j].department!=sorted[i].department) { if (sorted[j].department<sorted[i].department) swp=true; }
+    else if (sorted[j].salary>sorted[i].salary) swp=true;
+    if (swp) { Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t; }
+}
+for (int i=0;i<sortedCount;i++) {
+    int di=-1; for (int j=0;j<deptCount;j++) if (depts[j]==sorted[i].department) { di=j; break; }
+    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(deptAvg[di])<<" | "<<round(sorted[i].salary-deptAvg[di])<<"\\n";
+}`
+      },
+      {
+        title: 'Multiple subqueries in one query',
+        sql: `SELECT name,
+  department,
+  salary,
+  (SELECT ROUND(AVG(salary), 0) FROM employees) AS company_avg,
+  (SELECT MAX(salary) FROM employees WHERE department = employees.department) AS dept_max,
+  ROUND(100.0 * salary / (SELECT AVG(salary) FROM employees), 1) AS pct_of_company_avg
+FROM employees
+ORDER BY salary DESC;`,
+        explanation: 'Two different scalar subqueries in SELECT compute the company-wide average and the department maximum salary side by side with each employee\'s data.',
+        sourceTables: ['employees'],
+        cppRepresentation: `double total=0; for (int i=0;i<employeeCount;i++) total+=employees[i].salary; double companyAvg=total/employeeCount;
+string deptMaxDepts[100]; double deptMaxVals[100]; int deptMaxCount=0;
+for (int i=0;i<employeeCount;i++) {
+    string d=employees[i].department; int idx=-1;
+    for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==d) { idx=j; break; }
+    if (idx==-1) { idx=deptMaxCount; deptMaxDepts[deptMaxCount]=d; deptMaxVals[deptMaxCount]=0; deptMaxCount++; }
+    if (employees[i].salary>deptMaxVals[idx]) deptMaxVals[idx]=employees[i].salary;
+}
+Employee sorted[1000]; int sortedCount=employeeCount;
+for (int i=0;i<employeeCount;i++) sorted[i]=employees[i];
+for (int i=0;i<sortedCount;i++) for (int j=i+1;j<sortedCount;j++) if (sorted[j].salary>sorted[i].salary) {
+    Employee t=sorted[i]; sorted[i]=sorted[j]; sorted[j]=t;
+}
+for (int i=0;i<sortedCount;i++) {
+    int di=-1; for (int j=0;j<deptMaxCount;j++) if (deptMaxDepts[j]==sorted[i].department) { di=j; break; }
+    cout<<sorted[i].name<<" | "<<sorted[i].department<<" | "<<sorted[i].salary<<" | "<<round(companyAvg)<<" | "<<deptMaxVals[di]<<" | "<<round(100.0*sorted[i].salary/companyAvg*10)/10<<"%\\n";
+}`
+      },
+      {
+        title: 'NOT IN with subquery',
+        sql: `SELECT name, category, price
+FROM products
+WHERE id NOT IN (
+  SELECT DISTINCT product_id
+  FROM orders
+  WHERE product_id IS NOT NULL
+)
+ORDER BY price DESC;`,
+        explanation: 'Finds products that have never been ordered. The subquery returns all product_ids that appear in orders; NOT IN excludes them from the result.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `int orderedIds[1000]; int orderedCount=0;
+for (int i=0;i<orderCount;i++) {
+    bool dup=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==orders[i].product_id) dup=true;
+    if (!dup) orderedIds[orderedCount++]=orders[i].product_id;
+}
+Product neverOrdered[1000]; int neverCount=0;
+for (int i=0;i<productCount;i++) {
+    bool found=false; for (int j=0;j<orderedCount;j++) if (orderedIds[j]==products[i].id) found=true;
+    if (!found) neverOrdered[neverCount++]=products[i];
+}
+for (int i=0;i<neverCount;i++) for (int j=i+1;j<neverCount;j++) if (neverOrdered[j].price>neverOrdered[i].price) {
+    Product t=neverOrdered[i]; neverOrdered[i]=neverOrdered[j]; neverOrdered[j]=t;
+}
+for (int i=0;i<neverCount;i++) cout<<neverOrdered[i].name<<" | "<<neverOrdered[i].category<<" | "<<neverOrdered[i].price<<"\\n";`
+      },
+    ],
+    commonMistakes: [
+      'Using IN with a subquery that returns NULLs (IN becomes UNKNOWN for NULL comparisons)',
+      'Writing correlated subqueries that execute row-by-row (performance killer)',
+      'Forgetting to alias subqueries in FROM clause',
+      'Using a subquery where a JOIN would be more efficient and readable'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: employees
+
+Find employees whose salary is above the average salary of their own department.
+
+Return columns: name, salary, department
+Order by: department, salary DESC.`,
+        hint: 'Use a correlated subquery in the WHERE clause that references the outer employee\'s department.',
+        solution: `SELECT name, salary, department
+FROM employees e
+WHERE salary > (
+  SELECT AVG(salary)
+  FROM employees
+  WHERE department = e.department
+)
+ORDER BY department, salary DESC;`
+      },
+      {
+        question: `Table: employees
+
+Find departments that have no employees assigned. (Use a subquery with NOT IN on the employees table.)
+
+Return columns: department
+Order by: any order.`,
+        hint: 'List of actual departments: Engineering, Product, Marketing, Sales, HR.',
+        solution: `SELECT d.department
+FROM (
+  SELECT 'Engineering' AS department
+  UNION SELECT 'Product'
+  UNION SELECT 'Marketing'
+  UNION SELECT 'Sales'
+  UNION SELECT 'HR'
+) d
+WHERE d.department NOT IN (
+  SELECT DISTINCT department FROM employees
+);`
+      },
+      {
+        question: `Table: products
+
+Challenge: Use a scalar subquery in the SELECT clause to show each product's name, price, and what percentage its price represents of the total price of ALL products. Round the percentage to 2 decimal places.
+
+Return columns: name, price, pct_of_total
+Order by: pct_of_total DESC.`,
+        hint: 'Use a scalar subquery: (SELECT SUM(price) FROM products) to get the total. Then compute price * 100.0 / total in the SELECT.',
+        solution: `SELECT name, price,
+  ROUND(price * 100.0 / (SELECT SUM(price) FROM products), 2) AS pct_of_total
+FROM products
+ORDER BY pct_of_total DESC;`
+      },
+      {
+        question: `Table: employees
+
+Challenge: Find the employee who earns the closest to the company average salary (absolute difference).
+
+Return columns: name, salary, company_avg, diff_from_avg
+Order by: diff_from_avg ASC
+Limit: 1 row.`,
+        hint: 'Compute ABS(salary - (SELECT AVG(salary) FROM employees)) in SELECT. Use ORDER BY that expression. LIMIT 1. Use a CTE or duplicate the subquery.',
+        solution: `SELECT name, salary,
+  ROUND((SELECT AVG(salary) FROM employees), 2) AS company_avg,
+  ROUND(ABS(salary - (SELECT AVG(salary) FROM employees)), 2) AS diff_from_avg
+FROM employees
+ORDER BY ABS(salary - (SELECT AVG(salary) FROM employees))
+LIMIT 1;`
       }
     ]
   },
@@ -4669,6 +4620,1579 @@ CROSS JOIN grand_total gt
 ORDER BY percentage DESC;`
       }
     ]
+  },
+  {
+    id: 'exists-not-exists',
+    title: 'EXISTS & NOT EXISTS — Correlated Subqueries',
+    description: 'Use EXISTS and NOT EXISTS to test for the presence or absence of related rows',
+    icon: '🔍',
+    difficulty: 'intermediate',
+    prerequisites: ['subqueries', 'select', 'where'],
+    topics: ['EXISTS', 'NOT EXISTS', 'correlated subquery', 'IN vs EXISTS', 'NULL safety', 'division pattern'],
+    explanation: `── Real-World Analogy ──
+EXISTS = "Does this employee have ANY orders?" (check YES/NO, don't need details)
+NOT EXISTS = "Does this employee have ZERO orders?" (find people who never ordered)
+
+Think of a bouncer checking IDs at a club:
+- EXISTS = "Is this person on the list?" → scan until found, then stop (short-circuit)
+- NOT EXISTS = "Is this person NOT on the list?" → scan entire list, confirm absence
+
+── Visual: How EXISTS Executes (Short-Circuit) ──
+  Outer query: employees e           Inner: SELECT 1 FROM orders o WHERE o.customer = e.name
+
+  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
+  │ checking │ name     │    │ For THIS employee, scan orders:            │
+  ├──────────┼──────────┤    │                                            │
+  │ Row 1    │ Alice    │───►│ Order #101 (Alice) → MATCH! → STOP ✅     │  ← short-circuit
+  │ Row 2    │ Bob      │───►│ Order #102 (Carol) ❌ Order #104 (Carol) ❌│
+  │          │          │    │ Order #105 (Bob) → MATCH! → STOP ✅        │  ← found on 3rd try
+  │ Row 3    │ Carol    │───►│ Order #102 (Carol) → MATCH! → STOP ✅     │  ← found on 1st try
+  │ Row 4    │ Diana    │───►│ No orders for Diana → scanned ALL → ❌    │
+  └──────────┴──────────┘    └────────────────────────────────────────────┘
+  EXISTS keeps 3 rows (Alice, Bob, Carol). Diana excluded.
+
+── Visual: NOT EXISTS (Check for Zero Matches) ──
+  NOT EXISTS finds employees with NO orders:
+  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
+  │ keeping  │ name     │    │ For THIS employee, scan orders:            │
+  ├──────────┼──────────┤    │                                            │
+  │ ❌       │ Alice    │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ❌       │ Bob      │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ❌       │ Carol    │───►│ Found order → NOT EXISTS is FALSE → skip   │
+  │ ✅       │ Diana    │───►│ NO orders found → NOT EXISTS is TRUE ✅    │
+  └──────────┴──────────┘    └────────────────────────────────────────────┘
+  Only Diana kept (she has zero orders).
+
+── EXISTS vs IN vs JOIN ──
+| Use Case                          | Best Tool        | Why                                  |
+|-----------------------------------|------------------|--------------------------------------|
+| "Has at least one" (boolean)      | EXISTS           | Short-circuits, can be correlated    |
+| "Value in a fixed list"           | IN               | Cleaner for uncorrelated checks      |
+| "Value in subquery (no NULLs)"    | IN               | Simple, readable                     |
+| "Value in subquery (has NULLs)"   | EXISTS           | NULL-safe, NOT IN breaks with NULLs  |
+| "Need data from both tables"      | JOIN             | Access columns from both sides       |
+
+── NULL Safety Trap ──
+NOT EXISTS is NULL-safe; NOT IN is NOT.
+Reason: x NOT IN (1, 2, NULL) → x <> 1 AND x <> 2 AND x <> NULL → UNKNOWN (zero rows).
+NOT EXISTS only checks if the subquery returns rows — NULLs inside don't affect the boolean.
+
+── When EXISTS Runs Faster ──
+EXISTS short-circuits: stops scanning the inner table as soon as it finds one match.
+IN must evaluate all rows in the subquery first, then compare.
+For large correlated checks, EXISTS is typically faster.
+
+── Mental Model (C++ Style) ──
+for each outer_row in table_a:
+    bool found = false
+    for each inner_row in table_b:
+        if inner_row.foreign_key == outer_row.id:
+            found = true
+            break              // short-circuit
+    if (found)  → EXISTS matches
+    if (!found) → NOT EXISTS matches`,
+    syntax: `-- EXISTS — find rows that have matches
+SELECT column1, column2
+FROM table_a a
+WHERE EXISTS (
+  SELECT 1 FROM table_b b
+  WHERE b.foreign_key = a.id
+);
+
+-- NOT EXISTS — find rows without matches
+SELECT column1, column2
+FROM table_a a
+WHERE NOT EXISTS (
+  SELECT 1 FROM table_b b
+  WHERE b.foreign_key = a.id
+);
+
+-- Common convention: SELECT 1 or SELECT *
+-- Inside EXISTS, SELECT list doesn't matter — only row existence is checked`,
+    examples: [
+      {
+        title: 'EXISTS — find products that have been ordered',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+)
+ORDER BY p.name;`,
+        explanation: 'For each product, the EXISTS subquery checks if any order references it. If yes, the product is included. The subquery short-circuits on the first match.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
+for (int i = 0; i < productCount; i++) {
+    bool hasOrders = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].product_id == products[i].id) {
+            hasOrders = true;
+            break; // short-circuit — EXISTS stops at first match
+        }
+    }
+    if (hasOrders)
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
+}`
+      },
+      {
+        title: 'NOT EXISTS — find products never ordered',
+        sql: `SELECT p.name, p.price, p.category
+FROM products p
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+)
+ORDER BY p.price DESC;`,
+        explanation: 'NOT EXISTS finds products with zero matching orders. Unlike NOT IN, NOT EXISTS correctly handles NULLs in the subquery — it never produces UNKNOWN.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
+for (int i = 0; i < productCount; i++) {
+    bool hasOrders = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].product_id == products[i].id) {
+            hasOrders = true;
+            break;
+        }
+    }
+    if (!hasOrders)
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
+}`
+      },
+      {
+        title: 'NOT EXISTS vs NOT IN — NULL safety',
+        sql: `-- NULL-safe: NOT EXISTS handles NULLs correctly
+SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+);
+
+-- DANGEROUS: NOT IN returns empty results if subquery contains NULL
+SELECT e.name, e.department
+FROM employees e
+WHERE e.name NOT IN (
+  SELECT o.customer FROM orders o
+);`,
+        explanation: 'NOT IN returns zero rows if ANY value in the subquery is NULL (because NULL comparisons yield UNKNOWN, which is NOT TRUE). NOT EXISTS handles NULLs correctly and is the safe choice.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS vs NOT IN NULL behavior
+// NOT EXISTS (safe):
+for (int i = 0; i < employeeCount; i++) {
+    bool found = false;
+    for (int j = 0; j < orderCount; j++)
+        if (orders[j].customer == employees[i].name) { found = true; break; }
+    if (!found) cout << employees[i].name << "\\n";
+}
+// NOT IN (breaks with NULL):
+// SQL semantics: if any orders.customer is NULL,
+// the entire NOT IN evaluates to UNKNOWN (zero rows).
+// C++ doesn't model this directly — it's a tri-valued logic issue.`
+      },
+      {
+        title: 'Correlated EXISTS — "has a" pattern',
+        sql: `SELECT e.name, e.department, e.salary
+FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+    AND o.total > 200
+)
+ORDER BY e.salary DESC;`,
+        explanation: 'A correlated EXISTS: for each employee, checks if they have placed any order over $200. The correlation is o.customer = e.name, linking inner to outer query.',
+        sourceTables: ['employees', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: correlated EXISTS — employees with large orders
+for (int i = 0; i < employeeCount; i++) {
+    bool hasBigOrder = false;
+    for (int j = 0; j < orderCount; j++) {
+        if (orders[j].customer == employees[i].name && orders[j].total > 200) {
+            hasBigOrder = true;
+            break;
+        }
+    }
+    if (hasBigOrder)
+        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << "\\n";
+}`
+      },
+      {
+        title: 'Division pattern with NOT EXISTS',
+        sql: `-- Find employees who have ordered ALL products in the 'Electronics' category
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`,
+        explanation: 'The "division" or "relational division" pattern: double NOT EXISTS finds entities related to ALL items in a set. The inner NOT EXISTS finds Electronics products the employee has NOT ordered. The outer NOT EXISTS finds employees where no such product exists — meaning they ordered all of them.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// Intuitive C++ representation of: division pattern (employees who ordered ALL Electronics)
+for (int i = 0; i < employeeCount; i++) {
+    bool orderedAllElectronics = true;
+    for (int p = 0; p < productCount; p++) {
+        if (products[p].category != "Electronics") continue;
+        bool orderedThis = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id) {
+                orderedThis = true;
+                break;
+            }
+        }
+        if (!orderedThis) { orderedAllElectronics = false; break; }
+    }
+    if (orderedAllElectronics)
+        cout << employees[i].name << "\\n";
+}`
+      }
+    ],
+    commonMistakes: [
+      'NOT IN with NULLs: if subquery returns ANY NULL, NOT IN returns zero rows silently. Always use NOT EXISTS for NULL-safe exclusion.',
+      'ORDER BY inside EXISTS: pointless — EXISTS only checks row count, ordering changes nothing.',
+      'Missing correlation: without linking inner to outer (e.g., WHERE o.customer = e.name), EXISTS checks the same thing for every row.',
+      'Using EXISTS when you need JOIN data: EXISTS is a boolean check — you cannot access columns from the subquery. Use JOIN if you need inner table columns.',
+      'SELECT * inside EXISTS: misleading. Only row existence matters — use SELECT 1 for clarity.'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: employees
+
+Use EXISTS to find all departments that have at least one employee with a salary above $90,000.
+
+Return columns: department
+Order by: any order.`,
+        hint: 'SELECT DISTINCT department FROM employees e WHERE EXISTS (SELECT 1 FROM employees e2 WHERE e2.department = e.department AND e2.salary > 90000).',
+        solution: `SELECT DISTINCT e.department
+FROM employees e
+WHERE EXISTS (
+  SELECT 1 FROM employees e2
+  WHERE e2.department = e.department
+    AND e2.salary > 90000
+);`
+      },
+      {
+        question: `Table: employees, orders
+
+Find all employees who have never placed an order, using NOT EXISTS.
+
+Return columns: name, department
+Order by: any order.`,
+        hint: 'Use NOT EXISTS (SELECT 1 FROM orders WHERE customer = e.name) correlated to the outer employee.',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.customer = e.name
+);`
+      },
+      {
+        question: `Table: employees, products, orders
+
+Challenge: Use double NOT EXISTS (relational division) to find employees who have ordered ALL products that cost more than $100.
+
+Return columns: name, department
+Order by: any order.`,
+        hint: 'Outer NOT EXISTS on products: WHERE price > 100 AND NOT EXISTS (orders linking employee to that product).',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.price > 100
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`
+      },
+      {
+        question: `Table: products, orders
+
+Rewrite this IN query using EXISTS instead: SELECT name FROM products WHERE id IN (SELECT product_id FROM orders WHERE quantity > 5); Explain which is better and why.
+
+Return columns: name
+Order by: any order.`,
+        hint: 'For EXISTS, correlate: WHERE EXISTS (SELECT 1 FROM orders WHERE product_id = p.id AND quantity > 5). Both work here since no NULLs, but EXISTS short-circuits.',
+        solution: `SELECT p.name
+FROM products p
+WHERE EXISTS (
+  SELECT 1 FROM orders o
+  WHERE o.product_id = p.id
+    AND o.quantity > 5
+);
+
+-- EXISTS is better here because:
+-- 1. Short-circuits on first match per product (faster with large data)
+-- 2. Can be correlated (re-evaluated per outer row)
+-- 3. Same NULL-safety (no NULLs in this case)
+-- IN would evaluate the full subquery first, then compare.`
+      }
+    ]
+  },
+  {
+    id: 'set-operations',
+    title: 'Set Operations',
+    description: 'Combine result sets with UNION, INTERSECT, and EXCEPT',
+    icon: '🧩',
+    difficulty: 'intermediate',
+    prerequisites: ['select'],
+    topics: ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT', 'set operations'],
+    explanation: `── Real-World Analogy ──
+Set operations work like Venn diagrams from math class:
+- UNION = everything in EITHER circle (combined)
+- INTERSECT = only the OVERLAP (in both)
+- EXCEPT = left circle MINUS the overlap (in one but not the other)
+
+Key difference from JOIN: JOIN combines columns HORIZONTALLY (adds columns).
+Set operations combine rows VERTICALLY (adds rows). They STACK results.
+
+── Visual: Set Operations with Real Data ──
+  Query A: cities with customers       Query B: cities with suppliers
+  ┌──────────┐                         ┌──────────┐
+  │ city     │                         │ city     │
+  ├──────────┤                         ├──────────┤
+  │ Cairo    │                         │ Cairo    │
+  │ Giza     │                         │ Alex     │
+  │ Luxor    │                         │ Luxor    │
+  └──────────┘                         └──────────┘
+
+  UNION:                          INTERSECT:                    EXCEPT (A - B):
+  ┌──────────┐                    ┌──────────┐                  ┌──────────┐
+  │ Cairo    │  ← in both (once)  │ Cairo    │  ← in A AND B   │ Giza     │  ← in A but NOT B
+  │ Giza     │  ← only in A       │ Luxor    │                  └──────────┘
+  │ Luxor    │  ← in both (once)  └──────────┘
+  │ Alex     │  ← only in B
+  └──────────┘
+
+── Set Operation Comparison ──
+| Operation   | Result                          | Duplicates? | SQL Keyword    | Venn Diagram             |
+|-------------|---------------------------------|:-----------:|----------------|--------------------------|
+| UNION       | Rows from query1 OR query2      | ❌ Removed  | UNION          | Both circles combined    |
+| UNION ALL   | Rows from query1 OR query2      | ✅ Kept     | UNION ALL      | Both circles + overlaps  |
+| INTERSECT   | Rows in BOTH query1 AND query2  | ❌ Removed  | INTERSECT      | Only the overlap          |
+| EXCEPT      | Rows in query1 BUT NOT query2   | ❌ Removed  | EXCEPT         | Left minus the overlap    |
+
+── Set Operation Rules ──
+- Each SELECT must have the SAME NUMBER of columns
+- Corresponding columns must have COMPATIBLE data types (you can't UNION text with numbers)
+- Column names in the result come from the FIRST SELECT
+- Only ONE ORDER BY at the very END of the entire UNION/INTERSECT/EXCEPT
+- ORDER BY must use column names from the first SELECT (or numeric position)
+
+── UNION vs JOIN Visual ──
+  UNION (adds ROWS):                           JOIN (adds COLUMNS):
+  ┌─────────────┐                              ┌──────────┬──────────┐
+  │ customers   │                              │ city     │ has_supp │
+  ├─────────────┤                              ├──────────┼──────────┤
+  │ Cairo       │  ← from customers            │ Cairo    │ YES      │  ← combined row
+  │ Giza        │  ← from customers            │ Giza     │ NO       │
+  │ Alex        │  ← from suppliers            │ Luxor    │ YES      │
+  │ Luxor       │  ← from suppliers            └──────────┴──────────┘
+  └─────────────┘                              JOIN: more columns, same rows
+  UNION: more rows, same columns
+
+── INTERSECT vs INNER JOIN ──
+INTERSECT: "Which cities have BOTH customers AND suppliers?"
+  SELECT city FROM customers INTERSECT SELECT city FROM suppliers
+  → JUST the city names (single column)
+
+INNER JOIN: "Show me customers AND their supplier info for matching cities"
+  SELECT c.city, s.name FROM customers c JOIN suppliers s ON c.city = s.city
+  → Combined rows with columns from BOTH tables`,
+    syntax: `-- UNION (removes duplicates)
+SELECT city FROM customers
+UNION
+SELECT city FROM suppliers
+ORDER BY city;
+
+-- UNION ALL (preserves duplicates, faster)
+SELECT product_id FROM orders_2024
+UNION ALL
+SELECT product_id FROM orders_2025;
+
+-- INTERSECT
+SELECT product_id FROM products
+INTERSECT
+SELECT product_id FROM order_items;
+
+-- EXCEPT
+SELECT employee_id FROM employees
+EXCEPT
+SELECT employee_id FROM terminated_employees;
+
+-- Multiple set operations
+SELECT name FROM full_time_employees
+UNION
+SELECT name FROM part_time_employees
+INTERSECT
+SELECT name FROM award_winners;`,
+    examples: [
+      {
+        title: 'UNION — combining employee lists',
+        sql: `SELECT name, department, salary, 'Active' AS status_label
+FROM employees
+WHERE status = 'active'
+UNION ALL
+SELECT name, department, salary, 'Inactive' AS status_label
+FROM employees
+WHERE status = 'inactive'
+ORDER BY name;`,
+        explanation: 'UNION ALL stacks results from two queries. Active employees get one label, inactive another. UNION (without ALL) would deduplicate, but here every row is unique.',
+        sourceTables: ['employees'],
+        cppRepresentation: `Employee result[1000];
+int resultCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status == "active" || employees[i].status == "inactive") {
+        result[resultCount] = employees[i];
+        resultCount++;
+    }
+}
+for (int i = 0; i < resultCount; i++) {
+    for (int j = i + 1; j < resultCount; j++) {
+        if (result[j].name < result[i].name) {
+            Employee temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+    }
+}
+for (int i = 0; i < resultCount; i++) {
+    cout << result[i].name << " | " << result[i].department << " | " << result[i].salary << " | " << result[i].status << "\\n";}`
+      },
+      {
+        title: 'INTERSECT — common cities across departments',
+        sql: `SELECT city FROM employees
+WHERE department = 'Engineering'
+INTERSECT
+SELECT city FROM employees
+WHERE department = 'Marketing'
+ORDER BY city;`,
+        explanation: 'INTERSECT finds cities that appear in BOTH result sets — cities that have both Engineering and Marketing employees. New York is returned because it has employees from both departments.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string engCities[100];
+int engCount = 0;
+string mktCities[100];
+int mktCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering") {
+        bool dup = false;
+        for (int j = 0; j < engCount; j++) {
+            if (engCities[j] == employees[i].city) { dup = true; break; }
+        }
+        if (!dup) { engCities[engCount] = employees[i].city; engCount++; }
+    }
+    if (employees[i].department == "Marketing") {
+        bool dup = false;
+        for (int j = 0; j < mktCount; j++) {
+            if (mktCities[j] == employees[i].city) { dup = true; break; }
+        }
+        if (!dup) { mktCities[mktCount] = employees[i].city; mktCount++; }
+    }
+}
+for (int i = 0; i < engCount; i++) {
+    for (int j = 0; j < mktCount; j++) {
+        if (engCities[i] == mktCities[j]) {
+            cout << engCities[i] << "\\n";
+            break;
+        }
+    }
+}`
+      },
+      {
+        title: 'EXCEPT — products never ordered',
+        sql: `SELECT id, name, category, price
+FROM products
+EXCEPT
+SELECT p.id, p.name, p.category, p.price
+FROM products p
+JOIN orders o ON p.id = o.product_id
+ORDER BY id;`,
+        explanation: 'EXCEPT returns products that exist in the first query but NOT in the second — products that have never been ordered. The second query finds ordered products, and EXCEPT removes them.',
+        sourceTables: ['products', 'orders'],
+        cppRepresentation: `int orderedIds[1000];
+int orderedCount = 0;
+for (int i = 0; i < orderCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < orderedCount; j++) {
+        if (orderedIds[j] == orders[i].product_id) { dup = true; break; }
+    }
+    if (!dup) { orderedIds[orderedCount] = orders[i].product_id; orderedCount++; }
+}
+for (int i = 0; i < productCount; i++) {
+    bool found = false;
+    for (int j = 0; j < orderedCount; j++) {
+        if (orderedIds[j] == products[i].id) { found = true; break; }
+    }
+    if (!found) {
+        cout << products[i].id << " | " << products[i].name << " | " << products[i].category << " | " << products[i].price << "\\n";
+    }
+}`
+      },
+      {
+        title: 'UNION vs UNION ALL comparison',
+        sql: `SELECT department FROM employees
+WHERE salary > 80000
+UNION
+SELECT department FROM employees
+WHERE salary <= 80000
+ORDER BY department;`,
+        explanation: 'UNION removes duplicates, so each department appears only once. UNION ALL would show every matching row — try replacing UNION with UNION ALL to see the difference.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string depts[100];
+int deptCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    string d = employees[i].department;
+    bool dup = false;
+    for (int j = 0; j < deptCount; j++) {
+        if (depts[j] == d) { dup = true; break; }
+    }
+    if (!dup) { depts[deptCount] = d; deptCount++; }
+}
+for (int i = 0; i < deptCount; i++) {
+    cout << depts[i] << "\\n";
+}`
+      },
+      {
+        title: 'Mixing UNION and EXCEPT',
+        sql: `SELECT name, department, salary
+FROM employees
+WHERE department = 'Engineering'
+UNION
+SELECT name, department, salary
+FROM employees
+WHERE department = 'Product'
+EXCEPT
+SELECT name, department, salary
+FROM employees
+WHERE salary < 75000
+ORDER BY salary DESC;`,
+        explanation: 'First combines Engineering and Product employees via UNION, then removes anyone earning under $75k via EXCEPT. The result: mid-to-high earners in tech departments.',
+        sourceTables: ['employees'],
+        cppRepresentation: `Employee combined[1000];
+int combinedCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering" || employees[i].department == "Product") {
+        combined[combinedCount] = employees[i];
+        combinedCount++;
+    }
+}
+string lowSal[1000];
+int lowCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].salary < 75000) {
+        bool dup = false;
+        for (int j = 0; j < lowCount; j++) {
+            if (lowSal[j] == employees[i].name) { dup = true; break; }
+        }
+        if (!dup) { lowSal[lowCount] = employees[i].name; lowCount++; }
+    }
+}
+for (int i = 0; i < combinedCount; i++) {
+    bool excluded = false;
+    for (int j = 0; j < lowCount; j++) {
+        if (lowSal[j] == combined[i].name) { excluded = true; break; }
+    }
+    if (!excluded) {
+        cout << combined[i].name << " | " << combined[i].department << " | " << combined[i].salary << "\\n";
+    }
+}`
+      },
+      {
+        title: 'UNION with different tables',
+        sql: `SELECT name, 'Employee' AS source FROM employees
+UNION
+SELECT name, 'Product' AS source FROM products`,
+        explanation: 'Combines employee names with product names into a single list, with a label column identifying the source table.',
+        sourceTables: ['employees', 'products'],
+        cppRepresentation: `string seen[1000];
+int seenCount = 0;
+for (int i = 0; i < employeeCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < seenCount; j++) {
+        if (seen[j] == employees[i].name) { dup = true; break; }
+    }
+    if (!dup) {
+        seen[seenCount] = employees[i].name;
+        seenCount++;
+        cout << employees[i].name << " | Employee\\n";
+    }
+}
+for (int i = 0; i < productCount; i++) {
+    bool dup = false;
+    for (int j = 0; j < seenCount; j++) {
+        if (seen[j] == products[i].name) { dup = true; break; }
+    }
+    if (!dup) {
+        seen[seenCount] = products[i].name;
+        seenCount++;
+        cout << products[i].name << " | Product\\n";
+    }
+}`
+      },
+      {
+        title: 'UNION ALL with constants',
+        sql: `SELECT '=== DEPARTMENT LIST ===' AS header
+UNION ALL
+SELECT name FROM employees WHERE department = 'Engineering'
+UNION ALL
+SELECT '=== END ===' AS footer`,
+        explanation: 'Uses UNION ALL with constant values to add header and footer rows around query results for better readability.',
+        sourceTables: ['employees'],
+        cppRepresentation: `cout << "=== DEPARTMENT LIST ===\\n";
+for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].department == "Engineering")
+        cout << employees[i].name << "\\n";
+}
+cout << "=== END ===\\n";`
+      },
+      {
+        title: 'EXCEPT with WHERE',
+        sql: `SELECT name, department FROM employees WHERE status = 'active'
+EXCEPT
+SELECT name, department FROM employees WHERE salary < 60000
+ORDER BY name`,
+        explanation: 'Finds active employees who earn at least $60,000 by excluding lower-paid employees from the active employee list.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].status == "active" && !(employees[i].salary < 60000))
+        cout << employees[i].name << " | " << employees[i].department << "\\n";}`
+      },
+    ],
+    commonMistakes: [
+      'Using UNION when UNION ALL would be faster (UNION deduplicates)',
+      'Forgetting that set operations require same number and types of columns',
+      'Confusing JOIN with set operations (JOIN is horizontal, set ops are vertical)',
+      'Using EXCEPT without understanding NULL handling differences'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: products, orders
+
+Find products that have been ordered at least once using INTERSECT.
+
+Return columns: id, name
+Order by: any order.`,
+        hint: 'Select ids from products, INTERSECT with SELECT DISTINCT product_id FROM orders.',
+        solution: `SELECT id, name
+FROM products
+WHERE id IN (
+  SELECT id FROM products
+  INTERSECT
+  SELECT product_id FROM orders
+);`
+      },
+      {
+        question: `Table: employees, orders
+
+Challenge: Use EXCEPT to find employees who have NOT placed any orders.
+
+Return columns: name, department
+Order by: name ASC.`,
+        hint: 'SELECT name, department FROM employees EXCEPT SELECT customer, ... FROM orders. Both queries must have the same number of columns.',
+        solution: `SELECT name, department
+FROM employees
+EXCEPT
+SELECT o.customer, e.department
+FROM orders o
+JOIN employees e ON o.customer = e.name
+ORDER BY name;`
+      },
+      {
+        question: `Table: employees, products
+
+Challenge: Use UNION ALL to create a combined product-employee catalog showing name, type ("Employee" or "Product"), and value (salary or price).
+
+Return columns: name, type, value
+Order by: name ASC.`,
+        hint: 'First SELECT: SELECT name, \'Employee\' AS type, salary FROM employees. Second SELECT: SELECT name, \'Product\' AS type, price FROM products. Use UNION ALL to combine.',
+        solution: `SELECT name, 'Employee' AS type, salary AS value
+FROM employees
+UNION ALL
+SELECT name, 'Product' AS type, price AS value
+FROM products
+ORDER BY name;`
+      },
+      {
+        question: `Table: employees, departments
+
+Medium: Use UNION to list all unique cities from both the employees table and the departments table. Label the source of each city.
+
+Return columns: city, source
+Order by: city ASC.`,
+        hint: 'First SELECT: SELECT DISTINCT city, \'Employee\' FROM employees. Second: SELECT DISTINCT city, \'Department\' FROM departments. Use UNION (not UNION ALL) to remove duplicate cities.',
+        solution: `SELECT DISTINCT city, 'Employee' AS source
+FROM employees
+UNION
+SELECT DISTINCT city, 'Department' AS source
+FROM departments
+ORDER BY city;`
+      }
+    ]
+
+  },
+  {
+    id: 'division-queries',
+    title: 'Division Queries \u2014 "Assigned to ALL" Pattern',
+    description: 'Use the relational division pattern to find entities related to ALL items in a set',
+    icon: '\uD83D\uDCCA',
+    difficulty: 'advanced',
+    prerequisites: ['exists-not-exists', 'subqueries', 'set-operations', 'select', 'where'],
+    topics: ['DIVISION', 'double negation', 'NOT EXISTS', 'EXCEPT', 'for all', 'relational division'],
+    explanation: `── Real-World Analogy ──
+Division answers: "Which employees have ordered ALL products in the Electronics category?"
+
+Think of a teacher checking homework: "Did EVERY student submit EVERY assignment?"
+The question is NOT "which students submitted something?" (that's EXISTS).
+The question is "which students submitted EVERYTHING?" (that's DIVISION).
+
+── Visual: Division with Real Data ──
+  Products in Electronics:     Orders placed:
+  ┌──────┬──────────────┐     ┌──────────┬────────────┐
+  │ id   │ name         │     │ customer │ product_id │
+  ├──────┼──────────────┤     ├──────────┼────────────┤
+  │ 1    │ Laptop       │     │ Alice    │ 1          │  ← Alice ordered Laptop
+  │ 2    │ Mouse        │     │ Alice    │ 2          │  ← Alice ordered Mouse
+  │ 3    │ Keyboard     │     │ Alice    │ 3          │  ← Alice ordered Keyboard
+  └──────┴──────────────┘     │ Bob      │ 1          │  ← Bob ordered Laptop
+                              │ Bob      │ 2          │  ← Bob ordered Mouse
+  Goal: find employees who   │ Carol    │ 1          │  ← Carol ordered Laptop
+  ordered ALL 3 Electronics   └──────────┴────────────┘
+
+  ── Step-by-step visual check ──
+  Alice: ordered 1✅, 2✅, 3✅ → ALL three! ✅  ← RESULT
+  Bob:   ordered 1✅, 2✅, 3❌ → Missing Keyboard ❌
+  Carol: ordered 1✅, 2❌, 3❌ → Missing 2 items ❌
+
+── Core Insight: Double Negation ──
+"Employee ordered ALL Electronics products"
+= "There is NO Electronics product that the employee did NOT order"
+
+  For each employee:
+    For each Electronics product:
+      Did the employee NOT order this product?  → If YES → exclude this employee
+  Keep employees where NO counterexample exists.
+
+── Three Approaches ──
+| Approach                     | How It Works                              | Pros                     | Cons                     |
+|------------------------------|-------------------------------------------|--------------------------|--------------------------|
+| Double NOT EXISTS            | Nested NOT EXISTS (standard)              | NULL-safe, portable      | Harder to read           |
+| EXCEPT inside NOT EXISTS     | NOT EXISTS (SELECT ... EXCEPT SELECT ...) | More readable            | Not in MySQL             |
+| HAVING COUNT = total         | GROUP BY + HAVING COUNT = subquery COUNT  | Simple query structure   | Requires JOIN, COUNT mismatch risk |
+
+── When to Use Which ──
+- Double NOT EXISTS: default choice, works everywhere, NULL-safe
+- EXCEPT approach: more intuitive if you know set operations
+- HAVING COUNT: simpler for single-table relationships`,
+    syntax: `-- Division: double NOT EXISTS (standard form)
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);
+
+-- Division: EXCEPT pattern
+SELECT e.name
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p WHERE p.category = 'Electronics'
+    EXCEPT
+    SELECT o.product_id FROM orders o WHERE o.customer = e.name
+  )
+);
+
+-- Division: HAVING COUNT
+SELECT o.customer
+FROM orders o
+JOIN products p ON o.product_id = p.id
+WHERE p.category = 'Electronics'
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products WHERE category = 'Electronics'
+);`,
+    examples: [
+      {
+        title: 'Basic division \u2014 double NOT EXISTS pattern',
+        sql: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Electronics'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`,
+        explanation: 'For each employee, the inner NOT EXISTS checks if there is an Electronics product they have NOT ordered. If no such product exists (outer NOT EXISTS), the employee has ordered ALL Electronics products.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: employees who ordered ALL Electronics products
+for (int i = 0; i < employeeCount; i++) {
+    bool allOrdered = true;
+    for (int p = 0; p < productCount; p++) {
+        if (products[p].category != "Electronics") continue;
+        bool found = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id)
+                { found = true; break; }
+        }
+        if (!found) { allOrdered = false; break; }
+    }
+    if (allOrdered)
+        cout << employees[i].name << " | " << employees[i].department << "\\n";
+}`
+      },
+      {
+        title: 'Division with EXCEPT',
+        sql: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p WHERE p.price > 100
+    EXCEPT
+    SELECT o.product_id FROM orders o WHERE o.customer = e.name
+  )
+);`,
+        explanation: 'The EXCEPT pattern is more readable: "Take all expensive product IDs, remove the ones this employee ordered. If nothing remains, they ordered all of them."',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: EXCEPT-based division
+for (int i = 0; i < employeeCount; i++) {
+    bool allOrdered = true;
+    for (int p = 0; p < productCount; p++) {
+        if (!(products[p].price > 100)) continue;
+        bool found = false;
+        for (int o = 0; o < orderCount; o++) {
+            if (orders[o].customer == employees[i].name
+                && orders[o].product_id == products[p].id)
+                { found = true; break; }
+        }
+        if (!found) { allOrdered = false; break; }
+    }
+    if (allOrdered)
+        cout << employees[i].name << " | " << employees[i].department << "\\n";
+}`
+      },
+      {
+        title: 'Division with HAVING COUNT',
+        sql: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS products_ordered
+FROM orders o
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products
+)
+ORDER BY o.customer;`,
+        explanation: 'The HAVING COUNT approach counts distinct products each customer ordered. If it equals the total number of products, they ordered all of them. Requires a subquery for the total count.',
+        sourceTables: ['employees', 'products', 'orders'],
+        cppRepresentation: `// C++: HAVING COUNT division
+int totalProducts = productCount;
+string customers[100];
+int custCount = 0;
+int custCounts[100] = {0};
+int seenProducts[100][100] = {{0}};
+for (int i = 0; i < orderCount; i++) {
+    int idx = -1;
+    for (int j = 0; j < custCount; j++)
+        if (customers[j] == orders[i].customer) { idx = j; break; }
+    if (idx == -1) { idx = custCount++; customers[idx] = orders[i].customer; }
+    bool dup = false;
+    for (int k = 0; k < seenProducts[idx][0]; k++)
+        if (seenProducts[idx][k + 1] == orders[i].product_id) { dup = true; break; }
+    if (!dup) { seenProducts[idx][++seenProducts[idx][0]] = orders[i].product_id; custCounts[idx]++; }
+}
+for (int i = 0; i < custCount; i++)
+    if (custCounts[i] == totalProducts)
+        cout << customers[i] << " | " << custCounts[i] << "\\n";`
+      }
+    ],
+    commonMistakes: [
+      'Using NOT IN for division (fails if the subquery contains NULL values)',
+      'Forgetting DISTINCT in the HAVING COUNT approach (duplicates inflate the count)',
+      'Confusing the double NOT EXISTS logic: outer checks for counterexamples, inner checks for a specific missing item',
+      'Writing the division query without correlating the inner subquery to the outer table',
+      'Using EXCEPT without matching column count and data types between the two queries'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: employees, products, orders
+
+Write a query using double NOT EXISTS to find employees who have placed orders for ALL products in the "Clothing" category.
+
+Return columns: name, department
+Order by: any order.`,
+        hint: 'Outer NOT EXISTS on products WHERE category = \'Clothing\' AND inner NOT EXISTS on orders linking employee to product WHERE o.customer = e.name AND o.product_id = p.id.',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  SELECT p.id FROM products p
+  WHERE p.category = 'Clothing'
+    AND NOT EXISTS (
+      SELECT 1 FROM orders o
+      WHERE o.customer = e.name
+        AND o.product_id = p.id
+    )
+);`
+      },
+      {
+        question: `Table: employees, products, orders
+
+Rewrite the division query from question 1 using the EXCEPT pattern instead of double NOT EXISTS.
+
+Return columns: name, department
+Order by: any order.`,
+        hint: 'Use NOT EXISTS ( (SELECT p.id FROM products p WHERE p.category = \'Clothing\') EXCEPT (SELECT o.product_id FROM orders o WHERE o.customer = e.name) ).',
+        solution: `SELECT e.name, e.department
+FROM employees e
+WHERE NOT EXISTS (
+  (
+    SELECT p.id FROM products p
+    WHERE p.category = 'Clothing'
+    EXCEPT
+    SELECT o.product_id FROM orders o
+    WHERE o.customer = e.name
+  )
+);`
+      },
+      {
+        question: `Table: products, orders
+
+Challenge: Using the HAVING COUNT approach, find customers who have ordered ALL products costing more than $50.
+
+Return columns: customer, expensive_ordered
+Order by: customer ASC.`,
+        hint: 'GROUP BY o.customer, HAVING COUNT(DISTINCT o.product_id) = (SELECT COUNT(*) FROM products WHERE price > 50). JOIN products to filter by price.',
+        solution: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS expensive_ordered
+FROM orders o
+JOIN products p ON o.product_id = p.id
+WHERE p.price > 50
+GROUP BY o.customer
+HAVING COUNT(DISTINCT o.product_id) = (
+  SELECT COUNT(*) FROM products WHERE price > 50
+)
+ORDER BY o.customer;`
+      },
+      {
+        question: `Table: products, orders
+
+Advanced: Using the HAVING COUNT approach, find employees who have ordered at least one product from EVERY category that exists in products.
+
+Return columns: name, categories_ordered
+Order by: name ASC.`,
+        hint: 'First compute total categories: (SELECT COUNT(DISTINCT category) FROM products). Then JOIN employees → orders → products, GROUP BY employee, and HAVING COUNT(DISTINCT p.category) = total categories.',
+        solution: `SELECT e.name, COUNT(DISTINCT p.category) AS categories_ordered
+FROM employees e
+JOIN orders o ON e.name = o.customer_name
+JOIN products p ON o.product_id = p.id
+GROUP BY e.name
+HAVING COUNT(DISTINCT p.category) = (
+  SELECT COUNT(DISTINCT category) FROM products
+)
+ORDER BY e.name;`
+      }
+    ]
+  },
+  {
+    id: 'string-functions',
+    title: 'Advanced String Functions',
+    description: 'Manipulate and transform text data with SQL string functions',
+    icon: '🔤',
+    difficulty: 'intermediate',
+    prerequisites: ['select'],
+    topics: ['CONCAT', 'SUBSTRING', 'REPLACE', 'TRIM', 'UPPER', 'LOWER', 'LENGTH', 'POSITION', 'GROUP_CONCAT', 'string aggregation'],
+    explanation: `── Real-World Analogy ──
+String functions are like a text editor's tools: find & replace, trim spaces, change case, pad numbers.
+They let you CLEAN and TRANSFORM messy text data into a consistent format.
+
+── Visual: How String Functions Transform Data ──
+  Raw messy data:                     After cleaning with string functions:
+  ┌──────────────────┐                ┌──────────────────┬───────────┬───────────┐
+  │  "  JOHN DOE  "  │                │  "John Doe"      │ john.doe  │ JOHN DOE │
+  │  "  jane smith " │   ──► CLEAN ──►│  "Jane Smith"    │ jane.smith│ JANE SMITH│
+  │  "  BOB   "      │                │  "Bob"            │ bob       │ BOB       │
+  └──────────────────┘                └──────────────────┴───────────┴───────────┘
+                                      ↑ TRIM + proper case  ↑ LOWER +   ↑ UPPER
+                                                            REPLACE spaces
+
+── Visual: Function Chaining (Pipe) ──
+  Input: "  Hello World  "
+
+  Step 1: TRIM → "Hello World"      (remove outer spaces)
+  Step 2: UPPER → "HELLO WORLD"     (convert to uppercase)
+  Step 3: REPLACE ' ' WITH '_' → "HELLO_WORLD"
+
+  In SQL: SELECT REPLACE(UPPER(TRIM('  Hello World  ')), ' ', '_');
+  → Reads INSIDE OUT: TRIM first → then UPPER → then REPLACE
+
+── String Function Reference ──
+| Function              | What It Does                  | Input Example               | Output                    |
+|-----------------------|-------------------------------|-----------------------------|---------------------------|
+| CONCAT(a, b) / a \|\| b | Join strings                | CONCAT('Hello', ' World')   | 'Hello World'             |
+| SUBSTRING(str FROM p FOR n) | Extract part             | SUBSTRING('Hello' FROM 2 FOR 3) | 'ell'               |
+| REPLACE(str, old, new)| Replace substring            | REPLACE('Hi', 'Hi', 'Bye')  | 'Bye'                     |
+| TRIM(str)             | Remove leading/trailing spaces| TRIM('  hi  ')              | 'hi'                      |
+| UPPER(str)            | Convert to uppercase         | UPPER('hello')              | 'HELLO'                   |
+| LOWER(str)            | Convert to lowercase         | LOWER('HELLO')              | 'hello'                   |
+| LENGTH(str)           | Count characters             | LENGTH('Hello')             | 5                         |
+| POSITION(sub IN str)  | Find substring position      | POSITION('ll' IN 'Hello')   | 3                         |
+| LPAD(str, n, pad)     | Pad on the left              | LPAD('7', 3, '0')           | '007'                     |
+| RPAD(str, n, pad)     | Pad on the right             | RPAD('7', 3, '0')           | '700'                     |
+| LEFT(str, n)          | First n characters           | LEFT('Hello', 2)            | 'He'                      |
+| RIGHT(str, n)         | Last n characters            | RIGHT('Hello', 2)           | 'lo'                      |
+
+── Golden Rules ──
+- Functions CAN be nested (chain them): UPPER(TRIM(column)) — reads from innermost outward
+- LENGTH counts CHARACTERS (not bytes) in PostgreSQL
+- POSITION is case-sensitive; use LOWER() for case-insensitive: POSITION('john' IN LOWER(name))
+- || is SQL standard for concatenation; CONCAT() also standard
+- TRIM removes spaces by default; use TRIM(LEADING/TRAILING char FROM str) for custom chars`,
+    syntax: `-- Concatenation
+SELECT CONCAT(first_name, ' ', last_name) AS full_name;
+-- or using ||
+SELECT first_name || ' ' || last_name AS full_name;
+
+-- Substring extraction
+SELECT SUBSTRING('Hello World' FROM 1 FOR 5);  -- 'Hello'
+SELECT SUBSTRING('Hello World' FROM 7);        -- 'World'
+
+-- Replace
+SELECT REPLACE('Hello World', 'World', 'SQL');  -- 'Hello SQL'
+
+-- Trimming
+SELECT TRIM('  hello  ');               -- 'hello'
+SELECT LTRIM('  hello  ');              -- 'hello  '
+SELECT RTRIM('  hello  ');              -- '  hello'
+
+-- Case conversion
+SELECT UPPER('hello');  -- 'HELLO'
+SELECT LOWER('WORLD');  -- 'world'
+
+-- String length
+SELECT LENGTH('Hello');  -- 5
+
+-- Find position
+SELECT POSITION('World' IN 'Hello World');  -- 7
+SELECT STRPOS('Hello World', 'World');      -- 7
+
+-- Padding
+SELECT LPAD('5', 3, '0');   -- '005'
+SELECT RPAD('SQL', 6, '*'); -- 'SQL***'`,
+    examples: [
+      {
+        title: 'Case conversion and length',
+        sql: `SELECT name,
+  UPPER(name) AS name_upper,
+  LOWER(department) AS dept_lower,
+  LENGTH(name) AS name_length,
+  LENGTH(department) AS dept_length
+FROM employees;`,
+        explanation: 'Demonstrates UPPER, LOWER, and LENGTH on text columns.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    string upper;for(int j=0;j<(int)employees[i].name.length();j++)upper+=char(toupper(employees[i].name[j]));
+    string lower;for(int j=0;j<(int)employees[i].department.length();j++)lower+=char(tolower(employees[i].department[j]));
+    cout<<employees[i].name<<" | upper="<<upper<<" | lower="<<lower<<" | name_len="<<employees[i].name.length()<<" | dept_len="<<employees[i].department.length()<<"\\n";
+}`
+      },
+      {
+        title: 'String concatenation',
+        sql: `SELECT name,
+  department || ' (' || city || ')' AS dept_and_location
+FROM employees;`,
+        explanation: 'Uses the || operator to concatenate strings, building a combined department and location column.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for(int i=0;i<employeeCount;i++)cout<<employees[i].name<<" | "<<employees[i].department+" ("+employees[i].city+")"<<"\\n";`
+      },
+      {
+        title: 'SUBSTRING extraction',
+        sql: `SELECT name,
+  SUBSTR(name, 1, INSTR(name, ' ') - 1) AS first_name,
+  SUBSTR(name, INSTR(name, ' ') + 1) AS last_name
+FROM employees;`,
+        explanation: 'Splits the full name into first and last name using SUBSTR and INSTR to find the space position.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    int p=employees[i].name.find(' ');
+    cout<<employees[i].name<<" | first="<<employees[i].name.substr(0,p)<<" | last="<<employees[i].name.substr(p+1)<<"\\n";
+}`
+      },
+      {
+        title: 'REPLACE and TRIM',
+        sql: `SELECT name,
+  REPLACE(name, 'e', '3') AS leet_name,
+  TRIM('  ' || name || '  ') AS trimmed_name,
+  LENGTH('  ' || name || '  ') AS before_trim,
+  LENGTH(TRIM('  ' || name || '  ')) AS after_trim
+FROM employees
+LIMIT 3;`,
+        explanation: 'REPLACE swaps characters, TRIM removes leading/trailing whitespace. Shows length before and after trimming.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string trim(string s){int f=-1,l=-1;for(int i=0;i<(int)s.length();i++)if(s[i]!=' '){f=i;break;}if(f==-1)return"";for(int i=(int)s.length()-1;i>=0;i--)if(s[i]!=' '){l=i;break;}return s.substr(f,l-f+1);}
+int c=0;
+for(int i=0;i<employeeCount;i++){if(c++>=3)break;
+    string p="  "+employees[i].name+"  ";
+    string r=employees[i].name;for(int j=0;j<(int)r.length();j++)if(r[j]=='e')r[j]='3';
+    cout<<employees[i].name<<" | leet="<<r<<" | before="<<p.length()<<" | after="<<trim(p).length()<<"\\n";
+}`
+      },
+      {
+        title: 'Padding with LPAD and RPAD',
+        sql: `SELECT name,
+  LPAD(CAST(salary AS TEXT), 10, '.') AS salary_padded,
+  RPAD(department, 15, '-') AS dept_padded
+FROM employees
+LIMIT 5;`,
+        explanation: 'LPAD pads the string on the left to reach the target length. RPAD pads on the right. Useful for formatting output or creating fixed-width text.',
+        sourceTables: ['employees'],
+        cppRepresentation: `string lpad(string s,int w,char p){return (int)s.length()>=w?s:string(w-s.length(),p)+s;}
+string rpad(string s,int w,char p){return (int)s.length()>=w?s:s+string(w-s.length(),p);}
+int c=0;
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    string sal=to_string(employees[i].salary);
+    cout<<employees[i].name<<" | "<<lpad(sal,10,'.')<<" | "<<rpad(employees[i].department,15,'-')<<"\\n";
+}`
+      },
+      {
+        title: 'Formatting with PRINTF',
+        sql: `SELECT name,
+  PRINTF('$%.2f', salary) AS formatted_salary,
+  PRINTF('Dept: %s (%s)', department, city) AS dept_location
+FROM employees
+LIMIT 5;`,
+        explanation: 'PRINTF formats values using a template string. %s inserts text, %.2f formats a number with 2 decimal places.',
+        sourceTables: ['employees'],
+        cppRepresentation: `int c=0;
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    cout<<employees[i].name<<" | $"<<fixed<<setprecision(2)<<employees[i].salary<<" | Dept: "<<employees[i].department<<" ("<<employees[i].city<<")\\n";
+}`
+      },
+      {
+        title: 'Nested function calls',
+        sql: `SELECT name,
+  UPPER(TRIM(SUBSTR(name, INSTR(name, ' ') + 1))) AS last_name_upper
+FROM employees`,
+        explanation: 'Chains three functions: extracts the last name via SUBSTR/INSTR, trims whitespace, then uppercases it.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    int p=employees[i].name.find(' ');
+    string last=employees[i].name.substr(p+1);
+    string upper;for(int j=0;j<(int)last.length();j++)upper+=char(toupper(last[j]));
+    cout<<employees[i].name<<" | "<<upper<<"\\n";
+}`
+      },
+      {
+        title: 'String formatting for display',
+        sql: `SELECT name,
+  PRINTF('Name: %s | Dept: %s | Salary: $%.2f', name, department, salary) AS formatted
+FROM employees
+LIMIT 5`,
+        explanation: 'Uses PRINTF to create a single readable formatted string from multiple columns with labels and proper formatting.',
+        sourceTables: ['employees'],
+        cppRepresentation: `int c=0;
+for(int i=0;i<employeeCount;i++){if(c++>=5)break;
+    cout<<"Name: "<<employees[i].name<<" | Dept: "<<employees[i].department<<" | Salary: $"<<fixed<<setprecision(2)<<employees[i].salary<<"\\n";
+}`
+      },
+      {
+        title: 'Extract and transform',
+        sql: `SELECT name,
+  UPPER(SUBSTR(name, 1, 1)) AS first_initial,
+  LOWER(SUBSTR(name, 2)) AS rest_of_name
+FROM employees`,
+        explanation: 'Combines INSTR positioning concept with SUBSTR, UPPER, and LOWER to split a name into its capitalized first letter and lowercased remainder.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for(int i=0;i<employeeCount;i++){
+    string init="";init+=char(toupper(employees[i].name[0]));
+    string rest;for(int j=1;j<(int)employees[i].name.length();j++)rest+=char(tolower(employees[i].name[j]));
+    cout<<employees[i].name<<" | initial="<<init<<" | rest="<<rest<<"\\n";
+}`
+      },
+      {
+        title: 'GROUP_CONCAT — string aggregation',
+        sql: `SELECT department,
+  GROUP_CONCAT(name, ', ') AS employees
+FROM employees
+GROUP BY department
+ORDER BY department;`,
+        explanation: 'GROUP_CONCAT joins string values from multiple rows into a single string per group. Here it lists all employee names per department, separated by ", ". This is LeetCode 1484 (Group Sold Products By The Date).',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < departmentCount; i++) {
+    string cat;
+    int first = 1;
+    for (int j = 0; j < employeeCount; j++) {
+        if (employees[j].department_id == departments[i].id) {
+            if (!first) cat += ", ";
+            cat += employees[j].name;
+            first = 0;
+        }
+    }
+    cout << departments[i].name << " | " << cat << "\\n";
+}`
+      },
+    ],
+    commonMistakes: [
+      'Using string concatenation with || on NULL columns (NULL || anything = NULL)',
+      'Forgetting that string functions are case-sensitive by default',
+      'Not handling NULLs before applying string functions',
+      'Using SUBSTRING with wrong length parameters'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: employees
+
+Show employee names in uppercase, their department in lowercase, and the length of their full name.
+
+Return columns: name_upper, dept_lower, name_length
+Order by: any order.`,
+        hint: 'Use UPPER(), LOWER(), and LENGTH() functions.',
+        solution: `SELECT 
+  UPPER(name) AS name_upper,
+  LOWER(department) AS dept_lower,
+  LENGTH(name) AS name_length
+FROM employees;`
+      },
+      {
+        question: `Table: employees
+
+Challenge: Extract the first name and last initial from each employee name, formatted as "First L." where L is the last initial capitalized. Sort by the last initial descending.
+
+Return columns: name, short_name
+Order by: last initial DESC.`,
+        hint: 'Use SUBSTR with INSTR to split at the space. Concatenate with ||. Use UPPER on the extracted initial.',
+        solution: `SELECT name,
+  SUBSTR(name, 1, INSTR(name, ' ') - 1)
+    || ' '
+    || UPPER(SUBSTR(name, INSTR(name, ' ') + 1, 1))
+    || '.' AS short_name
+FROM employees
+ORDER BY SUBSTR(name, INSTR(name, ' ') + 1, 1) DESC;`
+      },
+      {
+        question: `Table: products
+
+Challenge: Create a "product_code" column by taking the first 3 letters of the category (uppercased), the first 2 letters of the product name (uppercased), and the ID zero-padded to 3 digits.
+
+Return columns: name, category, id, product_code
+Order by: id ASC.`,
+        hint: 'Use UPPER(SUBSTR(category, 1, 3)) concatenated with UPPER(SUBSTR(name, 1, 2)) and PRINTF(\'%03d\', id).',
+        solution: `SELECT name, category, id,
+  UPPER(SUBSTR(category, 1, 3))
+    || UPPER(SUBSTR(name, 1, 2))
+    || PRINTF('%03d', id) AS product_code
+FROM products
+ORDER BY id;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Create a display_name by concatenating each employee's name with their department in parentheses. Also create a sanitized_email by replacing '@company.com' with '@example.com'. Use CONCAT (||) and REPLACE.
+
+Return columns: name, display_name, sanitized_email
+Order by: name ASC.`,
+        hint: 'Use name || \' (\' || department || \')\' for display_name. Use REPLACE(email, \'@company.com\', \'@example.com\') for sanitized_email.',
+        solution: `SELECT name,
+  name || ' (' || department || ')' AS display_name,
+  REPLACE(email, '@company.com', '@example.com') AS sanitized_email
+FROM employees
+ORDER BY name;`
+      },
+      {
+        question: `Table: orders
+
+Challenge (LeetCode 1484): Group sold products by order date. For each date, show how many distinct products were sold and a comma-separated list of product names sold on that date.
+
+Return columns: order_date, num_sold, products
+Order by: order_date ASC.`,
+        hint: 'Use GROUP BY order_date with COUNT(DISTINCT product_id) and GROUP_CONCAT(DISTINCT product_name).',
+        solution: `SELECT
+  order_date,
+  COUNT(DISTINCT product_id) AS num_sold,
+  GROUP_CONCAT(DISTINCT customer_name, ', ') AS products
+FROM orders
+GROUP BY order_date
+ORDER BY order_date;`
+      }
+    ]
+
+  },
+  {
+    id: 'pattern-matching',
+    title: 'Pattern Matching & Regex',
+    description: 'Advanced text search with LIKE, ILIKE, and regular expressions',
+    icon: '🎯',
+    difficulty: 'intermediate',
+    prerequisites: ['where'],
+    topics: ['LIKE', 'ILIKE', 'SIMILAR TO', 'regex', '~', '~*', 'regexp_replace', 'regexp_match'],
+    explanation: `── Real-World Analogy ──
+LIKE is like using wildcards in a file search: "find all files starting with 'report_' (*.pdf)".
+In SQL: "find all customers whose name starts with 'A' or contains 'son'."
+
+── Visual: How LIKE Wildcards Match Data ──
+  Pattern: 'A%'  (starts with A)
+  ┌────────────┬───────┐
+  │ name       │ Match │
+  ├────────────┼───────┤
+  │ Alice      │ ✅    │  ← starts with A
+  │ Andrew     │ ✅    │  ← starts with A
+  │ Bob        │ ❌    │  ← starts with B
+  │ Barbara    │ ✅    │  ← starts with B... wait, no - she'd also match but LOWER() affects
+  └────────────┴───────┘
+
+  ── Visual Wildcard Guide ──
+  Pattern: '%son'     → Ends with "son"     → Johnson ✅, Stevenson ✅, Alice ❌
+  Pattern: 'A%'       → Starts with "A"     → Alice ✅, Bob ❌
+  Pattern: '%Data%'   → Contains "Data"     → Database ✅, Data Mining ✅, SQL ❌
+  Pattern: '_r%'      → 2nd char is "r"     → Oracle ✅ (O-r), Arabic ✅ (A-r), SQL ❌
+  Pattern: '___'      → Exactly 3 chars     → ABC ✅, Bob ✅, Alice ❌ (5 chars)
+
+  Key: % = "any sequence of characters (including zero)"
+       _ = "exactly ONE character"
+
+── Pattern Matching Methods ──
+| Method            | What It Does                     | Example                         | Standard?  |
+|-------------------|----------------------------------|---------------------------------|------------|
+| LIKE              | % (any seq) and _ (one char)     | WHERE name LIKE 'A%'            | ✅ SQL std |
+| ILIKE             | LIKE but case-insensitive        | WHERE name ILIKE 'alice'        | ❌ PG only |
+| ~ (tilde)         | POSIX regular expression match   | WHERE email ~ '^a.*\\.com$'     | ❌ PG only |
+| ~*                | Case-insensitive regex match     | WHERE name ~* '^john'           | ❌ PG only |
+| !~ / !~*          | Negated regex match              | WHERE email !~ '^test'          | ❌ PG only |
+| regexp_match()    | Extract first regex match        | regexp_match(email, '@(.+)$')   | ❌ PG only |
+| regexp_replace()  | Replace using regex              | regexp_replace(text, '\d+', '#')| ❌ PG only |
+
+── LIKE vs Regex: When to Use ──
+- LIKE: Simple wildcards, starts-with/ends-with/contains — fast, portable (works in ALL databases)
+- Regex: Complex patterns, alternation (cat|dog), quantifiers {2,5}, character classes [A-Z0-9] — PostgreSQL only
+- Default: use LIKE unless you NEED regex power (regex is 10x slower than LIKE for simple cases)`,
+    syntax: `-- LIKE wildcards
+SELECT * FROM users WHERE email LIKE '%@gmail.com';
+SELECT * FROM products WHERE sku LIKE 'ABC_'; -- _ = single char
+
+-- ILIKE (case-insensitive, PostgreSQL only)
+SELECT * FROM users WHERE name ILIKE 'john%';
+
+-- POSIX regex matches (PostgreSQL only)
+SELECT * FROM users WHERE email ~ '^[a-z]+@[a-z]+\\.com$';
+
+-- regexp_match (PostgreSQL only)
+SELECT 
+  email,
+  regexp_match(email, '@(.+)$') AS domain
+FROM users;
+
+-- INSTR + SUBSTR (works everywhere)
+SELECT 
+  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username,
+  SUBSTR(email, INSTR(email, '@') + 1) AS domain
+FROM users;
+
+-- Common LIKE patterns
+-- %    any sequence of characters
+-- _    exactly one character
+-- [%]  literal percent (escape)`,
+    examples: [
+      {
+        title: 'LIKE — ends with pattern',
+        sql: `SELECT name, email
+FROM employees
+WHERE email LIKE '%@company.com'
+ORDER BY name;`,
+        explanation: 'LIKE with % matches any sequence. This finds all employees with company.com email addresses.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string email = employees[i].email;
+    int len = email.length();
+    if (len >= 12 && email.substr(len - 12) == "@company.com")
+        cout << employees[i].name << " | " << email << "\n";}`
+      },
+      {
+        title: 'LIKE — contains and starts with',
+        sql: `SELECT name, department, email
+FROM employees
+WHERE name LIKE '%e%'
+  AND email LIKE 'c%'
+ORDER BY name;`,
+        explanation: 'First condition finds names containing "e". Second finds emails starting with "c". Both must be true. Only Charlie matches.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.find('e') != -1 && employees[i].email.length() > 0 && employees[i].email[0] == 'c')
+        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].email << "\n";}`
+      },
+      {
+        title: 'LIKE with _ single-character wildcard',
+        sql: `SELECT name, department
+FROM employees
+WHERE name LIKE '%a_e'
+ORDER BY name;`,
+        explanation: 'The _ matches exactly one character. This pattern finds names ending with "a" followed by any character then "e" — like "Charlie" and "Grace".',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string name = employees[i].name;
+    int len = name.length();
+    if (len >= 3 && name[len-3] == 'a' && name[len-1] == 'e')
+        cout << name << " | " << employees[i].department << "\n";}`
+      },
+      {
+        title: 'Extracting parts with INSTR and SUBSTR',
+        sql: `SELECT name, email,
+  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username,
+  SUBSTR(email, INSTR(email, '@') + 1) AS domain
+FROM employees
+WHERE email IS NOT NULL;`,
+        explanation: 'INSTR finds the position of "@". SUBSTR then extracts the username (before @) and domain (after @). This works in any SQL database.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    string email = employees[i].email;
+    if (email.length() > 0) {
+        int p = email.find('@');
+        cout << employees[i].name << " | " << email << " | user=" << email.substr(0, p) << " | domain=" << email.substr(p+1) << "\n";
+    }}`
+      },
+      {
+        title: 'NOT LIKE to exclude patterns',
+        sql: `SELECT name, department FROM employees
+WHERE name NOT LIKE '%a%'
+ORDER BY name`,
+        explanation: 'Finds names that do NOT contain the letter "a" using NOT LIKE.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.find('a') == -1)
+        cout << employees[i].name << " | " << employees[i].department << "\n";}`
+      },
+      {
+        title: 'LIKE with _ single char',
+        sql: `SELECT name, department FROM employees
+WHERE name LIKE '_a%'
+ORDER BY name`,
+        explanation: 'The _ wildcard matches exactly one character. This finds names with "a" as the second letter.',
+        sourceTables: ['employees'],
+        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
+    if (employees[i].name.length() >= 2 && employees[i].name[1] == 'a')
+        cout << employees[i].name << " | " << employees[i].department << "\n";}`
+      },
+      {
+        title: 'Pattern matching on numbers',
+        sql: `SELECT name, price, category FROM products
+WHERE CAST(price AS TEXT) LIKE '1%'
+ORDER BY price`,
+        explanation: 'Casts the numeric price to text and uses LIKE to find products where the price text starts with "1".',
+        sourceTables: ['products'],
+        cppRepresentation: `for (int i = 0; i < productCount; i++) {
+    string s = to_string(products[i].price);
+    if (s[0] == '1')
+        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\n";}`
+      },
+      {
+        title: 'REGEXP — email validation (LeetCode 1517)',
+        sql: `-- SQLite: use LIKE + SUBSTR for email validation
+SELECT user_id, email
+FROM users
+WHERE email LIKE '%@leetcode.com'
+  AND SUBSTR(email, 1, 1) BETWEEN 'a' AND 'z'
+  AND email = LOWER(email);
+
+-- Equivalent with PostgreSQL REGEXP:
+-- SELECT user_id, email
+-- FROM users
+-- WHERE email ~ '^[A-Za-z][A-Za-z0-9_.-]*@leetcode\.com$';`,
+        explanation: 'REGEXP validates text against a regular expression pattern. LeetCode 1517 requires checking that emails contain only valid characters and follow the pattern prefix@leetcode.com. In SQLite, LIKE + SUBSTR replaces REGEXP.',
+        sourceTables: [],
+        cppRepresentation: `regex r("^[A-Za-z][A-Za-z0-9_.-]*@leetcode\\\\.com$");
+for (int i = 0; i < userCount; i++) {
+    if (regex_match(users[i].email, r))
+        cout << users[i].user_id << " | " << users[i].email << "\\n";
+}`
+      },
+    ],
+    commonMistakes: [
+      'Using = instead of LIKE for pattern matching (= does exact match only)',
+      'Forgetting that LIKE patterns are case-sensitive by default',
+      'Not escaping wildcard characters (%) when they should be literal',
+      'Using complex regex when simple LIKE would suffice'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: products
+
+Find all products whose name starts with "D" or ends with "k".
+
+Return columns: name, category, price
+Order by: name ASC.`,
+        hint: 'Use name LIKE \'D%\' OR name LIKE \'%k\' with OR.',
+        solution: `SELECT name, category, price
+FROM products
+WHERE name LIKE 'D%'
+   OR name LIKE '%k'
+ORDER BY name;`
+      },
+      {
+        question: `Table: employees
+
+Challenge: Find all employees whose email username (the part before @) has more than 4 characters.
+
+Return columns: name, email, username
+Order by: name ASC.`,
+        hint: 'Use INSTR(email, \'@\') to find the @ position, then SUBSTR to extract the username and LENGTH to check its length.',
+        solution: `SELECT name, email,
+  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username
+FROM employees
+WHERE LENGTH(SUBSTR(email, 1, INSTR(email, '@') - 1)) > 4
+ORDER BY name;`
+      },
+      {
+        question: `Table: products
+
+Challenge: Find all products whose price is a whole number (no decimal cents — ends with .00 when cast to text).
+
+Return columns: name, price, category
+Order by: price DESC.`,
+        hint: 'Use CAST(price AS TEXT) LIKE \'%.00\' or use price = CAST(price AS INTEGER).',
+        solution: `SELECT name, price, category
+FROM products
+WHERE CAST(price AS TEXT) LIKE '%.00'
+ORDER BY price DESC;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Find employees whose email follows a valid pattern: starts with a lowercase letter, contains only lowercase letters, numbers, dots, or hyphens before the @, and ends with '@company.com'.
+
+Return columns: name, email
+Order by: name ASC.`,
+        hint: 'Use email LIKE \'[a-z]%\' OR email GLOB \'[a-z]*@company.com\' - since LIKE doesn\'t support character classes in SQLite, use multiple conditions: email LIKE \'%@company.com\' AND email GLOB \'[a-z]*\' and ensure no uppercase via email = LOWER(email).',
+        solution: `SELECT name, email
+FROM employees
+WHERE email = LOWER(email)
+  AND email LIKE '%@company.com'
+  AND SUBSTR(email, 1, 1) BETWEEN 'a' AND 'z'
+ORDER BY name;`
+      },
+      {
+        question: `Table: new table "users"
+
+Challenge (LeetCode 1517): Find users with valid emails. A valid email has a prefix (before @) that starts with a letter, contains only letters, numbers, underscore, period, or hyphen, and the domain is exactly '@leetcode.com'.
+
+Return columns: user_id, email
+Order by: any order.`,
+        hint: 'Create a users table first, then use LIKE \'%@leetcode.com\' AND SUBSTR(email, 1, 1) BETWEEN \'a\' AND \'z\' AND email GLOB \'*@leetcode.com\' AND email = LOWER(email).',
+        solution: `CREATE TABLE users (user_id INTEGER PRIMARY KEY, email TEXT NOT NULL);
+INSERT INTO users VALUES (1, 'alice@leetcode.com'), (2, 'bob@leetcode.com'), (3, 'Invalid@leetcode.com'), (4, 'test.email@leetcode.com'), (5, 'bad@leetcode.com');
+SELECT user_id, email
+FROM users
+WHERE email = LOWER(email)
+  AND email LIKE '%@leetcode.com'
+  AND SUBSTR(email, 1, 1) BETWEEN 'a' AND 'z';`
+      }
+    ]
+
   },
   {
     id: 'window-functions',
@@ -5246,7 +6770,7 @@ ORDER BY customer, order_date;`
     icon: '🏆',
     difficulty: 'advanced',
     prerequisites: ['window-functions'],
-    topics: ['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'NTILE'],
+    topics: ['RANK', 'DENSE_RANK', 'ROW_NUMBER', 'NTILE', 'first per group', 'ROW_NUMBER filter'],
     explanation: `── Real-World Analogy ──
 Think of a race where two runners tie for 1st place:
 - ROW_NUMBER = the judges arbitrarily say "you're #1, you're #2" (everyone gets a unique position)
@@ -5582,626 +7106,28 @@ Order by: salary DESC.`,
 FROM employees
 ORDER BY salary DESC;`
       },
-    ]
-  },
-  {
-    id: 'advanced-practice',
-    title: 'Advanced Practice',
-    description: 'Review all advanced SQL concepts including window functions and ranking',
-    icon: '📝',
-    difficulty: 'advanced',
-    prerequisites: ['window-functions', 'rank-functions'],
-    topics: ['Practice', 'Review'],
-    explanation: `This practice set tests everything you've learned in the advanced section: window functions and ranking functions (RANK, DENSE_RANK, ROW_NUMBER, NTILE, LAG).
-
-These are the most powerful SQL features for analytical queries. Each question combines multiple concepts — try to solve them without hints first!`,
-    examples: [],
-    commonMistakes: [],
-    practiceQuestions: [
-      {
-        question: `Table: orders
-
-For each customer, show their total spending, the company-wide average order total, and whether they are above or below the average. Use window functions.
-
-Return columns: customer, total_spent, avg_spent, standing
-Order by: total_spent DESC.`,
-        hint: 'Use SUM(total) with a customer-level GROUP BY. Then use AVG(SUM(total)) OVER () to compute the overall average across all customers. Wrap in a CTE for readability.',
-        solution: `WITH customer_totals AS (
-  SELECT customer,
-    ROUND(SUM(total), 2) AS total_spent,
-    ROUND(AVG(SUM(total)) OVER (), 2) AS avg_spent
-  FROM orders
-  GROUP BY customer
-)
-SELECT customer, total_spent, avg_spent,
-  CASE WHEN total_spent > avg_spent THEN 'Above Avg' ELSE 'Below Avg' END AS standing
-FROM customer_totals
-ORDER BY total_spent DESC;`
-      },
-      {
-        question: `Table: products, orders
-
-Use ROW_NUMBER to rank products by total sales within each category. Show the top product in each category.
-
-Return columns: name, category, revenue
-Order by: revenue DESC.`,
-        hint: 'JOIN products to orders, GROUP BY product, use ROW_NUMBER() OVER (PARTITION BY category ORDER BY SUM(total) DESC) inside a CTE, then filter rn = 1.',
-        solution: `WITH product_sales AS (
-  SELECT p.id, p.name, p.category,
-    ROUND(SUM(o.total), 2) AS revenue,
-    ROW_NUMBER() OVER (
-      PARTITION BY p.category
-      ORDER BY SUM(o.total) DESC
-    ) AS rn
-  FROM products p
-  JOIN orders o ON p.id = o.product_id
-  GROUP BY p.id, p.name, p.category
-)
-SELECT name, category, revenue
-FROM product_sales
-WHERE rn = 1
-ORDER BY revenue DESC;`
-      },
       {
         question: `Table: employees
 
-Divide all employees into 4 salary quartiles using NTILE and show the salary range (min to max) for each quartile.
+Challenge (First per group): For each department, find the employee with the highest salary (first per group when ordered by salary DESC). Use ROW_NUMBER with a subquery or CTE.
 
-Return columns: quartile, min_salary, max_salary, employee_count
-Order by: quartile ASC.`,
-        hint: 'NTILE(4) OVER (ORDER BY salary) to create buckets. Wrap in a CTE, then GROUP BY bucket with MIN and MAX salary.',
-        solution: `WITH salary_quartiles AS (
-  SELECT name, salary,
-    NTILE(4) OVER (ORDER BY salary) AS quartile
+Return columns: department, name, salary
+Order by: department ASC.`,
+        hint: 'Use ROW_NUMBER() OVER (PARTITION BY department ORDER BY salary DESC) AS rn in a subquery, then filter WHERE rn = 1 in the outer query.',
+        solution: `WITH ranked AS (
+  SELECT department, name, salary,
+    ROW_NUMBER() OVER (
+      PARTITION BY department
+      ORDER BY salary DESC
+    ) AS rn
   FROM employees
 )
-SELECT quartile,
-  MIN(salary) AS min_salary,
-  MAX(salary) AS max_salary,
-  COUNT(*) AS employee_count
-FROM salary_quartiles
-GROUP BY quartile
-ORDER BY quartile;`
-      },
-      {
-        question: `Table: orders
-
-Use the LAG window function to show each order for each customer alongside the previous order's total and the difference between consecutive orders.
-
-Return columns: customer, order_date, total, previous_total, difference
-Order by: customer, order_date ASC.`,
-        hint: 'LAG(total) OVER (PARTITION BY customer ORDER BY order_date) to get the previous order\'s total. Use COALESCE to avoid NULL for the first order. Compute total - previous_total as the difference.',
-        solution: `SELECT customer, order_date, total,
-  COALESCE(LAG(total) OVER (
-    PARTITION BY customer
-    ORDER BY order_date
-  ), 0) AS previous_total,
-  total - COALESCE(LAG(total) OVER (
-    PARTITION BY customer
-    ORDER BY order_date
-  ), 0) AS difference
-FROM orders
-ORDER BY customer, order_date;`
+SELECT department, name, salary
+FROM ranked
+WHERE rn = 1
+ORDER BY department;`
       }
     ]
-  },
-  {
-    id: 'string-functions',
-    title: 'Advanced String Functions',
-    description: 'Manipulate and transform text data with SQL string functions',
-    icon: '🔤',
-    difficulty: 'intermediate',
-    prerequisites: ['select'],
-    topics: ['CONCAT', 'SUBSTRING', 'REPLACE', 'TRIM', 'UPPER', 'LOWER', 'LENGTH', 'POSITION'],
-    explanation: `── Real-World Analogy ──
-String functions are like a text editor's tools: find & replace, trim spaces, change case, pad numbers.
-They let you CLEAN and TRANSFORM messy text data into a consistent format.
-
-── Visual: How String Functions Transform Data ──
-  Raw messy data:                     After cleaning with string functions:
-  ┌──────────────────┐                ┌──────────────────┬───────────┬───────────┐
-  │  "  JOHN DOE  "  │                │  "John Doe"      │ john.doe  │ JOHN DOE │
-  │  "  jane smith " │   ──► CLEAN ──►│  "Jane Smith"    │ jane.smith│ JANE SMITH│
-  │  "  BOB   "      │                │  "Bob"            │ bob       │ BOB       │
-  └──────────────────┘                └──────────────────┴───────────┴───────────┘
-                                      ↑ TRIM + proper case  ↑ LOWER +   ↑ UPPER
-                                                            REPLACE spaces
-
-── Visual: Function Chaining (Pipe) ──
-  Input: "  Hello World  "
-
-  Step 1: TRIM → "Hello World"      (remove outer spaces)
-  Step 2: UPPER → "HELLO WORLD"     (convert to uppercase)
-  Step 3: REPLACE ' ' WITH '_' → "HELLO_WORLD"
-
-  In SQL: SELECT REPLACE(UPPER(TRIM('  Hello World  ')), ' ', '_');
-  → Reads INSIDE OUT: TRIM first → then UPPER → then REPLACE
-
-── String Function Reference ──
-| Function              | What It Does                  | Input Example               | Output                    |
-|-----------------------|-------------------------------|-----------------------------|---------------------------|
-| CONCAT(a, b) / a \|\| b | Join strings                | CONCAT('Hello', ' World')   | 'Hello World'             |
-| SUBSTRING(str FROM p FOR n) | Extract part             | SUBSTRING('Hello' FROM 2 FOR 3) | 'ell'               |
-| REPLACE(str, old, new)| Replace substring            | REPLACE('Hi', 'Hi', 'Bye')  | 'Bye'                     |
-| TRIM(str)             | Remove leading/trailing spaces| TRIM('  hi  ')              | 'hi'                      |
-| UPPER(str)            | Convert to uppercase         | UPPER('hello')              | 'HELLO'                   |
-| LOWER(str)            | Convert to lowercase         | LOWER('HELLO')              | 'hello'                   |
-| LENGTH(str)           | Count characters             | LENGTH('Hello')             | 5                         |
-| POSITION(sub IN str)  | Find substring position      | POSITION('ll' IN 'Hello')   | 3                         |
-| LPAD(str, n, pad)     | Pad on the left              | LPAD('7', 3, '0')           | '007'                     |
-| RPAD(str, n, pad)     | Pad on the right             | RPAD('7', 3, '0')           | '700'                     |
-| LEFT(str, n)          | First n characters           | LEFT('Hello', 2)            | 'He'                      |
-| RIGHT(str, n)         | Last n characters            | RIGHT('Hello', 2)           | 'lo'                      |
-
-── Golden Rules ──
-- Functions CAN be nested (chain them): UPPER(TRIM(column)) — reads from innermost outward
-- LENGTH counts CHARACTERS (not bytes) in PostgreSQL
-- POSITION is case-sensitive; use LOWER() for case-insensitive: POSITION('john' IN LOWER(name))
-- || is SQL standard for concatenation; CONCAT() also standard
-- TRIM removes spaces by default; use TRIM(LEADING/TRAILING char FROM str) for custom chars`,
-    syntax: `-- Concatenation
-SELECT CONCAT(first_name, ' ', last_name) AS full_name;
--- or using ||
-SELECT first_name || ' ' || last_name AS full_name;
-
--- Substring extraction
-SELECT SUBSTRING('Hello World' FROM 1 FOR 5);  -- 'Hello'
-SELECT SUBSTRING('Hello World' FROM 7);        -- 'World'
-
--- Replace
-SELECT REPLACE('Hello World', 'World', 'SQL');  -- 'Hello SQL'
-
--- Trimming
-SELECT TRIM('  hello  ');               -- 'hello'
-SELECT LTRIM('  hello  ');              -- 'hello  '
-SELECT RTRIM('  hello  ');              -- '  hello'
-
--- Case conversion
-SELECT UPPER('hello');  -- 'HELLO'
-SELECT LOWER('WORLD');  -- 'world'
-
--- String length
-SELECT LENGTH('Hello');  -- 5
-
--- Find position
-SELECT POSITION('World' IN 'Hello World');  -- 7
-SELECT STRPOS('Hello World', 'World');      -- 7
-
--- Padding
-SELECT LPAD('5', 3, '0');   -- '005'
-SELECT RPAD('SQL', 6, '*'); -- 'SQL***'`,
-    examples: [
-      {
-        title: 'Case conversion and length',
-        sql: `SELECT name,
-  UPPER(name) AS name_upper,
-  LOWER(department) AS dept_lower,
-  LENGTH(name) AS name_length,
-  LENGTH(department) AS dept_length
-FROM employees;`,
-        explanation: 'Demonstrates UPPER, LOWER, and LENGTH on text columns.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for(int i=0;i<employeeCount;i++){
-    string upper;for(int j=0;j<(int)employees[i].name.length();j++)upper+=char(toupper(employees[i].name[j]));
-    string lower;for(int j=0;j<(int)employees[i].department.length();j++)lower+=char(tolower(employees[i].department[j]));
-    cout<<employees[i].name<<" | upper="<<upper<<" | lower="<<lower<<" | name_len="<<employees[i].name.length()<<" | dept_len="<<employees[i].department.length()<<"\\n";
-}`
-      },
-      {
-        title: 'String concatenation',
-        sql: `SELECT name,
-  department || ' (' || city || ')' AS dept_and_location
-FROM employees;`,
-        explanation: 'Uses the || operator to concatenate strings, building a combined department and location column.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for(int i=0;i<employeeCount;i++)cout<<employees[i].name<<" | "<<employees[i].department+" ("+employees[i].city+")"<<"\\n";`
-      },
-      {
-        title: 'SUBSTRING extraction',
-        sql: `SELECT name,
-  SUBSTR(name, 1, INSTR(name, ' ') - 1) AS first_name,
-  SUBSTR(name, INSTR(name, ' ') + 1) AS last_name
-FROM employees;`,
-        explanation: 'Splits the full name into first and last name using SUBSTR and INSTR to find the space position.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for(int i=0;i<employeeCount;i++){
-    int p=employees[i].name.find(' ');
-    cout<<employees[i].name<<" | first="<<employees[i].name.substr(0,p)<<" | last="<<employees[i].name.substr(p+1)<<"\\n";
-}`
-      },
-      {
-        title: 'REPLACE and TRIM',
-        sql: `SELECT name,
-  REPLACE(name, 'e', '3') AS leet_name,
-  TRIM('  ' || name || '  ') AS trimmed_name,
-  LENGTH('  ' || name || '  ') AS before_trim,
-  LENGTH(TRIM('  ' || name || '  ')) AS after_trim
-FROM employees
-LIMIT 3;`,
-        explanation: 'REPLACE swaps characters, TRIM removes leading/trailing whitespace. Shows length before and after trimming.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string trim(string s){int f=-1,l=-1;for(int i=0;i<(int)s.length();i++)if(s[i]!=' '){f=i;break;}if(f==-1)return"";for(int i=(int)s.length()-1;i>=0;i--)if(s[i]!=' '){l=i;break;}return s.substr(f,l-f+1);}
-int c=0;
-for(int i=0;i<employeeCount;i++){if(c++>=3)break;
-    string p="  "+employees[i].name+"  ";
-    string r=employees[i].name;for(int j=0;j<(int)r.length();j++)if(r[j]=='e')r[j]='3';
-    cout<<employees[i].name<<" | leet="<<r<<" | before="<<p.length()<<" | after="<<trim(p).length()<<"\\n";
-}`
-      },
-      {
-        title: 'Padding with LPAD and RPAD',
-        sql: `SELECT name,
-  LPAD(CAST(salary AS TEXT), 10, '.') AS salary_padded,
-  RPAD(department, 15, '-') AS dept_padded
-FROM employees
-LIMIT 5;`,
-        explanation: 'LPAD pads the string on the left to reach the target length. RPAD pads on the right. Useful for formatting output or creating fixed-width text.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string lpad(string s,int w,char p){return (int)s.length()>=w?s:string(w-s.length(),p)+s;}
-string rpad(string s,int w,char p){return (int)s.length()>=w?s:s+string(w-s.length(),p);}
-int c=0;
-for(int i=0;i<employeeCount;i++){if(c++>=5)break;
-    string sal=to_string(employees[i].salary);
-    cout<<employees[i].name<<" | "<<lpad(sal,10,'.')<<" | "<<rpad(employees[i].department,15,'-')<<"\\n";
-}`
-      },
-      {
-        title: 'Formatting with PRINTF',
-        sql: `SELECT name,
-  PRINTF('$%.2f', salary) AS formatted_salary,
-  PRINTF('Dept: %s (%s)', department, city) AS dept_location
-FROM employees
-LIMIT 5;`,
-        explanation: 'PRINTF formats values using a template string. %s inserts text, %.2f formats a number with 2 decimal places.',
-        sourceTables: ['employees'],
-        cppRepresentation: `int c=0;
-for(int i=0;i<employeeCount;i++){if(c++>=5)break;
-    cout<<employees[i].name<<" | $"<<fixed<<setprecision(2)<<employees[i].salary<<" | Dept: "<<employees[i].department<<" ("<<employees[i].city<<")\\n";
-}`
-      },
-      {
-        title: 'Nested function calls',
-        sql: `SELECT name,
-  UPPER(TRIM(SUBSTR(name, INSTR(name, ' ') + 1))) AS last_name_upper
-FROM employees`,
-        explanation: 'Chains three functions: extracts the last name via SUBSTR/INSTR, trims whitespace, then uppercases it.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for(int i=0;i<employeeCount;i++){
-    int p=employees[i].name.find(' ');
-    string last=employees[i].name.substr(p+1);
-    string upper;for(int j=0;j<(int)last.length();j++)upper+=char(toupper(last[j]));
-    cout<<employees[i].name<<" | "<<upper<<"\\n";
-}`
-      },
-      {
-        title: 'String formatting for display',
-        sql: `SELECT name,
-  PRINTF('Name: %s | Dept: %s | Salary: $%.2f', name, department, salary) AS formatted
-FROM employees
-LIMIT 5`,
-        explanation: 'Uses PRINTF to create a single readable formatted string from multiple columns with labels and proper formatting.',
-        sourceTables: ['employees'],
-        cppRepresentation: `int c=0;
-for(int i=0;i<employeeCount;i++){if(c++>=5)break;
-    cout<<"Name: "<<employees[i].name<<" | Dept: "<<employees[i].department<<" | Salary: $"<<fixed<<setprecision(2)<<employees[i].salary<<"\\n";
-}`
-      },
-      {
-        title: 'Extract and transform',
-        sql: `SELECT name,
-  UPPER(SUBSTR(name, 1, 1)) AS first_initial,
-  LOWER(SUBSTR(name, 2)) AS rest_of_name
-FROM employees`,
-        explanation: 'Combines INSTR positioning concept with SUBSTR, UPPER, and LOWER to split a name into its capitalized first letter and lowercased remainder.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for(int i=0;i<employeeCount;i++){
-    string init="";init+=char(toupper(employees[i].name[0]));
-    string rest;for(int j=1;j<(int)employees[i].name.length();j++)rest+=char(tolower(employees[i].name[j]));
-    cout<<employees[i].name<<" | initial="<<init<<" | rest="<<rest<<"\\n";
-}`
-      },
-    ],
-    commonMistakes: [
-      'Using string concatenation with || on NULL columns (NULL || anything = NULL)',
-      'Forgetting that string functions are case-sensitive by default',
-      'Not handling NULLs before applying string functions',
-      'Using SUBSTRING with wrong length parameters'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: employees
-
-Show employee names in uppercase, their department in lowercase, and the length of their full name.
-
-Return columns: name_upper, dept_lower, name_length
-Order by: any order.`,
-        hint: 'Use UPPER(), LOWER(), and LENGTH() functions.',
-        solution: `SELECT 
-  UPPER(name) AS name_upper,
-  LOWER(department) AS dept_lower,
-  LENGTH(name) AS name_length
-FROM employees;`
-      },
-      {
-        question: `Table: employees
-
-Challenge: Extract the first name and last initial from each employee name, formatted as "First L." where L is the last initial capitalized. Sort by the last initial descending.
-
-Return columns: name, short_name
-Order by: last initial DESC.`,
-        hint: 'Use SUBSTR with INSTR to split at the space. Concatenate with ||. Use UPPER on the extracted initial.',
-        solution: `SELECT name,
-  SUBSTR(name, 1, INSTR(name, ' ') - 1)
-    || ' '
-    || UPPER(SUBSTR(name, INSTR(name, ' ') + 1, 1))
-    || '.' AS short_name
-FROM employees
-ORDER BY SUBSTR(name, INSTR(name, ' ') + 1, 1) DESC;`
-      },
-      {
-        question: `Table: products
-
-Challenge: Create a "product_code" column by taking the first 3 letters of the category (uppercased), the first 2 letters of the product name (uppercased), and the ID zero-padded to 3 digits.
-
-Return columns: name, category, id, product_code
-Order by: id ASC.`,
-        hint: 'Use UPPER(SUBSTR(category, 1, 3)) concatenated with UPPER(SUBSTR(name, 1, 2)) and PRINTF(\'%03d\', id).',
-        solution: `SELECT name, category, id,
-  UPPER(SUBSTR(category, 1, 3))
-    || UPPER(SUBSTR(name, 1, 2))
-    || PRINTF('%03d', id) AS product_code
-FROM products
-ORDER BY id;`
-      },
-      {
-        question: `Table: employees
-
-Medium: Create a display_name by concatenating each employee's name with their department in parentheses. Also create a sanitized_email by replacing '@company.com' with '@example.com'. Use CONCAT (||) and REPLACE.
-
-Return columns: name, display_name, sanitized_email
-Order by: name ASC.`,
-        hint: 'Use name || \' (\' || department || \')\' for display_name. Use REPLACE(email, \'@company.com\', \'@example.com\') for sanitized_email.',
-        solution: `SELECT name,
-  name || ' (' || department || ')' AS display_name,
-  REPLACE(email, '@company.com', '@example.com') AS sanitized_email
-FROM employees
-ORDER BY name;`
-      }
-    ]
-
-  },
-  {
-    id: 'pattern-matching',
-    title: 'Pattern Matching & Regex',
-    description: 'Advanced text search with LIKE, ILIKE, and regular expressions',
-    icon: '🎯',
-    difficulty: 'intermediate',
-    prerequisites: ['where'],
-    topics: ['LIKE', 'ILIKE', 'SIMILAR TO', 'regex', '~', '~*', 'regexp_replace', 'regexp_match'],
-    explanation: `── Real-World Analogy ──
-LIKE is like using wildcards in a file search: "find all files starting with 'report_' (*.pdf)".
-In SQL: "find all customers whose name starts with 'A' or contains 'son'."
-
-── Visual: How LIKE Wildcards Match Data ──
-  Pattern: 'A%'  (starts with A)
-  ┌────────────┬───────┐
-  │ name       │ Match │
-  ├────────────┼───────┤
-  │ Alice      │ ✅    │  ← starts with A
-  │ Andrew     │ ✅    │  ← starts with A
-  │ Bob        │ ❌    │  ← starts with B
-  │ Barbara    │ ✅    │  ← starts with B... wait, no - she'd also match but LOWER() affects
-  └────────────┴───────┘
-
-  ── Visual Wildcard Guide ──
-  Pattern: '%son'     → Ends with "son"     → Johnson ✅, Stevenson ✅, Alice ❌
-  Pattern: 'A%'       → Starts with "A"     → Alice ✅, Bob ❌
-  Pattern: '%Data%'   → Contains "Data"     → Database ✅, Data Mining ✅, SQL ❌
-  Pattern: '_r%'      → 2nd char is "r"     → Oracle ✅ (O-r), Arabic ✅ (A-r), SQL ❌
-  Pattern: '___'      → Exactly 3 chars     → ABC ✅, Bob ✅, Alice ❌ (5 chars)
-
-  Key: % = "any sequence of characters (including zero)"
-       _ = "exactly ONE character"
-
-── Pattern Matching Methods ──
-| Method            | What It Does                     | Example                         | Standard?  |
-|-------------------|----------------------------------|---------------------------------|------------|
-| LIKE              | % (any seq) and _ (one char)     | WHERE name LIKE 'A%'            | ✅ SQL std |
-| ILIKE             | LIKE but case-insensitive        | WHERE name ILIKE 'alice'        | ❌ PG only |
-| ~ (tilde)         | POSIX regular expression match   | WHERE email ~ '^a.*\\.com$'     | ❌ PG only |
-| ~*                | Case-insensitive regex match     | WHERE name ~* '^john'           | ❌ PG only |
-| !~ / !~*          | Negated regex match              | WHERE email !~ '^test'          | ❌ PG only |
-| regexp_match()    | Extract first regex match        | regexp_match(email, '@(.+)$')   | ❌ PG only |
-| regexp_replace()  | Replace using regex              | regexp_replace(text, '\d+', '#')| ❌ PG only |
-
-── LIKE vs Regex: When to Use ──
-- LIKE: Simple wildcards, starts-with/ends-with/contains — fast, portable (works in ALL databases)
-- Regex: Complex patterns, alternation (cat|dog), quantifiers {2,5}, character classes [A-Z0-9] — PostgreSQL only
-- Default: use LIKE unless you NEED regex power (regex is 10x slower than LIKE for simple cases)`,
-    syntax: `-- LIKE wildcards
-SELECT * FROM users WHERE email LIKE '%@gmail.com';
-SELECT * FROM products WHERE sku LIKE 'ABC_'; -- _ = single char
-
--- ILIKE (case-insensitive, PostgreSQL only)
-SELECT * FROM users WHERE name ILIKE 'john%';
-
--- POSIX regex matches (PostgreSQL only)
-SELECT * FROM users WHERE email ~ '^[a-z]+@[a-z]+\\.com$';
-
--- regexp_match (PostgreSQL only)
-SELECT 
-  email,
-  regexp_match(email, '@(.+)$') AS domain
-FROM users;
-
--- INSTR + SUBSTR (works everywhere)
-SELECT 
-  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username,
-  SUBSTR(email, INSTR(email, '@') + 1) AS domain
-FROM users;
-
--- Common LIKE patterns
--- %    any sequence of characters
--- _    exactly one character
--- [%]  literal percent (escape)`,
-    examples: [
-      {
-        title: 'LIKE — ends with pattern',
-        sql: `SELECT name, email
-FROM employees
-WHERE email LIKE '%@company.com'
-ORDER BY name;`,
-        explanation: 'LIKE with % matches any sequence. This finds all employees with company.com email addresses.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    string email = employees[i].email;
-    int len = email.length();
-    if (len >= 12 && email.substr(len - 12) == "@company.com")
-        cout << employees[i].name << " | " << email << "\n";}`
-      },
-      {
-        title: 'LIKE — contains and starts with',
-        sql: `SELECT name, department, email
-FROM employees
-WHERE name LIKE '%e%'
-  AND email LIKE 'c%'
-ORDER BY name;`,
-        explanation: 'First condition finds names containing "e". Second finds emails starting with "c". Both must be true. Only Charlie matches.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].name.find('e') != -1 && employees[i].email.length() > 0 && employees[i].email[0] == 'c')
-        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].email << "\n";}`
-      },
-      {
-        title: 'LIKE with _ single-character wildcard',
-        sql: `SELECT name, department
-FROM employees
-WHERE name LIKE '%a_e'
-ORDER BY name;`,
-        explanation: 'The _ matches exactly one character. This pattern finds names ending with "a" followed by any character then "e" — like "Charlie" and "Grace".',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    string name = employees[i].name;
-    int len = name.length();
-    if (len >= 3 && name[len-3] == 'a' && name[len-1] == 'e')
-        cout << name << " | " << employees[i].department << "\n";}`
-      },
-      {
-        title: 'Extracting parts with INSTR and SUBSTR',
-        sql: `SELECT name, email,
-  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username,
-  SUBSTR(email, INSTR(email, '@') + 1) AS domain
-FROM employees
-WHERE email IS NOT NULL;`,
-        explanation: 'INSTR finds the position of "@". SUBSTR then extracts the username (before @) and domain (after @). This works in any SQL database.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    string email = employees[i].email;
-    if (email.length() > 0) {
-        int p = email.find('@');
-        cout << employees[i].name << " | " << email << " | user=" << email.substr(0, p) << " | domain=" << email.substr(p+1) << "\n";
-    }}`
-      },
-      {
-        title: 'NOT LIKE to exclude patterns',
-        sql: `SELECT name, department FROM employees
-WHERE name NOT LIKE '%a%'
-ORDER BY name`,
-        explanation: 'Finds names that do NOT contain the letter "a" using NOT LIKE.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].name.find('a') == -1)
-        cout << employees[i].name << " | " << employees[i].department << "\n";}`
-      },
-      {
-        title: 'LIKE with _ single char',
-        sql: `SELECT name, department FROM employees
-WHERE name LIKE '_a%'
-ORDER BY name`,
-        explanation: 'The _ wildcard matches exactly one character. This finds names with "a" as the second letter.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].name.length() >= 2 && employees[i].name[1] == 'a')
-        cout << employees[i].name << " | " << employees[i].department << "\n";}`
-      },
-      {
-        title: 'Pattern matching on numbers',
-        sql: `SELECT name, price, category FROM products
-WHERE CAST(price AS TEXT) LIKE '1%'
-ORDER BY price`,
-        explanation: 'Casts the numeric price to text and uses LIKE to find products where the price text starts with "1".',
-        sourceTables: ['products'],
-        cppRepresentation: `for (int i = 0; i < productCount; i++) {
-    string s = to_string(products[i].price);
-    if (s[0] == '1')
-        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\n";}`
-      },
-    ],
-    commonMistakes: [
-      'Using = instead of LIKE for pattern matching (= does exact match only)',
-      'Forgetting that LIKE patterns are case-sensitive by default',
-      'Not escaping wildcard characters (%) when they should be literal',
-      'Using complex regex when simple LIKE would suffice'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: products
-
-Find all products whose name starts with "D" or ends with "k".
-
-Return columns: name, category, price
-Order by: name ASC.`,
-        hint: 'Use name LIKE \'D%\' OR name LIKE \'%k\' with OR.',
-        solution: `SELECT name, category, price
-FROM products
-WHERE name LIKE 'D%'
-   OR name LIKE '%k'
-ORDER BY name;`
-      },
-      {
-        question: `Table: employees
-
-Challenge: Find all employees whose email username (the part before @) has more than 4 characters.
-
-Return columns: name, email, username
-Order by: name ASC.`,
-        hint: 'Use INSTR(email, \'@\') to find the @ position, then SUBSTR to extract the username and LENGTH to check its length.',
-        solution: `SELECT name, email,
-  SUBSTR(email, 1, INSTR(email, '@') - 1) AS username
-FROM employees
-WHERE LENGTH(SUBSTR(email, 1, INSTR(email, '@') - 1)) > 4
-ORDER BY name;`
-      },
-      {
-        question: `Table: products
-
-Challenge: Find all products whose price is a whole number (no decimal cents — ends with .00 when cast to text).
-
-Return columns: name, price, category
-Order by: price DESC.`,
-        hint: 'Use CAST(price AS TEXT) LIKE \'%.00\' or use price = CAST(price AS INTEGER).',
-        solution: `SELECT name, price, category
-FROM products
-WHERE CAST(price AS TEXT) LIKE '%.00'
-ORDER BY price DESC;`
-      },
-      {
-        question: `Table: employees
-
-Medium: Find employees whose email follows a valid pattern: starts with a lowercase letter, contains only lowercase letters, numbers, dots, or hyphens before the @, and ends with '@company.com'.
-
-Return columns: name, email
-Order by: name ASC.`,
-        hint: 'Use email LIKE \'[a-z]%\' OR email GLOB \'[a-z]*@company.com\' - since LIKE doesn\'t support character classes in SQLite, use multiple conditions: email LIKE \'%@company.com\' AND email GLOB \'[a-z]*\' and ensure no uppercase via email = LOWER(email).',
-        solution: `SELECT name, email
-FROM employees
-WHERE email = LOWER(email)
-  AND email LIKE '%@company.com'
-  AND SUBSTR(email, 1, 1) BETWEEN 'a' AND 'z'
-ORDER BY name;`
-      }
-    ]
-
   },
   {
     id: 'date-functions',
@@ -6599,405 +7525,94 @@ ORDER BY w1.id;`
 
   },
   {
-    id: 'set-operations',
-    title: 'Set Operations',
-    description: 'Combine result sets with UNION, INTERSECT, and EXCEPT',
-    icon: '🧩',
-    difficulty: 'intermediate',
-    prerequisites: ['select'],
-    topics: ['UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT', 'set operations'],
-    explanation: `── Real-World Analogy ──
-Set operations work like Venn diagrams from math class:
-- UNION = everything in EITHER circle (combined)
-- INTERSECT = only the OVERLAP (in both)
-- EXCEPT = left circle MINUS the overlap (in one but not the other)
+    id: 'beginner-practice',
+    title: 'Beginner Practice',
+    description: 'Review all beginner SQL concepts',
+    icon: '📝',
+    difficulty: 'beginner',
+    prerequisites: ['select', 'where', 'order-by', 'group-by', 'having'],
+    topics: ['Practice', 'Review'],
+    explanation: `This practice set tests everything you've learned in the beginner section: SELECT, WHERE, ORDER BY, GROUP BY, and HAVING.
 
-Key difference from JOIN: JOIN combines columns HORIZONTALLY (adds columns).
-Set operations combine rows VERTICALLY (adds rows). They STACK results.
-
-── Visual: Set Operations with Real Data ──
-  Query A: cities with customers       Query B: cities with suppliers
-  ┌──────────┐                         ┌──────────┐
-  │ city     │                         │ city     │
-  ├──────────┤                         ├──────────┤
-  │ Cairo    │                         │ Cairo    │
-  │ Giza     │                         │ Alex     │
-  │ Luxor    │                         │ Luxor    │
-  └──────────┘                         └──────────┘
-
-  UNION:                          INTERSECT:                    EXCEPT (A - B):
-  ┌──────────┐                    ┌──────────┐                  ┌──────────┐
-  │ Cairo    │  ← in both (once)  │ Cairo    │  ← in A AND B   │ Giza     │  ← in A but NOT B
-  │ Giza     │  ← only in A       │ Luxor    │                  └──────────┘
-  │ Luxor    │  ← in both (once)  └──────────┘
-  │ Alex     │  ← only in B
-  └──────────┘
-
-── Set Operation Comparison ──
-| Operation   | Result                          | Duplicates? | SQL Keyword    | Venn Diagram             |
-|-------------|---------------------------------|:-----------:|----------------|--------------------------|
-| UNION       | Rows from query1 OR query2      | ❌ Removed  | UNION          | Both circles combined    |
-| UNION ALL   | Rows from query1 OR query2      | ✅ Kept     | UNION ALL      | Both circles + overlaps  |
-| INTERSECT   | Rows in BOTH query1 AND query2  | ❌ Removed  | INTERSECT      | Only the overlap          |
-| EXCEPT      | Rows in query1 BUT NOT query2   | ❌ Removed  | EXCEPT         | Left minus the overlap    |
-
-── Set Operation Rules ──
-- Each SELECT must have the SAME NUMBER of columns
-- Corresponding columns must have COMPATIBLE data types (you can't UNION text with numbers)
-- Column names in the result come from the FIRST SELECT
-- Only ONE ORDER BY at the very END of the entire UNION/INTERSECT/EXCEPT
-- ORDER BY must use column names from the first SELECT (or numeric position)
-
-── UNION vs JOIN Visual ──
-  UNION (adds ROWS):                           JOIN (adds COLUMNS):
-  ┌─────────────┐                              ┌──────────┬──────────┐
-  │ customers   │                              │ city     │ has_supp │
-  ├─────────────┤                              ├──────────┼──────────┤
-  │ Cairo       │  ← from customers            │ Cairo    │ YES      │  ← combined row
-  │ Giza        │  ← from customers            │ Giza     │ NO       │
-  │ Alex        │  ← from suppliers            │ Luxor    │ YES      │
-  │ Luxor       │  ← from suppliers            └──────────┴──────────┘
-  └─────────────┘                              JOIN: more columns, same rows
-  UNION: more rows, same columns
-
-── INTERSECT vs INNER JOIN ──
-INTERSECT: "Which cities have BOTH customers AND suppliers?"
-  SELECT city FROM customers INTERSECT SELECT city FROM suppliers
-  → JUST the city names (single column)
-
-INNER JOIN: "Show me customers AND their supplier info for matching cities"
-  SELECT c.city, s.name FROM customers c JOIN suppliers s ON c.city = s.city
-  → Combined rows with columns from BOTH tables`,
-    syntax: `-- UNION (removes duplicates)
-SELECT city FROM customers
-UNION
-SELECT city FROM suppliers
-ORDER BY city;
-
--- UNION ALL (preserves duplicates, faster)
-SELECT product_id FROM orders_2024
-UNION ALL
-SELECT product_id FROM orders_2025;
-
--- INTERSECT
-SELECT product_id FROM products
-INTERSECT
-SELECT product_id FROM order_items;
-
--- EXCEPT
-SELECT employee_id FROM employees
-EXCEPT
-SELECT employee_id FROM terminated_employees;
-
--- Multiple set operations
-SELECT name FROM full_time_employees
-UNION
-SELECT name FROM part_time_employees
-INTERSECT
-SELECT name FROM award_winners;`,
-    examples: [
-      {
-        title: 'UNION — combining employee lists',
-        sql: `SELECT name, department, salary, 'Active' AS status_label
-FROM employees
-WHERE status = 'active'
-UNION ALL
-SELECT name, department, salary, 'Inactive' AS status_label
-FROM employees
-WHERE status = 'inactive'
-ORDER BY name;`,
-        explanation: 'UNION ALL stacks results from two queries. Active employees get one label, inactive another. UNION (without ALL) would deduplicate, but here every row is unique.',
-        sourceTables: ['employees'],
-        cppRepresentation: `Employee result[1000];
-int resultCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].status == "active" || employees[i].status == "inactive") {
-        result[resultCount] = employees[i];
-        resultCount++;
-    }
-}
-for (int i = 0; i < resultCount; i++) {
-    for (int j = i + 1; j < resultCount; j++) {
-        if (result[j].name < result[i].name) {
-            Employee temp = result[i];
-            result[i] = result[j];
-            result[j] = temp;
-        }
-    }
-}
-for (int i = 0; i < resultCount; i++) {
-    cout << result[i].name << " | " << result[i].department << " | " << result[i].salary << " | " << result[i].status << "\\n";}`
-      },
-      {
-        title: 'INTERSECT — common cities across departments',
-        sql: `SELECT city FROM employees
-WHERE department = 'Engineering'
-INTERSECT
-SELECT city FROM employees
-WHERE department = 'Marketing'
-ORDER BY city;`,
-        explanation: 'INTERSECT finds cities that appear in BOTH result sets — cities that have both Engineering and Marketing employees. New York is returned because it has employees from both departments.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string engCities[100];
-int engCount = 0;
-string mktCities[100];
-int mktCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].department == "Engineering") {
-        bool dup = false;
-        for (int j = 0; j < engCount; j++) {
-            if (engCities[j] == employees[i].city) { dup = true; break; }
-        }
-        if (!dup) { engCities[engCount] = employees[i].city; engCount++; }
-    }
-    if (employees[i].department == "Marketing") {
-        bool dup = false;
-        for (int j = 0; j < mktCount; j++) {
-            if (mktCities[j] == employees[i].city) { dup = true; break; }
-        }
-        if (!dup) { mktCities[mktCount] = employees[i].city; mktCount++; }
-    }
-}
-for (int i = 0; i < engCount; i++) {
-    for (int j = 0; j < mktCount; j++) {
-        if (engCities[i] == mktCities[j]) {
-            cout << engCities[i] << "\\n";
-            break;
-        }
-    }
-}`
-      },
-      {
-        title: 'EXCEPT — products never ordered',
-        sql: `SELECT id, name, category, price
-FROM products
-EXCEPT
-SELECT p.id, p.name, p.category, p.price
-FROM products p
-JOIN orders o ON p.id = o.product_id
-ORDER BY id;`,
-        explanation: 'EXCEPT returns products that exist in the first query but NOT in the second — products that have never been ordered. The second query finds ordered products, and EXCEPT removes them.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `int orderedIds[1000];
-int orderedCount = 0;
-for (int i = 0; i < orderCount; i++) {
-    bool dup = false;
-    for (int j = 0; j < orderedCount; j++) {
-        if (orderedIds[j] == orders[i].product_id) { dup = true; break; }
-    }
-    if (!dup) { orderedIds[orderedCount] = orders[i].product_id; orderedCount++; }
-}
-for (int i = 0; i < productCount; i++) {
-    bool found = false;
-    for (int j = 0; j < orderedCount; j++) {
-        if (orderedIds[j] == products[i].id) { found = true; break; }
-    }
-    if (!found) {
-        cout << products[i].id << " | " << products[i].name << " | " << products[i].category << " | " << products[i].price << "\\n";
-    }
-}`
-      },
-      {
-        title: 'UNION vs UNION ALL comparison',
-        sql: `SELECT department FROM employees
-WHERE salary > 80000
-UNION
-SELECT department FROM employees
-WHERE salary <= 80000
-ORDER BY department;`,
-        explanation: 'UNION removes duplicates, so each department appears only once. UNION ALL would show every matching row — try replacing UNION with UNION ALL to see the difference.',
-        sourceTables: ['employees'],
-        cppRepresentation: `string depts[100];
-int deptCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    string d = employees[i].department;
-    bool dup = false;
-    for (int j = 0; j < deptCount; j++) {
-        if (depts[j] == d) { dup = true; break; }
-    }
-    if (!dup) { depts[deptCount] = d; deptCount++; }
-}
-for (int i = 0; i < deptCount; i++) {
-    cout << depts[i] << "\\n";
-}`
-      },
-      {
-        title: 'Mixing UNION and EXCEPT',
-        sql: `SELECT name, department, salary
-FROM employees
-WHERE department = 'Engineering'
-UNION
-SELECT name, department, salary
-FROM employees
-WHERE department = 'Product'
-EXCEPT
-SELECT name, department, salary
-FROM employees
-WHERE salary < 75000
-ORDER BY salary DESC;`,
-        explanation: 'First combines Engineering and Product employees via UNION, then removes anyone earning under $75k via EXCEPT. The result: mid-to-high earners in tech departments.',
-        sourceTables: ['employees'],
-        cppRepresentation: `Employee combined[1000];
-int combinedCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].department == "Engineering" || employees[i].department == "Product") {
-        combined[combinedCount] = employees[i];
-        combinedCount++;
-    }
-}
-string lowSal[1000];
-int lowCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].salary < 75000) {
-        bool dup = false;
-        for (int j = 0; j < lowCount; j++) {
-            if (lowSal[j] == employees[i].name) { dup = true; break; }
-        }
-        if (!dup) { lowSal[lowCount] = employees[i].name; lowCount++; }
-    }
-}
-for (int i = 0; i < combinedCount; i++) {
-    bool excluded = false;
-    for (int j = 0; j < lowCount; j++) {
-        if (lowSal[j] == combined[i].name) { excluded = true; break; }
-    }
-    if (!excluded) {
-        cout << combined[i].name << " | " << combined[i].department << " | " << combined[i].salary << "\\n";
-    }
-}`
-      },
-      {
-        title: 'UNION with different tables',
-        sql: `SELECT name, 'Employee' AS source FROM employees
-UNION
-SELECT name, 'Product' AS source FROM products`,
-        explanation: 'Combines employee names with product names into a single list, with a label column identifying the source table.',
-        sourceTables: ['employees', 'products'],
-        cppRepresentation: `string seen[1000];
-int seenCount = 0;
-for (int i = 0; i < employeeCount; i++) {
-    bool dup = false;
-    for (int j = 0; j < seenCount; j++) {
-        if (seen[j] == employees[i].name) { dup = true; break; }
-    }
-    if (!dup) {
-        seen[seenCount] = employees[i].name;
-        seenCount++;
-        cout << employees[i].name << " | Employee\\n";
-    }
-}
-for (int i = 0; i < productCount; i++) {
-    bool dup = false;
-    for (int j = 0; j < seenCount; j++) {
-        if (seen[j] == products[i].name) { dup = true; break; }
-    }
-    if (!dup) {
-        seen[seenCount] = products[i].name;
-        seenCount++;
-        cout << products[i].name << " | Product\\n";
-    }
-}`
-      },
-      {
-        title: 'UNION ALL with constants',
-        sql: `SELECT '=== DEPARTMENT LIST ===' AS header
-UNION ALL
-SELECT name FROM employees WHERE department = 'Engineering'
-UNION ALL
-SELECT '=== END ===' AS footer`,
-        explanation: 'Uses UNION ALL with constant values to add header and footer rows around query results for better readability.',
-        sourceTables: ['employees'],
-        cppRepresentation: `cout << "=== DEPARTMENT LIST ===\\n";
-for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].department == "Engineering")
-        cout << employees[i].name << "\\n";
-}
-cout << "=== END ===\\n";`
-      },
-      {
-        title: 'EXCEPT with WHERE',
-        sql: `SELECT name, department FROM employees WHERE status = 'active'
-EXCEPT
-SELECT name, department FROM employees WHERE salary < 60000
-ORDER BY name`,
-        explanation: 'Finds active employees who earn at least $60,000 by excluding lower-paid employees from the active employee list.',
-        sourceTables: ['employees'],
-        cppRepresentation: `for (int i = 0; i < employeeCount; i++) {
-    if (employees[i].status == "active" && !(employees[i].salary < 60000))
-        cout << employees[i].name << " | " << employees[i].department << "\\n";}`
-      },
-    ],
-    commonMistakes: [
-      'Using UNION when UNION ALL would be faster (UNION deduplicates)',
-      'Forgetting that set operations require same number and types of columns',
-      'Confusing JOIN with set operations (JOIN is horizontal, set ops are vertical)',
-      'Using EXCEPT without understanding NULL handling differences'
-    ],
+Each question combines multiple concepts to challenge your understanding. Try to solve them without looking at the hints first!`,
+    examples: [],
+    commonMistakes: [],
     practiceQuestions: [
       {
-        question: `Table: products, orders
+        question: `Table: employees
 
-Find products that have been ordered at least once using INTERSECT.
+Find the top 2 highest-paid active employees in the Engineering department.
 
-Return columns: id, name
+Return columns: name, department, salary
+Order by: salary DESC
+Limit: 2 rows.`,
+        hint: 'WHERE status = \'active\' AND department = \'Engineering\', ORDER BY salary DESC, LIMIT 2.',
+        solution: `SELECT name, department, salary
+FROM employees
+WHERE status = 'active' AND department = 'Engineering'
+ORDER BY salary DESC
+LIMIT 2;`
+      },
+      {
+        question: `Table: products
+
+Show how many products each category has, the average price, and the total stock. Only include categories where the average price is over $50.
+
+Return columns: category, product_count, avg_price, total_stock
+Order by: total_stock DESC.`,
+        hint: 'Use GROUP BY with COUNT, AVG, SUM, then HAVING AVG(price) > 50. ORDER BY total_stock DESC.',
+        solution: `SELECT category,
+  COUNT(*) AS product_count,
+  ROUND(AVG(price), 2) AS avg_price,
+  SUM(stock) AS total_stock
+FROM products
+GROUP BY category
+HAVING AVG(price) > 50
+ORDER BY total_stock DESC;`
+      },
+      {
+        question: `Table: employees
+
+Find employees whose salary is above the average salary of all employees, grouped by department. For each such department, show how many high earners there are and the average salary of those high earners.
+
+Return columns: department, high_earners, avg_high_salary
+Order by: avg_high_salary DESC.`,
+        hint: 'First use WHERE salary > (SELECT AVG(salary) FROM employees), then GROUP BY department.',
+        solution: `SELECT department,
+  COUNT(*) AS high_earners,
+  ROUND(AVG(salary), 0) AS avg_high_salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees)
+GROUP BY department
+ORDER BY avg_high_salary DESC;`
+      },
+      {
+        question: `Table: products
+
+List products that cost more than $50, sorted by category alphabetically and then by price descending within each category.
+
+Return columns: name, category, price
+Order by: category ASC, price DESC
+Limit: 5 rows.`,
+        hint: 'WHERE price > 50, ORDER BY category ASC, price DESC, LIMIT 5.',
+        solution: `SELECT name, category, price
+FROM products
+WHERE price > 50
+ORDER BY category ASC, price DESC
+LIMIT 5;`
+      },
+      {
+        question: `Table: employees
+
+Write a query that uses DISTINCT to find all unique department-city combinations from employees, aliasing them as "dept" and "location".
+
+Return columns: dept, location (aliased from department, city)
 Order by: any order.`,
-        hint: 'Select ids from products, INTERSECT with SELECT DISTINCT product_id FROM orders.',
-        solution: `SELECT id, name
-FROM products
-WHERE id IN (
-  SELECT id FROM products
-  INTERSECT
-  SELECT product_id FROM orders
-);`
-      },
-      {
-        question: `Table: employees, orders
-
-Challenge: Use EXCEPT to find employees who have NOT placed any orders.
-
-Return columns: name, department
-Order by: name ASC.`,
-        hint: 'SELECT name, department FROM employees EXCEPT SELECT customer, ... FROM orders. Both queries must have the same number of columns.',
-        solution: `SELECT name, department
-FROM employees
-EXCEPT
-SELECT o.customer, e.department
-FROM orders o
-JOIN employees e ON o.customer = e.name
-ORDER BY name;`
-      },
-      {
-        question: `Table: employees, products
-
-Challenge: Use UNION ALL to create a combined product-employee catalog showing name, type ("Employee" or "Product"), and value (salary or price).
-
-Return columns: name, type, value
-Order by: name ASC.`,
-        hint: 'First SELECT: SELECT name, \'Employee\' AS type, salary FROM employees. Second SELECT: SELECT name, \'Product\' AS type, price FROM products. Use UNION ALL to combine.',
-        solution: `SELECT name, 'Employee' AS type, salary AS value
-FROM employees
-UNION ALL
-SELECT name, 'Product' AS type, price AS value
-FROM products
-ORDER BY name;`
-      },
-      {
-        question: `Table: employees, departments
-
-Medium: Use UNION to list all unique cities from both the employees table and the departments table. Label the source of each city.
-
-Return columns: city, source
-Order by: city ASC.`,
-        hint: 'First SELECT: SELECT DISTINCT city, \'Employee\' FROM employees. Second: SELECT DISTINCT city, \'Department\' FROM departments. Use UNION (not UNION ALL) to remove duplicate cities.',
-        solution: `SELECT DISTINCT city, 'Employee' AS source
-FROM employees
-UNION
-SELECT DISTINCT city, 'Department' AS source
-FROM departments
-ORDER BY city;`
+        hint: 'Use DISTINCT on two columns with AS aliases.',
+        solution: `SELECT DISTINCT department AS dept, city AS location
+FROM employees;`
       }
     ]
-
   },
   {
     id: 'intermediate-practice',
@@ -7101,6 +7716,107 @@ JOIN employees e2 ON e1.department <> e2.department
   AND ABS(e1.salary - e2.salary) <= 5000
   AND e1.name < e2.name
 ORDER BY e1.salary;`
+      }
+    ]
+  },
+  {
+    id: 'advanced-practice',
+    title: 'Advanced Practice',
+    description: 'Review all advanced SQL concepts including window functions and ranking',
+    icon: '📝',
+    difficulty: 'advanced',
+    prerequisites: ['window-functions', 'rank-functions'],
+    topics: ['Practice', 'Review'],
+    explanation: `This practice set tests everything you've learned in the advanced section: window functions and ranking functions (RANK, DENSE_RANK, ROW_NUMBER, NTILE, LAG).
+
+These are the most powerful SQL features for analytical queries. Each question combines multiple concepts — try to solve them without hints first!`,
+    examples: [],
+    commonMistakes: [],
+    practiceQuestions: [
+      {
+        question: `Table: orders
+
+For each customer, show their total spending, the company-wide average order total, and whether they are above or below the average. Use window functions.
+
+Return columns: customer, total_spent, avg_spent, standing
+Order by: total_spent DESC.`,
+        hint: 'Use SUM(total) with a customer-level GROUP BY. Then use AVG(SUM(total)) OVER () to compute the overall average across all customers. Wrap in a CTE for readability.',
+        solution: `WITH customer_totals AS (
+  SELECT customer,
+    ROUND(SUM(total), 2) AS total_spent,
+    ROUND(AVG(SUM(total)) OVER (), 2) AS avg_spent
+  FROM orders
+  GROUP BY customer
+)
+SELECT customer, total_spent, avg_spent,
+  CASE WHEN total_spent > avg_spent THEN 'Above Avg' ELSE 'Below Avg' END AS standing
+FROM customer_totals
+ORDER BY total_spent DESC;`
+      },
+      {
+        question: `Table: products, orders
+
+Use ROW_NUMBER to rank products by total sales within each category. Show the top product in each category.
+
+Return columns: name, category, revenue
+Order by: revenue DESC.`,
+        hint: 'JOIN products to orders, GROUP BY product, use ROW_NUMBER() OVER (PARTITION BY category ORDER BY SUM(total) DESC) inside a CTE, then filter rn = 1.',
+        solution: `WITH product_sales AS (
+  SELECT p.id, p.name, p.category,
+    ROUND(SUM(o.total), 2) AS revenue,
+    ROW_NUMBER() OVER (
+      PARTITION BY p.category
+      ORDER BY SUM(o.total) DESC
+    ) AS rn
+  FROM products p
+  JOIN orders o ON p.id = o.product_id
+  GROUP BY p.id, p.name, p.category
+)
+SELECT name, category, revenue
+FROM product_sales
+WHERE rn = 1
+ORDER BY revenue DESC;`
+      },
+      {
+        question: `Table: employees
+
+Divide all employees into 4 salary quartiles using NTILE and show the salary range (min to max) for each quartile.
+
+Return columns: quartile, min_salary, max_salary, employee_count
+Order by: quartile ASC.`,
+        hint: 'NTILE(4) OVER (ORDER BY salary) to create buckets. Wrap in a CTE, then GROUP BY bucket with MIN and MAX salary.',
+        solution: `WITH salary_quartiles AS (
+  SELECT name, salary,
+    NTILE(4) OVER (ORDER BY salary) AS quartile
+  FROM employees
+)
+SELECT quartile,
+  MIN(salary) AS min_salary,
+  MAX(salary) AS max_salary,
+  COUNT(*) AS employee_count
+FROM salary_quartiles
+GROUP BY quartile
+ORDER BY quartile;`
+      },
+      {
+        question: `Table: orders
+
+Use the LAG window function to show each order for each customer alongside the previous order's total and the difference between consecutive orders.
+
+Return columns: customer, order_date, total, previous_total, difference
+Order by: customer, order_date ASC.`,
+        hint: 'LAG(total) OVER (PARTITION BY customer ORDER BY order_date) to get the previous order\'s total. Use COALESCE to avoid NULL for the first order. Compute total - previous_total as the difference.',
+        solution: `SELECT customer, order_date, total,
+  COALESCE(LAG(total) OVER (
+    PARTITION BY customer
+    ORDER BY order_date
+  ), 0) AS previous_total,
+  total - COALESCE(LAG(total) OVER (
+    PARTITION BY customer
+    ORDER BY order_date
+  ), 0) AS difference
+FROM orders
+ORDER BY customer, order_date;`
       }
     ]
   },
@@ -8605,585 +9321,6 @@ RENAME COLUMN city TO location;`
     ]
   },
   {
-    id: 'exists-not-exists',
-    title: 'EXISTS & NOT EXISTS — Correlated Subqueries',
-    description: 'Use EXISTS and NOT EXISTS to test for the presence or absence of related rows',
-    icon: '🔍',
-    difficulty: 'intermediate',
-    prerequisites: ['subqueries', 'select', 'where'],
-    topics: ['EXISTS', 'NOT EXISTS', 'correlated subquery', 'IN vs EXISTS', 'NULL safety', 'division pattern'],
-    explanation: `── Real-World Analogy ──
-EXISTS = "Does this employee have ANY orders?" (check YES/NO, don't need details)
-NOT EXISTS = "Does this employee have ZERO orders?" (find people who never ordered)
-
-Think of a bouncer checking IDs at a club:
-- EXISTS = "Is this person on the list?" → scan until found, then stop (short-circuit)
-- NOT EXISTS = "Is this person NOT on the list?" → scan entire list, confirm absence
-
-── Visual: How EXISTS Executes (Short-Circuit) ──
-  Outer query: employees e           Inner: SELECT 1 FROM orders o WHERE o.customer = e.name
-
-  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
-  │ checking │ name     │    │ For THIS employee, scan orders:            │
-  ├──────────┼──────────┤    │                                            │
-  │ Row 1    │ Alice    │───►│ Order #101 (Alice) → MATCH! → STOP ✅     │  ← short-circuit
-  │ Row 2    │ Bob      │───►│ Order #102 (Carol) ❌ Order #104 (Carol) ❌│
-  │          │          │    │ Order #105 (Bob) → MATCH! → STOP ✅        │  ← found on 3rd try
-  │ Row 3    │ Carol    │───►│ Order #102 (Carol) → MATCH! → STOP ✅     │  ← found on 1st try
-  │ Row 4    │ Diana    │───►│ No orders for Diana → scanned ALL → ❌    │
-  └──────────┴──────────┘    └────────────────────────────────────────────┘
-  EXISTS keeps 3 rows (Alice, Bob, Carol). Diana excluded.
-
-── Visual: NOT EXISTS (Check for Zero Matches) ──
-  NOT EXISTS finds employees with NO orders:
-  ┌──────────┬──────────┐    ┌────────────────────────────────────────────┐
-  │ keeping  │ name     │    │ For THIS employee, scan orders:            │
-  ├──────────┼──────────┤    │                                            │
-  │ ❌       │ Alice    │───►│ Found order → NOT EXISTS is FALSE → skip   │
-  │ ❌       │ Bob      │───►│ Found order → NOT EXISTS is FALSE → skip   │
-  │ ❌       │ Carol    │───►│ Found order → NOT EXISTS is FALSE → skip   │
-  │ ✅       │ Diana    │───►│ NO orders found → NOT EXISTS is TRUE ✅    │
-  └──────────┴──────────┘    └────────────────────────────────────────────┘
-  Only Diana kept (she has zero orders).
-
-── EXISTS vs IN vs JOIN ──
-| Use Case                          | Best Tool        | Why                                  |
-|-----------------------------------|------------------|--------------------------------------|
-| "Has at least one" (boolean)      | EXISTS           | Short-circuits, can be correlated    |
-| "Value in a fixed list"           | IN               | Cleaner for uncorrelated checks      |
-| "Value in subquery (no NULLs)"    | IN               | Simple, readable                     |
-| "Value in subquery (has NULLs)"   | EXISTS           | NULL-safe, NOT IN breaks with NULLs  |
-| "Need data from both tables"      | JOIN             | Access columns from both sides       |
-
-── NULL Safety Trap ──
-NOT EXISTS is NULL-safe; NOT IN is NOT.
-Reason: x NOT IN (1, 2, NULL) → x <> 1 AND x <> 2 AND x <> NULL → UNKNOWN (zero rows).
-NOT EXISTS only checks if the subquery returns rows — NULLs inside don't affect the boolean.
-
-── When EXISTS Runs Faster ──
-EXISTS short-circuits: stops scanning the inner table as soon as it finds one match.
-IN must evaluate all rows in the subquery first, then compare.
-For large correlated checks, EXISTS is typically faster.
-
-── Mental Model (C++ Style) ──
-for each outer_row in table_a:
-    bool found = false
-    for each inner_row in table_b:
-        if inner_row.foreign_key == outer_row.id:
-            found = true
-            break              // short-circuit
-    if (found)  → EXISTS matches
-    if (!found) → NOT EXISTS matches`,
-    syntax: `-- EXISTS — find rows that have matches
-SELECT column1, column2
-FROM table_a a
-WHERE EXISTS (
-  SELECT 1 FROM table_b b
-  WHERE b.foreign_key = a.id
-);
-
--- NOT EXISTS — find rows without matches
-SELECT column1, column2
-FROM table_a a
-WHERE NOT EXISTS (
-  SELECT 1 FROM table_b b
-  WHERE b.foreign_key = a.id
-);
-
--- Common convention: SELECT 1 or SELECT *
--- Inside EXISTS, SELECT list doesn't matter — only row existence is checked`,
-    examples: [
-      {
-        title: 'EXISTS — find products that have been ordered',
-        sql: `SELECT p.name, p.price, p.category
-FROM products p
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.product_id = p.id
-)
-ORDER BY p.name;`,
-        explanation: 'For each product, the EXISTS subquery checks if any order references it. If yes, the product is included. The subquery short-circuits on the first match.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `// Intuitive C++ representation of: EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
-for (int i = 0; i < productCount; i++) {
-    bool hasOrders = false;
-    for (int j = 0; j < orderCount; j++) {
-        if (orders[j].product_id == products[i].id) {
-            hasOrders = true;
-            break; // short-circuit — EXISTS stops at first match
-        }
-    }
-    if (hasOrders)
-        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
-}`
-      },
-      {
-        title: 'NOT EXISTS — find products never ordered',
-        sql: `SELECT p.name, p.price, p.category
-FROM products p
-WHERE NOT EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.product_id = p.id
-)
-ORDER BY p.price DESC;`,
-        explanation: 'NOT EXISTS finds products with zero matching orders. Unlike NOT IN, NOT EXISTS correctly handles NULLs in the subquery — it never produces UNKNOWN.',
-        sourceTables: ['products', 'orders'],
-        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS (SELECT 1 FROM orders o WHERE o.product_id = p.id)
-for (int i = 0; i < productCount; i++) {
-    bool hasOrders = false;
-    for (int j = 0; j < orderCount; j++) {
-        if (orders[j].product_id == products[i].id) {
-            hasOrders = true;
-            break;
-        }
-    }
-    if (!hasOrders)
-        cout << products[i].name << " | " << products[i].price << " | " << products[i].category << "\\n";
-}`
-      },
-      {
-        title: 'NOT EXISTS vs NOT IN — NULL safety',
-        sql: `-- NULL-safe: NOT EXISTS handles NULLs correctly
-SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.customer = e.name
-);
-
--- DANGEROUS: NOT IN returns empty results if subquery contains NULL
-SELECT e.name, e.department
-FROM employees e
-WHERE e.name NOT IN (
-  SELECT o.customer FROM orders o
-);`,
-        explanation: 'NOT IN returns zero rows if ANY value in the subquery is NULL (because NULL comparisons yield UNKNOWN, which is NOT TRUE). NOT EXISTS handles NULLs correctly and is the safe choice.',
-        sourceTables: ['employees', 'orders'],
-        cppRepresentation: `// Intuitive C++ representation of: NOT EXISTS vs NOT IN NULL behavior
-// NOT EXISTS (safe):
-for (int i = 0; i < employeeCount; i++) {
-    bool found = false;
-    for (int j = 0; j < orderCount; j++)
-        if (orders[j].customer == employees[i].name) { found = true; break; }
-    if (!found) cout << employees[i].name << "\\n";
-}
-// NOT IN (breaks with NULL):
-// SQL semantics: if any orders.customer is NULL,
-// the entire NOT IN evaluates to UNKNOWN (zero rows).
-// C++ doesn't model this directly — it's a tri-valued logic issue.`
-      },
-      {
-        title: 'Correlated EXISTS — "has a" pattern',
-        sql: `SELECT e.name, e.department, e.salary
-FROM employees e
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.customer = e.name
-    AND o.total > 200
-)
-ORDER BY e.salary DESC;`,
-        explanation: 'A correlated EXISTS: for each employee, checks if they have placed any order over $200. The correlation is o.customer = e.name, linking inner to outer query.',
-        sourceTables: ['employees', 'orders'],
-        cppRepresentation: `// Intuitive C++ representation of: correlated EXISTS — employees with large orders
-for (int i = 0; i < employeeCount; i++) {
-    bool hasBigOrder = false;
-    for (int j = 0; j < orderCount; j++) {
-        if (orders[j].customer == employees[i].name && orders[j].total > 200) {
-            hasBigOrder = true;
-            break;
-        }
-    }
-    if (hasBigOrder)
-        cout << employees[i].name << " | " << employees[i].department << " | " << employees[i].salary << "\\n";
-}`
-      },
-      {
-        title: 'Division pattern with NOT EXISTS',
-        sql: `-- Find employees who have ordered ALL products in the 'Electronics' category
-SELECT e.name
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT p.id FROM products p
-  WHERE p.category = 'Electronics'
-    AND NOT EXISTS (
-      SELECT 1 FROM orders o
-      WHERE o.customer = e.name
-        AND o.product_id = p.id
-    )
-);`,
-        explanation: 'The "division" or "relational division" pattern: double NOT EXISTS finds entities related to ALL items in a set. The inner NOT EXISTS finds Electronics products the employee has NOT ordered. The outer NOT EXISTS finds employees where no such product exists — meaning they ordered all of them.',
-        sourceTables: ['employees', 'products', 'orders'],
-        cppRepresentation: `// Intuitive C++ representation of: division pattern (employees who ordered ALL Electronics)
-for (int i = 0; i < employeeCount; i++) {
-    bool orderedAllElectronics = true;
-    for (int p = 0; p < productCount; p++) {
-        if (products[p].category != "Electronics") continue;
-        bool orderedThis = false;
-        for (int o = 0; o < orderCount; o++) {
-            if (orders[o].customer == employees[i].name
-                && orders[o].product_id == products[p].id) {
-                orderedThis = true;
-                break;
-            }
-        }
-        if (!orderedThis) { orderedAllElectronics = false; break; }
-    }
-    if (orderedAllElectronics)
-        cout << employees[i].name << "\\n";
-}`
-      }
-    ],
-    commonMistakes: [
-      'NOT IN with NULLs: if subquery returns ANY NULL, NOT IN returns zero rows silently. Always use NOT EXISTS for NULL-safe exclusion.',
-      'ORDER BY inside EXISTS: pointless — EXISTS only checks row count, ordering changes nothing.',
-      'Missing correlation: without linking inner to outer (e.g., WHERE o.customer = e.name), EXISTS checks the same thing for every row.',
-      'Using EXISTS when you need JOIN data: EXISTS is a boolean check — you cannot access columns from the subquery. Use JOIN if you need inner table columns.',
-      'SELECT * inside EXISTS: misleading. Only row existence matters — use SELECT 1 for clarity.'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: employees
-
-Use EXISTS to find all departments that have at least one employee with a salary above $90,000.
-
-Return columns: department
-Order by: any order.`,
-        hint: 'SELECT DISTINCT department FROM employees e WHERE EXISTS (SELECT 1 FROM employees e2 WHERE e2.department = e.department AND e2.salary > 90000).',
-        solution: `SELECT DISTINCT e.department
-FROM employees e
-WHERE EXISTS (
-  SELECT 1 FROM employees e2
-  WHERE e2.department = e.department
-    AND e2.salary > 90000
-);`
-      },
-      {
-        question: `Table: employees, orders
-
-Find all employees who have never placed an order, using NOT EXISTS.
-
-Return columns: name, department
-Order by: any order.`,
-        hint: 'Use NOT EXISTS (SELECT 1 FROM orders WHERE customer = e.name) correlated to the outer employee.',
-        solution: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.customer = e.name
-);`
-      },
-      {
-        question: `Table: employees, products, orders
-
-Challenge: Use double NOT EXISTS (relational division) to find employees who have ordered ALL products that cost more than $100.
-
-Return columns: name, department
-Order by: any order.`,
-        hint: 'Outer NOT EXISTS on products: WHERE price > 100 AND NOT EXISTS (orders linking employee to that product).',
-        solution: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT p.id FROM products p
-  WHERE p.price > 100
-    AND NOT EXISTS (
-      SELECT 1 FROM orders o
-      WHERE o.customer = e.name
-        AND o.product_id = p.id
-    )
-);`
-      },
-      {
-        question: `Table: products, orders
-
-Rewrite this IN query using EXISTS instead: SELECT name FROM products WHERE id IN (SELECT product_id FROM orders WHERE quantity > 5); Explain which is better and why.
-
-Return columns: name
-Order by: any order.`,
-        hint: 'For EXISTS, correlate: WHERE EXISTS (SELECT 1 FROM orders WHERE product_id = p.id AND quantity > 5). Both work here since no NULLs, but EXISTS short-circuits.',
-        solution: `SELECT p.name
-FROM products p
-WHERE EXISTS (
-  SELECT 1 FROM orders o
-  WHERE o.product_id = p.id
-    AND o.quantity > 5
-);
-
--- EXISTS is better here because:
--- 1. Short-circuits on first match per product (faster with large data)
--- 2. Can be correlated (re-evaluated per outer row)
--- 3. Same NULL-safety (no NULLs in this case)
--- IN would evaluate the full subquery first, then compare.`
-      }
-    ]
-  },
-  {
-    id: 'division-queries',
-    title: 'Division Queries \u2014 "Assigned to ALL" Pattern',
-    description: 'Use the relational division pattern to find entities related to ALL items in a set',
-    icon: '\uD83D\uDCCA',
-    difficulty: 'advanced',
-    prerequisites: ['exists-not-exists', 'subqueries', 'set-operations', 'select', 'where'],
-    topics: ['DIVISION', 'double negation', 'NOT EXISTS', 'EXCEPT', 'for all', 'relational division'],
-    explanation: `── Real-World Analogy ──
-Division answers: "Which employees have ordered ALL products in the Electronics category?"
-
-Think of a teacher checking homework: "Did EVERY student submit EVERY assignment?"
-The question is NOT "which students submitted something?" (that's EXISTS).
-The question is "which students submitted EVERYTHING?" (that's DIVISION).
-
-── Visual: Division with Real Data ──
-  Products in Electronics:     Orders placed:
-  ┌──────┬──────────────┐     ┌──────────┬────────────┐
-  │ id   │ name         │     │ customer │ product_id │
-  ├──────┼──────────────┤     ├──────────┼────────────┤
-  │ 1    │ Laptop       │     │ Alice    │ 1          │  ← Alice ordered Laptop
-  │ 2    │ Mouse        │     │ Alice    │ 2          │  ← Alice ordered Mouse
-  │ 3    │ Keyboard     │     │ Alice    │ 3          │  ← Alice ordered Keyboard
-  └──────┴──────────────┘     │ Bob      │ 1          │  ← Bob ordered Laptop
-                              │ Bob      │ 2          │  ← Bob ordered Mouse
-  Goal: find employees who   │ Carol    │ 1          │  ← Carol ordered Laptop
-  ordered ALL 3 Electronics   └──────────┴────────────┘
-
-  ── Step-by-step visual check ──
-  Alice: ordered 1✅, 2✅, 3✅ → ALL three! ✅  ← RESULT
-  Bob:   ordered 1✅, 2✅, 3❌ → Missing Keyboard ❌
-  Carol: ordered 1✅, 2❌, 3❌ → Missing 2 items ❌
-
-── Core Insight: Double Negation ──
-"Employee ordered ALL Electronics products"
-= "There is NO Electronics product that the employee did NOT order"
-
-  For each employee:
-    For each Electronics product:
-      Did the employee NOT order this product?  → If YES → exclude this employee
-  Keep employees where NO counterexample exists.
-
-── Three Approaches ──
-| Approach                     | How It Works                              | Pros                     | Cons                     |
-|------------------------------|-------------------------------------------|--------------------------|--------------------------|
-| Double NOT EXISTS            | Nested NOT EXISTS (standard)              | NULL-safe, portable      | Harder to read           |
-| EXCEPT inside NOT EXISTS     | NOT EXISTS (SELECT ... EXCEPT SELECT ...) | More readable            | Not in MySQL             |
-| HAVING COUNT = total         | GROUP BY + HAVING COUNT = subquery COUNT  | Simple query structure   | Requires JOIN, COUNT mismatch risk |
-
-── When to Use Which ──
-- Double NOT EXISTS: default choice, works everywhere, NULL-safe
-- EXCEPT approach: more intuitive if you know set operations
-- HAVING COUNT: simpler for single-table relationships`,
-    syntax: `-- Division: double NOT EXISTS (standard form)
-SELECT e.name
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT p.id FROM products p
-  WHERE p.category = 'Electronics'
-    AND NOT EXISTS (
-      SELECT 1 FROM orders o
-      WHERE o.customer = e.name
-        AND o.product_id = p.id
-    )
-);
-
--- Division: EXCEPT pattern
-SELECT e.name
-FROM employees e
-WHERE NOT EXISTS (
-  (
-    SELECT p.id FROM products p WHERE p.category = 'Electronics'
-    EXCEPT
-    SELECT o.product_id FROM orders o WHERE o.customer = e.name
-  )
-);
-
--- Division: HAVING COUNT
-SELECT o.customer
-FROM orders o
-JOIN products p ON o.product_id = p.id
-WHERE p.category = 'Electronics'
-GROUP BY o.customer
-HAVING COUNT(DISTINCT o.product_id) = (
-  SELECT COUNT(*) FROM products WHERE category = 'Electronics'
-);`,
-    examples: [
-      {
-        title: 'Basic division \u2014 double NOT EXISTS pattern',
-        sql: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT p.id FROM products p
-  WHERE p.category = 'Electronics'
-    AND NOT EXISTS (
-      SELECT 1 FROM orders o
-      WHERE o.customer = e.name
-        AND o.product_id = p.id
-    )
-);`,
-        explanation: 'For each employee, the inner NOT EXISTS checks if there is an Electronics product they have NOT ordered. If no such product exists (outer NOT EXISTS), the employee has ordered ALL Electronics products.',
-        sourceTables: ['employees', 'products', 'orders'],
-        cppRepresentation: `// C++: employees who ordered ALL Electronics products
-for (int i = 0; i < employeeCount; i++) {
-    bool allOrdered = true;
-    for (int p = 0; p < productCount; p++) {
-        if (products[p].category != "Electronics") continue;
-        bool found = false;
-        for (int o = 0; o < orderCount; o++) {
-            if (orders[o].customer == employees[i].name
-                && orders[o].product_id == products[p].id)
-                { found = true; break; }
-        }
-        if (!found) { allOrdered = false; break; }
-    }
-    if (allOrdered)
-        cout << employees[i].name << " | " << employees[i].department << "\\n";
-}`
-      },
-      {
-        title: 'Division with EXCEPT',
-        sql: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  (
-    SELECT p.id FROM products p WHERE p.price > 100
-    EXCEPT
-    SELECT o.product_id FROM orders o WHERE o.customer = e.name
-  )
-);`,
-        explanation: 'The EXCEPT pattern is more readable: "Take all expensive product IDs, remove the ones this employee ordered. If nothing remains, they ordered all of them."',
-        sourceTables: ['employees', 'products', 'orders'],
-        cppRepresentation: `// C++: EXCEPT-based division
-for (int i = 0; i < employeeCount; i++) {
-    bool allOrdered = true;
-    for (int p = 0; p < productCount; p++) {
-        if (!(products[p].price > 100)) continue;
-        bool found = false;
-        for (int o = 0; o < orderCount; o++) {
-            if (orders[o].customer == employees[i].name
-                && orders[o].product_id == products[p].id)
-                { found = true; break; }
-        }
-        if (!found) { allOrdered = false; break; }
-    }
-    if (allOrdered)
-        cout << employees[i].name << " | " << employees[i].department << "\\n";
-}`
-      },
-      {
-        title: 'Division with HAVING COUNT',
-        sql: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS products_ordered
-FROM orders o
-GROUP BY o.customer
-HAVING COUNT(DISTINCT o.product_id) = (
-  SELECT COUNT(*) FROM products
-)
-ORDER BY o.customer;`,
-        explanation: 'The HAVING COUNT approach counts distinct products each customer ordered. If it equals the total number of products, they ordered all of them. Requires a subquery for the total count.',
-        sourceTables: ['employees', 'products', 'orders'],
-        cppRepresentation: `// C++: HAVING COUNT division
-int totalProducts = productCount;
-string customers[100];
-int custCount = 0;
-int custCounts[100] = {0};
-int seenProducts[100][100] = {{0}};
-for (int i = 0; i < orderCount; i++) {
-    int idx = -1;
-    for (int j = 0; j < custCount; j++)
-        if (customers[j] == orders[i].customer) { idx = j; break; }
-    if (idx == -1) { idx = custCount++; customers[idx] = orders[i].customer; }
-    bool dup = false;
-    for (int k = 0; k < seenProducts[idx][0]; k++)
-        if (seenProducts[idx][k + 1] == orders[i].product_id) { dup = true; break; }
-    if (!dup) { seenProducts[idx][++seenProducts[idx][0]] = orders[i].product_id; custCounts[idx]++; }
-}
-for (int i = 0; i < custCount; i++)
-    if (custCounts[i] == totalProducts)
-        cout << customers[i] << " | " << custCounts[i] << "\\n";`
-      }
-    ],
-    commonMistakes: [
-      'Using NOT IN for division (fails if the subquery contains NULL values)',
-      'Forgetting DISTINCT in the HAVING COUNT approach (duplicates inflate the count)',
-      'Confusing the double NOT EXISTS logic: outer checks for counterexamples, inner checks for a specific missing item',
-      'Writing the division query without correlating the inner subquery to the outer table',
-      'Using EXCEPT without matching column count and data types between the two queries'
-    ],
-    practiceQuestions: [
-      {
-        question: `Table: employees, products, orders
-
-Write a query using double NOT EXISTS to find employees who have placed orders for ALL products in the "Clothing" category.
-
-Return columns: name, department
-Order by: any order.`,
-        hint: 'Outer NOT EXISTS on products WHERE category = \'Clothing\' AND inner NOT EXISTS on orders linking employee to product WHERE o.customer = e.name AND o.product_id = p.id.',
-        solution: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  SELECT p.id FROM products p
-  WHERE p.category = 'Clothing'
-    AND NOT EXISTS (
-      SELECT 1 FROM orders o
-      WHERE o.customer = e.name
-        AND o.product_id = p.id
-    )
-);`
-      },
-      {
-        question: `Table: employees, products, orders
-
-Rewrite the division query from question 1 using the EXCEPT pattern instead of double NOT EXISTS.
-
-Return columns: name, department
-Order by: any order.`,
-        hint: 'Use NOT EXISTS ( (SELECT p.id FROM products p WHERE p.category = \'Clothing\') EXCEPT (SELECT o.product_id FROM orders o WHERE o.customer = e.name) ).',
-        solution: `SELECT e.name, e.department
-FROM employees e
-WHERE NOT EXISTS (
-  (
-    SELECT p.id FROM products p
-    WHERE p.category = 'Clothing'
-    EXCEPT
-    SELECT o.product_id FROM orders o
-    WHERE o.customer = e.name
-  )
-);`
-      },
-      {
-        question: `Table: products, orders
-
-Challenge: Using the HAVING COUNT approach, find customers who have ordered ALL products costing more than $50.
-
-Return columns: customer, expensive_ordered
-Order by: customer ASC.`,
-        hint: 'GROUP BY o.customer, HAVING COUNT(DISTINCT o.product_id) = (SELECT COUNT(*) FROM products WHERE price > 50). JOIN products to filter by price.',
-        solution: `SELECT o.customer, COUNT(DISTINCT o.product_id) AS expensive_ordered
-FROM orders o
-JOIN products p ON o.product_id = p.id
-WHERE p.price > 50
-GROUP BY o.customer
-HAVING COUNT(DISTINCT o.product_id) = (
-  SELECT COUNT(*) FROM products WHERE price > 50
-)
-ORDER BY o.customer;`
-      },
-      {
-        question: `Table: products, orders
-
-Advanced: Using the HAVING COUNT approach, find employees who have ordered at least one product from EVERY category that exists in products.
-
-Return columns: name, categories_ordered
-Order by: name ASC.`,
-        hint: 'First compute total categories: (SELECT COUNT(DISTINCT category) FROM products). Then JOIN employees → orders → products, GROUP BY employee, and HAVING COUNT(DISTINCT p.category) = total categories.',
-        solution: `SELECT e.name, COUNT(DISTINCT p.category) AS categories_ordered
-FROM employees e
-JOIN orders o ON e.name = o.customer_name
-JOIN products p ON o.product_id = p.id
-GROUP BY e.name
-HAVING COUNT(DISTINCT p.category) = (
-  SELECT COUNT(DISTINCT category) FROM products
-)
-ORDER BY e.name;`
-      }
-    ]
-  },
-  {
     id: 'relational-algebra',
     title: 'Relational Algebra \u2014 \u03C3, \u03C0, \u22C8, \u222A, \u2212, \u2229',
     description: 'Express queries as RA expressions then translate to SQL',
@@ -9797,4 +9934,4 @@ ORDER BY name;`
       }
     ]
   }
-]
+];
