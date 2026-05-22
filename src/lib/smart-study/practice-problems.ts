@@ -224,6 +224,30 @@ Return: a short answer describing the operation.`,
     solution: 'SELECT (σ / sigma). It filters tuples (rows) based on a predicate.'
   },
   {
+    id: 'pp-21', topic: 'Date Functions', difficulty: 'medium',
+    question: `Table: employees
+
+Find employees who were hired in the last 3 months before March 15, 2024.
+Show their name, hire date, and how many days before that reference date they were hired.
+
+Return columns: name, hire_date, days_before_ref
+Order by: days_before_ref ASC.`,
+    hint: 'Use WHERE hire_date >= DATE(\'2024-03-15\', \'-3 months\'). Calculate days with JULIANDAY(\'2024-03-15\') - JULIANDAY(hire_date).',
+    solution: "SELECT name, hire_date, CAST(JULIANDAY('2024-03-15') - JULIANDAY(hire_date) AS INTEGER) AS days_before_ref FROM employees WHERE hire_date >= DATE('2024-03-15', '-3 months') ORDER BY days_before_ref;"
+  },
+  {
+    id: 'pp-22', topic: 'Date Functions', difficulty: 'hard',
+    question: `Table: employees
+
+Find pairs of employees where the second was hired within 30 days after the first.
+Use a self-join with date arithmetic.
+
+Return columns: employee_1, hire_date_1, employee_2, hire_date_2, days_apart
+Order by: days_apart ASC, employee_1 ASC.`,
+    hint: 'Self-join employees e1 JOIN employees e2 ON e1.name < e2.name. Filter with JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) BETWEEN 1 AND 30.',
+    solution: "SELECT e1.name AS employee_1, e1.hire_date AS hire_date_1, e2.name AS employee_2, e2.hire_date AS hire_date_2, CAST(JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) AS INTEGER) AS days_apart FROM employees e1 JOIN employees e2 ON e1.name < e2.name AND JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) BETWEEN 1 AND 30 ORDER BY days_apart, employee_1;"
+  },
+  {
     id: 'pp-20', topic: 'JOINs', difficulty: 'medium',
     question: `Table: employees, departments
 

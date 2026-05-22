@@ -6204,6 +6204,401 @@ ORDER BY name;`
 
   },
   {
+    id: 'date-functions',
+    title: 'Date & Time Functions',
+    description: 'Add, subtract, compare, and format dates across SQL dialects',
+    icon: '📅',
+    difficulty: 'intermediate',
+    prerequisites: ['select', 'where', 'joins'],
+    topics: ['DATE_ADD', 'DATE_SUB', 'DATEDIFF', 'INTERVAL', 'CURRENT_DATE', 'EXTRACT', 'STRFTIME', 'JULIANDAY', 'DATE_FORMAT', 'NOW', 'date arithmetic', 'cross-dialect', 'self-join date comparison'],
+    explanation: `── Real-World Analogy ──
+Dates in SQL are like numbers on a timeline. You can add/subtract intervals ("3 days from now"),
+calculate the gap between two dates ("how long since last order"), and extract parts ("orders in March").
+
+The challenge: every database has its OWN syntax for the same operation.
+
+── The Query You Asked About ──
+  SELECT w1.id
+  FROM Weather w1
+  JOIN Weather w2
+    ON w1.temperature > w2.temperature
+    AND w1.recordDate = DATE_ADD(w2.recordDate, INTERVAL 1 DAY);
+This is LeetCode 197 (Rising Temperature). It finds days where the temperature is warmer
+than the PREVIOUS day. The self-join pairs each row with the row from 1 day earlier.
+DATE_ADD(w2.recordDate, INTERVAL 1 DAY) means "the day after w2.recordDate".
+
+── DATE_ADD Across SQL Dialects ──
+| Operation         | MySQL / MariaDB              | SQLite (our platform)        | PostgreSQL                   | SQL Server                   |
+|-------------------|------------------------------|------------------------------|------------------------------|------------------------------|
+| Add N days        | DATE_ADD(d, INTERVAL N DAY)  | DATE(d, '+N days')           | d + INTERVAL 'N days'        | DATEADD(day, N, d)           |
+| Add N months      | DATE_ADD(d, INTERVAL N MONTH)| DATE(d, '+N months')         | d + INTERVAL 'N months'      | DATEADD(month, N, d)         |
+| Add N years       | DATE_ADD(d, INTERVAL N YEAR) | DATE(d, '+N years')          | d + INTERVAL 'N years'       | DATEADD(year, N, d)          |
+| Subtract N days   | DATE_SUB(d, INTERVAL N DAY)  | DATE(d, '-N days')           | d - INTERVAL 'N days'        | DATEADD(day, -N, d)          |
+| Days between      | DATEDIFF(d1, d2)             | JULIANDAY(d1) - JULIANDAY(d2)| d1 - d2 (date subtraction)   | DATEDIFF(day, d2, d1)        |
+| Current date      | CURDATE()                    | DATE('now')                  | CURRENT_DATE                 | GETDATE()                    |
+| Current timestamp | NOW()                        | DATETIME('now')              | CURRENT_TIMESTAMP            | GETDATE()                    |
+| Extract year      | YEAR(d)                      | CAST(STRFTIME('%Y',d) AS INT)| EXTRACT(YEAR FROM d)         | YEAR(d)                      |
+| Extract month     | MONTH(d)                     | CAST(STRFTIME('%m',d) AS INT)| EXTRACT(MONTH FROM d)        | MONTH(d)                     |
+| Format date       | DATE_FORMAT(d, '%Y-%m-%d')   | STRFTIME('%Y-%m-%d', d)      | TO_CHAR(d, 'YYYY-MM-DD')     | FORMAT(d, 'yyyy-MM-dd')      |
+
+── Key: The LeetCode 197 Pattern in Each Dialect ──
+  -- MySQL (the original):
+  SELECT w1.id FROM Weather w1
+  JOIN Weather w2 ON w1.temperature > w2.temperature
+    AND w1.recordDate = DATE_ADD(w2.recordDate, INTERVAL 1 DAY);
+
+  -- SQLite (our platform — use DATE() with '+N days'):
+  SELECT w1.id FROM Weather w1
+  JOIN Weather w2 ON w1.temperature > w2.temperature
+    AND w1.recordDate = DATE(w2.recordDate, '+1 days');
+
+  -- PostgreSQL:
+  SELECT w1.id FROM Weather w1
+  JOIN Weather w2 ON w1.temperature > w2.temperature
+    AND w1.recordDate = w2.recordDate + INTERVAL '1 day';
+
+  -- SQL Server:
+  SELECT w1.id FROM Weather w1
+  JOIN Weather w2 ON w1.temperature > w2.temperature
+    AND w1.recordDate = DATEADD(day, 1, w2.recordDate);
+
+── Core Functions in SQLite (Our Platform) ──
+  DATE(timestring, modifier, ...)    → returns date as 'YYYY-MM-DD'
+  TIME(timestring, modifier, ...)    → returns time as 'HH:MM:SS'
+  DATETIME(timestring, modifier, ...)→ returns datetime 'YYYY-MM-DD HH:MM:SS'
+  STRFTIME(format, timestring, ...)  → custom format (like DATE_FORMAT in MySQL)
+  JULIANDAY(timestring)              → days since 4714 BC (for date arithmetic)
+
+  Modifiers: '+N days', '-N months', 'start of month', 'start of year', 'localtime'
+
+  -- Examples:
+  SELECT DATE('now');                          -- today: 2026-05-22
+  SELECT DATE('now', '+7 days');               -- 7 days from now
+  SELECT DATE('now', 'start of month');        -- first day of current month
+  SELECT DATE('2024-01-15', '+1 month');       -- 2024-02-15
+  SELECT JULIANDAY('2024-01-20') - JULIANDAY('2024-01-15');  -- 5 days
+
+── EXTRACT / STRFTIME ──
+  Extract year, month, day from a date:
+
+  -- SQLite using STRFTIME:
+  SELECT
+    STRFTIME('%Y', hire_date) AS year,
+    STRFTIME('%m', hire_date) AS month,
+    STRFTIME('%d', hire_date) AS day,
+    STRFTIME('%w', hire_date) AS weekday  -- 0=Sunday, 6=Saturday
+  FROM employees;
+
+  -- Equivalent in MySQL:  YEAR(hire_date), MONTH(hire_date), DAY(hire_date)
+  -- Equivalent in PostgreSQL: EXTRACT(YEAR FROM hire_date), etc.
+
+── Common Date Patterns ──
+  -- Filter by date range:
+  SELECT * FROM orders
+  WHERE order_date BETWEEN '2024-01-01' AND '2024-03-31';
+
+  -- Find orders in the last 30 days:
+  SELECT * FROM orders
+  WHERE order_date >= DATE('now', '-30 days');
+
+  -- Group by month:
+  SELECT
+    STRFTIME('%Y-%m', order_date) AS month,
+    COUNT(*) AS order_count,
+    ROUND(SUM(total), 2) AS revenue
+  FROM orders
+  GROUP BY month
+  ORDER BY month;
+
+  -- Self-join: compare each row with previous day (LeetCode 197):
+  SELECT w1.id
+  FROM Weather w1
+  JOIN Weather w2
+    ON w1.temperature > w2.temperature
+    AND w1.recordDate = DATE(w2.recordDate, '+1 days');`,
+
+    syntax: `-- SQLite date functions syntax:
+
+-- Current date/time
+SELECT DATE('now');                    -- '2026-05-22'
+SELECT TIME('now');                    -- '14:30:00'
+SELECT DATETIME('now');                -- '2026-05-22 14:30:00'
+SELECT DATETIME('now', 'localtime');   -- local timezone
+
+-- Add/subtract intervals
+DATE(date_string, '+N days');
+DATE(date_string, '-N days');
+DATE(date_string, '+N months');
+DATE(date_string, '+N years');
+
+-- Days between two dates
+JULIANDAY(d1) - JULIANDAY(d2)
+
+-- Extract parts
+STRFTIME('%Y', date_string)  -- year (4 digits)
+STRFTIME('%m', date_string)  -- month (01-12)
+STRFTIME('%d', date_string)  -- day (01-31)
+STRFTIME('%w', date_string)  -- weekday (0=Sun, 6=Sat)
+STRFTIME('%H', time_string)  -- hour (00-23)
+STRFTIME('%M', time_string)  -- minute (00-59)
+
+-- LeetCode 197 pattern in SQLite
+SELECT w1.id
+FROM weather w1
+JOIN weather w2
+  ON w1.temperature > w2.temperature
+  AND w1.recordDate = DATE(w2.recordDate, '+1 days');`,
+    examples: [
+      {
+        title: 'CURRENT_DATE and basic arithmetic',
+        sql: `-- Today's date and future dates
+SELECT
+  DATE('now') AS today,
+  DATE('now', '+1 day') AS tomorrow,
+  DATE('now', '+7 days') AS next_week,
+  DATE('now', 'start of month') AS month_start,
+  DATE('now', 'start of month', '+1 month', '-1 day') AS month_end;`,
+        explanation: 'Shows today, tomorrow, next week, first day of month, and last day of month. Note that modifiers chain: start of month → add 1 month → subtract 1 day = last day of month.',
+        cppRepresentation: `// Intuitive C++ representation of: date arithmetic
+// DATE('now', '+1 day') = today + 1 day
+time_t now = time(0);
+tm* tmNow = localtime(&now);
+tm tmTomorrow = *tmNow; tmTomorrow.tm_mday += 1; mktime(&tmTomorrow);
+cout << "today: " << asctime(tmNow);
+cout << "tomorrow: " << asctime(&tmTomorrow);`
+      },
+      {
+        title: 'DATE_ADD alternatives (LeetCode 197)',
+        sql: `-- SQLite: DATE(date, '+N days')
+SELECT
+  DATE('2024-01-15') AS original,
+  DATE('2024-01-15', '+1 day') AS plus_1_day_sqlite;
+
+-- Equivalent in other dialects (conceptual):
+-- MySQL:  DATE_ADD('2024-01-15', INTERVAL 1 DAY)
+-- PG:    '2024-01-15'::date + INTERVAL '1 day'
+-- SQL Server: DATEADD(day, 1, '2024-01-15')
+
+-- Rising temperature pattern (SQLite):
+-- SELECT w1.id FROM Weather w1
+-- JOIN Weather w2 ON w1.temperature > w2.temperature
+--   AND w1.recordDate = DATE(w2.recordDate, '+1 days');`,
+        explanation: 'DATE(date, \'+N days\') is the SQLite equivalent of MySQL\'s DATE_ADD(). The LeetCode 197 pattern uses this to find consecutive-day temperature increases.',
+        cppRepresentation: `// C++ representation of: DATE_ADD / date + 1 day
+struct Weather { int id; double temp; string date; };
+bool isNextDay(const string& d1, const string& d2) {
+    // parse YYYY-MM-DD, compare day delta == 1
+    int y1,m1,d1d, y2,m2,d2d;
+    sscanf(d1.c_str(),"%d-%d-%d",&y1,&m1,&d1d);
+    sscanf(d2.c_str(),"%d-%d-%d",&y2,&m2,&d2d);
+    tm t1 = {0,0,0,d1d,m1-1,y1-1900};
+    tm t2 = {0,0,0,d2d,m2-1,y2-1900};
+    time_t tt1 = mktime(&t1), tt2 = mktime(&t2);
+    return difftime(tt1, tt2) == 86400; // 1 day in seconds
+}`
+      },
+      {
+        title: 'DATEDIFF / JULIANDAY',
+        sql: `-- Days between two dates (SQLite)
+SELECT
+  JULIANDAY('2024-12-31') - JULIANDAY('2024-01-01') AS days_in_year;
+
+-- How long since each employee was hired?
+SELECT
+  name,
+  hire_date,
+  CAST(JULIANDAY('now') - JULIANDAY(hire_date) AS INTEGER) AS days_employed
+FROM employees
+ORDER BY hire_date;`,
+        explanation: 'JULIANDAY converts a date to a continuous day count. Subtracting two JULIANDAY values gives the exact number of days between them. JULIANDAY(\'now\') gives today.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// C++ representation of: JULIANDAY
+int julianDay(int y, int m, int d) {
+    return (1461 * (y + 4800 + (m - 14) / 12)) / 4
+         + (367 * (m - 2 - 12 * ((m - 14) / 12))) / 12
+         - (3 * ((y + 4900 + (m - 14) / 12) / 100)) / 4 + d - 32075;
+}
+int daysBetween(string d1, string d2) {
+    // Parse dates, compute JD difference
+    int y1,m1,d1d, y2,m2,d2d;
+    sscanf(d1.c_str(),"%d-%d-%d",&y1,&m1,&d1d);
+    sscanf(d2.c_str(),"%d-%d-%d",&y2,&m2,&d2d);
+    return julianDay(y1,m1,d1d) - julianDay(y2,m2,d2d);
+}`
+      },
+      {
+        title: 'EXTRACT / STRFTIME',
+        sql: `-- Extract year, month, day from dates
+SELECT
+  name,
+  hire_date,
+  CAST(STRFTIME('%Y', hire_date) AS INTEGER) AS hire_year,
+  CAST(STRFTIME('%m', hire_date) AS INTEGER) AS hire_month,
+  STRFTIME('%Y-%m', hire_date) AS hire_ym
+FROM employees
+ORDER BY hire_date;
+
+-- Find employees hired in 2023
+SELECT name, hire_date
+FROM employees
+WHERE STRFTIME('%Y', hire_date) = '2023'
+ORDER BY hire_date;`,
+        explanation: 'STRFTIME formats dates using strftime-style format strings. %Y = 4-digit year, %m = 2-digit month, %d = 2-digit day. CAST(... AS INTEGER) converts text to number for comparison.',
+        sourceTables: ['employees'],
+        cppRepresentation: `// C++ representation of: EXTRACT(YEAR FROM hire_date)
+struct Employee { string name; string hire_date; };
+for (int i = 0; i < empCount; i++) {
+    int year = stoi(employees[i].hire_date.substr(0, 4));
+    int month = stoi(employees[i].hire_date.substr(5, 2));
+    if (year == 2023)
+        cout << employees[i].name << "\\n";
+}`
+      },
+      {
+        title: 'Self-join with date comparison (LeetCode 197)',
+        sql: `-- Fake weather data for the example
+CREATE TABLE weather (
+  id INTEGER PRIMARY KEY,
+  recordDate DATE NOT NULL,
+  temperature INTEGER NOT NULL
+);
+INSERT INTO weather VALUES (1, '2024-01-01', 10);
+INSERT INTO weather VALUES (2, '2024-01-02', 25);
+INSERT INTO weather VALUES (3, '2024-01-03', 20);
+INSERT INTO weather VALUES (4, '2024-01-04', 30);
+
+-- Find days warmer than the previous day
+SELECT w1.id
+FROM weather w1
+JOIN weather w2
+  ON w1.temperature > w2.temperature
+  AND w1.recordDate = DATE(w2.recordDate, '+1 days')
+ORDER BY w1.id;`,
+        explanation: 'This is LeetCode 197. The self-join pairs each day (w1) with the previous day (w2). DATE(w2.recordDate, \'+1 days\') = w1.recordDate ensures they\'re consecutive. The temperature comparison filters to warmer days. Result: id=2 (25>10) and id=4 (30>20).',
+        cppRepresentation: `// C++ representation of: LeetCode 197
+struct Weather { int id; string date; int temp; };
+for (int i = 0; i < weatherCount; i++) {
+    for (int j = 0; j < weatherCount; j++) {
+        if (weather[i].temp > weather[j].temp
+            && isNextDay(weather[i].date, weather[j].date))
+            cout << weather[i].id << "\\n";
+    }
+}`
+      },
+      {
+        title: 'Filtering and grouping by date',
+        sql: `-- Total sales per month in 2024
+SELECT
+  STRFTIME('%Y-%m', o.order_date) AS month,
+  COUNT(*) AS orders,
+  ROUND(SUM(o.total), 2) AS revenue
+FROM orders o
+WHERE o.order_date >= '2024-01-01'
+  AND o.order_date < '2025-01-01'
+GROUP BY month
+ORDER BY month;
+
+-- Products ordered in the last 2 months (from sample data)
+SELECT p.name, o.order_date
+FROM products p
+JOIN orders o ON p.id = o.product_id
+WHERE o.order_date >= DATE('2024-02-01')
+ORDER BY o.order_date;`,
+        explanation: 'STRFTIME(\'%Y-%m\', date) extracts year-month for grouping. Date range filtering uses BETWEEN or >= / <. The second query shows JOIN + date filter + ORDER BY in one query.',
+        sourceTables: ['orders', 'products'],
+        cppRepresentation: `// C++ representation of: GROUP BY month
+struct Order { double total; string date; };
+map<string, int> monthCount;
+map<string, double> monthRevenue;
+for (int i = 0; i < orderCount; i++) {
+    string m = orders[i].date.substr(0, 7); // "2024-01"
+    monthCount[m]++;
+    monthRevenue[m] += orders[i].total;
+}
+for (auto& [m, cnt] : monthCount)
+    cout << m << " | " << cnt << " | $" << monthRevenue[m] << "\\n";`
+      }
+    ],
+    commonMistakes: [
+      'Using MySQL DATE_ADD() syntax in SQLite — use DATE(date, \'+N days\') instead',
+      'Forgetting that STRFTIME returns TEXT, not integers — CAST to INTEGER for numeric comparison',
+      'Assuming all databases use the same date functions — always check the dialect',
+      'Using = instead of BETWEEN for date ranges (watch out for time components in timestamps)',
+      'Confusing DATEADD (SQL Server) with DATE_ADD (MySQL) — the argument order is different',
+      'Forgetting JULIANDAY for date difference in SQLite — subtracting dates directly does NOT work'
+    ],
+    practiceQuestions: [
+      {
+        question: `Table: employees
+
+List all employees who were hired in the 3 months before March 15, 2024.
+
+Return columns: name, hire_date, days_before_ref
+Order by: days_before_ref ASC.`,
+        hint: 'Use a fixed reference date: JULIANDAY(\'2024-03-15\') - JULIANDAY(hire_date) to calculate days. Filter with WHERE hire_date >= DATE(\'2024-03-15\', \'-3 months\').',
+        solution: `SELECT name, hire_date,
+  CAST(JULIANDAY('2024-03-15') - JULIANDAY(hire_date) AS INTEGER) AS days_before_ref
+FROM employees
+WHERE hire_date >= DATE('2024-03-15', '-3 months')
+ORDER BY days_before_ref;`
+      },
+      {
+        question: `Table: orders
+
+Find the number of orders per month and their total revenue for the year 2024.
+
+Return columns: month (YYYY-MM format), order_count, revenue
+Order by: month ASC.`,
+        hint: 'Use STRFTIME(\'%Y-%m\', order_date) AS month, COUNT(*), and ROUND(SUM(total), 2). Filter WHERE order_date >= \'2024-01-01\' AND order_date < \'2025-01-01\'.',
+        solution: `SELECT
+  STRFTIME('%Y-%m', order_date) AS month,
+  COUNT(*) AS order_count,
+  ROUND(SUM(total), 2) AS revenue
+FROM orders
+WHERE order_date >= '2024-01-01'
+  AND order_date < '2025-01-01'
+GROUP BY month
+ORDER BY month;`
+      },
+      {
+        question: `Table: employees
+
+Medium: Find pairs of employees where the second was hired within 30 days after the first. Use a self-join with date arithmetic.
+
+Return columns: employee_1, hire_date_1, employee_2, hire_date_2, days_apart
+Order by: days_apart ASC, employee_1 ASC.`,
+        hint: 'Self-join employees e1 JOIN employees e2 ON e1.name < e2.name. Use JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) BETWEEN 1 AND 30.',
+        solution: `SELECT
+  e1.name AS employee_1,
+  e1.hire_date AS hire_date_1,
+  e2.name AS employee_2,
+  e2.hire_date AS hire_date_2,
+  CAST(JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) AS INTEGER) AS days_apart
+FROM employees e1
+JOIN employees e2
+  ON e1.name < e2.name
+  AND JULIANDAY(e2.hire_date) - JULIANDAY(e1.hire_date) BETWEEN 1 AND 30
+ORDER BY days_apart, employee_1;`
+      },
+      {
+        question: `Table: weather
+
+Challenge (LeetCode 197): Given a weather table with id, recordDate, and temperature, find all dates where the temperature is higher than the previous day (consecutive date comparison).
+
+Return columns: id
+Order by: id ASC.`,
+        hint: 'Self-join weather w1 JOIN weather w2. The ON clause has two conditions: w1.temperature > w2.temperature AND w1.recordDate = DATE(w2.recordDate, \'+1 days\').',
+        solution: `SELECT w1.id
+FROM weather w1
+JOIN weather w2
+  ON w1.temperature > w2.temperature
+  AND w1.recordDate = DATE(w2.recordDate, '+1 days')
+ORDER BY w1.id;`
+      }
+    ]
+
+  },
+  {
     id: 'set-operations',
     title: 'Set Operations',
     description: 'Combine result sets with UNION, INTERSECT, and EXCEPT',

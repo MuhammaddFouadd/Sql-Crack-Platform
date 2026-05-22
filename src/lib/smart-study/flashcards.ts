@@ -76,4 +76,9 @@ export const flashcards: ReviewCard[] = [
 
   // Relational Algebra
   { id: 'sr-ra-1', topic: 'Relational Algebra', question: 'What are the five fundamental operations of relational algebra?', answer: 'SELECT (σ — filter rows), PROJECT (π — pick columns), RENAME (ρ — rename), UNION (∪), SET DIFFERENCE (−), CARTESIAN PRODUCT (×). These form the theoretical foundation of SQL.', difficulty: 'advanced', lastReviewed: null, nextReview: null, interval: 0, easeFactor: 2.5, repetitions: 0 },
+
+  // Date Functions
+  { id: 'sr-date-1', topic: 'Date Functions', question: 'What is the SQLite equivalent of MySQL\'s DATE_ADD(date, INTERVAL 1 DAY)?', answer: 'DATE(date, \'+1 days\'). SQLite uses the modifier syntax: DATE(timestring, modifier, ...) where modifiers include \'+N days\', \'+N months\', \'-N years\', \'start of month\', etc.', difficulty: 'intermediate', lastReviewed: null, nextReview: null, interval: 0, easeFactor: 2.5, repetitions: 0 },
+  { id: 'sr-date-2', topic: 'Date Functions', question: 'How do you calculate the number of days between two dates in SQLite?', answer: 'Use JULIANDAY(d1) - JULIANDAY(d2). JULIANDAY converts a date to a continuous day count suitable for arithmetic. Note: subtracting dates directly does NOT work in SQLite.', difficulty: 'intermediate', lastReviewed: null, nextReview: null, interval: 0, easeFactor: 2.5, repetitions: 0 },
+  { id: 'sr-date-3', topic: 'Date Functions', question: 'Describe the LeetCode 197 pattern (Rising Temperature) in SQLite syntax.', answer: 'Self-join the weather table: SELECT w1.id FROM Weather w1 JOIN Weather w2 ON w1.temperature > w2.temperature AND w1.recordDate = DATE(w2.recordDate, \'+1 days\'). The DATE(w2.recordDate, \'+1 days\') gives the next day after w2.recordDate.', difficulty: 'intermediate', lastReviewed: null, nextReview: null, interval: 0, easeFactor: 2.5, repetitions: 0 },
 ]
