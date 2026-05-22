@@ -79,7 +79,7 @@ function CollapseSection({
 
 const mdComponents: any = {
   table: ({ children }: any) => (
-    <div className="overflow-x-auto my-2">
+    <div className="overflow-x-auto overflow-y-auto max-h-96 my-3 rounded-xl border-2 border-border/60 bg-card">
       <table className="w-full text-sm border-collapse">{children}</table>
     </div>
   ),
@@ -279,7 +279,7 @@ export default function ExampleViewer({ examples }: { examples: ExampleData[] })
                         </div>
                       </div>
                     ) : res.columns.length > 0 ? (
-                      <div className="border-2 border-border rounded-xl overflow-hidden">
+                      <div className="overflow-x-auto overflow-y-auto max-h-96">
                         <TableViz
                           columns={res.columns.map(c => ({ name: c }))}
                           data={res.rows}

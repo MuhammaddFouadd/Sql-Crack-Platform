@@ -211,7 +211,7 @@ function StepBadge({ num }: { num: string }) {
 
 const mdComponents: any = {
   table: ({ children }: any) => (
-    <div className="overflow-x-auto -mx-1 my-3 rounded-xl border-2 border-border/60">
+    <div className="overflow-x-auto overflow-y-auto max-h-96 my-3 rounded-xl border-2 border-border/60">
       <table className="w-full text-sm border-collapse">{children}</table>
     </div>
   ),

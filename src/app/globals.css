@@ -203,11 +203,6 @@ pre code {
 .markdown-content table th {
   white-space: nowrap;
 }
-.markdown-content table {
-  display: block;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
 .markdown-content hr {
   border: none;
   height: 2px;
