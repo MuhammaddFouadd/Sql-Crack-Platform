@@ -151,7 +151,7 @@ export default function CreateIndexEngine({ className }: CreateIndexEngineProps)
               {step === 0 && (
                 <div>
                   <div className="text-xs font-semibold text-text-muted mb-2 uppercase tracking-wider font-mono">Employee table — sorted by salary</div>
-                  <div className="border-2 border-border rounded-xl overflow-hidden">
+                  <div className="border-2 border-border rounded-xl overflow-x-auto overflow-y-auto max-h-96">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-cream-dark border-b-2 border-border">

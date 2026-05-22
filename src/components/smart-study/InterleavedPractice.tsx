@@ -453,7 +453,7 @@ export default function InterleavedPractice() {
                       <span className="text-xs font-bold text-text">Your Result</span>
                       <span className="text-[10px] text-text-muted">({userResult.values.length} rows)</span>
                     </div>
-                    <div className="bg-cream-dark border-2 border-border rounded-xl overflow-x-auto">
+                    <div className="bg-cream-dark border-2 border-border rounded-xl overflow-x-auto overflow-y-auto max-h-96">
                       <table className="w-full text-xs font-mono">
                         <thead>
                           <tr>
@@ -480,7 +480,7 @@ export default function InterleavedPractice() {
                       <span className="text-xs font-bold text-text">Expected Result</span>
                       <span className="text-[10px] text-text-muted">({expectedResult.values.length} rows)</span>
                     </div>
-                    <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-x-auto">
+                    <div className="bg-green-light/30 border-2 border-green/20 rounded-xl overflow-x-auto overflow-y-auto max-h-96">
                       <table className="w-full text-xs font-mono">
                         <thead>
                           <tr>

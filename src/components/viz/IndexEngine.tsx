@@ -68,7 +68,7 @@ export default function IndexEngine({ className }: IndexEngineProps) {
               <span className="text-xs font-semibold text-rose uppercase tracking-wider">Sequential Scan</span>
               <span className="text-xs text-text-muted">— checks every row</span>
             </div>
-            <div className="border-2 border-border rounded-xl overflow-hidden">
+            <div className="border-2 border-border rounded-xl overflow-x-auto overflow-y-auto max-h-96">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-cream-dark border-b-2 border-border">

@@ -121,7 +121,7 @@ export default function JoinViz({ className }: JoinVizProps) {
             <span className="text-xs font-semibold text-text uppercase tracking-wider">{joinType} JOIN Result</span>
             <span className="text-xs text-text-muted font-mono">{result.length} rows</span>
           </div>
-          <div className="bg-card border-2 border-border rounded-xl overflow-hidden">
+          <div className="bg-card border-2 border-border rounded-xl overflow-x-auto overflow-y-auto max-h-96">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-cream-dark border-b-2 border-border">

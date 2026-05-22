@@ -108,7 +108,7 @@ export default function WindowViz({ className }: { className?: string }) {
             Example: {funcLabels[func].example} · Partitioned by <strong>department</strong>
           </div>
 
-          <div className="bg-card border-2 border-border rounded-xl overflow-hidden">
+          <div className="bg-card border-2 border-border rounded-xl overflow-x-auto overflow-y-auto max-h-96">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-cream-dark border-b-2 border-border">
